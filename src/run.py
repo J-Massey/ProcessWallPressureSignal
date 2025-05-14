@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
 """
-Wall‐ and Free‐Stream Pressure Processing
+Wall- and Free-Stream Pressure Processing
 Hard-coded inputs and parameters for transparency.
 """
 
