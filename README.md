@@ -12,9 +12,9 @@ Before using the toolkit, you need to install it and its dependencies. Make sure
 
 - **Clone or Download the Repository:** If you have Git installed, you can clone the repository using:  
   ```bash
-  git clone <repository-url>
+  git clone https://github.com/J-Massey/ProcessWallPressureSignal.git
   ```  
-  (Replace `<repository-url>` with the actual URL of the ProcessWallPressureSignal repository.)  
+  (Replace `https://github.com/J-Massey/ProcessWallPressureSignal.git` with the actual URL of the ProcessWallPressureSignal repository.)  
   Alternatively, download the repository as a ZIP file from the project page (e.g., via the "Code" > "Download ZIP" option) and unzip it on your computer.
 
 - **Install via pip:** Once you have the code, navigate to the repository folder in your terminal or command prompt. Then run:  
