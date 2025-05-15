@@ -6,5 +6,7 @@ ProcessWallPressureSignal.egg-info/requires.txt
 ProcessWallPressureSignal.egg-info/top_level.txt
 src/__init__.py
 src/io.py
+src/noise_rejection.py
 src/plotting.py
 src/processing.py
+src/run.py
