@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.io as sio
-from scipy.signal import welch, find_peaks, peak_widths
+from scipy.signal import welch, find_peaks, peak_widths, csd, iirnotch, filtfilt
+from icecream import ic
 
 
 def compute_psd(signal, fs, nperseg=None, noverlap=None):
@@ -12,15 +13,31 @@ def compute_psd(signal, fs, nperseg=None, noverlap=None):
     return welch(signal, fs=fs, window="hann",
                  nperseg=nperseg, noverlap=noverlap)
 
-def propagate_error(f_raw, psd, nu0, rho0, u_tau0, err_frac):
+def compute_csd(signal1, signal2, fs, nperseg=None, noverlap=None):
+    """One-sided PSD via Welch."""
+    if nperseg is None:
+        nperseg = len(signal1) // 2000
+    if noverlap is None:
+        noverlap = nperseg // 2
+    return csd(signal1, signal2, fs=fs, window="hann",
+                 nperseg=nperseg, noverlap=noverlap)
+
+def propagate_frequency_error(f_raw, nu0, u_tau0, err_frac):
     """Compute nominal and ±error bounds for f+ and Phi+."""
     nu_min, nu_max     = nu0*(1-err_frac), nu0*(1+err_frac)
     u_tau_min, u_tau_max = u_tau0*(1-err_frac), u_tau0*(1+err_frac)
-    rho_min, rho_max   = rho0*(1-err_frac), rho0*(1+err_frac)
 
     f_nom = f_raw * nu0 / u_tau0**2
     f_min = f_raw * nu_min / u_tau_max**2
     f_max = f_raw * nu_max / u_tau_min**2
+
+    return f_nom, f_min, f_max
+
+def propagate_PSD_error(f_raw, psd, nu0, rho0, u_tau0, err_frac):
+    """Compute nominal and ±error bounds for f+ and Phi+."""
+    nu_min, nu_max     = nu0*(1-err_frac), nu0*(1+err_frac)
+    u_tau_min, u_tau_max = u_tau0*(1-err_frac), u_tau0*(1+err_frac)
+    rho_min, rho_max   = rho0*(1-err_frac), rho0*(1+err_frac)
 
     denom_nom = (rho0*u_tau0**2)**2
     denom_min = (rho_max*u_tau_max**2)**2
@@ -30,8 +47,7 @@ def propagate_error(f_raw, psd, nu0, rho0, u_tau0, err_frac):
     phi_min = f_raw * psd / denom_min
     phi_max = f_raw * psd / denom_max
 
-    return {"f_nom": f_nom, "f_min": f_min, "f_max": f_max,
-            "phi_nom": phi_nom, "phi_min": phi_min, "phi_max": phi_max}
+    return {"phi_nom": phi_nom, "phi_min": phi_min, "phi_max": phi_max}
 
 def duct_mode_freq(U, c, m, n, l, W, H, L):
     """Physical duct-mode frequency (quarter-wave, closed-open)."""
@@ -54,7 +70,7 @@ def compute_duct_modes(U, c, mode_m, mode_n, mode_l, W, H, L, nu0, u_tau0, err_f
                 freqs["max"].append(f_phys*nu_max/u_tau_min**2)
     return freqs
 
-def notch_filter(f_nom, phi_nom, f_min, f_max, mode_freqs,
+def notch_filter_fourier(f_nom, phi_nom, f_min, f_max, mode_freqs,
                  min_height=None, prominence=0.001, rel_height=0.9):
     """Notch out the largest PSD peak around each duct-mode."""
     peaks, props = find_peaks(phi_nom, height=min_height, prominence=prominence)
@@ -85,3 +101,64 @@ def notch_filter(f_nom, phi_nom, f_min, f_max, mode_freqs,
              phi_nom[int(np.ceil (right_ips[j]))]]
         )
     return phi_filt, info
+
+def notch_filter_timeseries(p, fs,
+                            f_duct_min, f_duct_max, f_duct_nom,
+                            nperseg=None, noverlap=None,
+                            min_height=None, prominence=0.002, rel_height=0.6):
+    """
+    Notch out the largest PSD peak around each duct-mode frequency.
+    Returns:
+      x_filt     : filtered time series
+      f_nom,Pxx_nom : original PSD
+      f_filt,Pxx_filt : PSD after notch
+      info       : list of dicts with notch details
+    """
+    N = len(p)
+    if nperseg is None:
+        nperseg = max(256, N // 2000)
+    if noverlap is None:
+        noverlap = nperseg // 2
+
+    # original PSD
+    f_nom, Pxx_nom = welch(p, fs=fs, nperseg=nperseg, noverlap=noverlap)
+
+    # find peaks
+    peaks, _ = find_peaks(Pxx_nom, height=min_height, prominence=prominence)
+    if peaks.size == 0:
+        return p.copy(), (f_nom, Pxx_nom), (None, None), []
+
+    x_filt = p.copy()
+    info = []
+
+    for f0, fmin, fmax in zip(f_duct_nom, f_duct_min, f_duct_max):
+        mask = (f_nom >= fmin) & (f_nom <= fmax)
+        in_band = peaks[mask[peaks]]
+        if in_band.size == 0:
+            continue
+
+        # pick largest peak
+        pk = in_band[np.argmax(Pxx_nom[in_band])]
+        widths, _, left_ips, right_ips = peak_widths(Pxx_nom, [pk], rel_height=rel_height)
+        fl = np.interp(left_ips[0], np.arange(len(f_nom)), f_nom)
+        fr = np.interp(right_ips[0], np.arange(len(f_nom)), f_nom)
+        bw = fr - fl
+        Q = f_nom[pk] / bw if bw > 0 else np.inf
+
+        # notch filter design
+        w0 = f_nom[pk] / (fs/2)
+        b, a = iirnotch(w0, Q)
+        x_filt = filtfilt(b, a, x_filt)
+
+        info.append({
+            "mode_freq": f0,
+            "peak_freq": float(f_nom[pk]),
+            "f_left": float(fl),
+            "f_right": float(fr),
+            "Q": float(Q)
+        })
+
+    # PSD of filtered signal
+    f_filt, Pxx_filt = welch(x_filt, fs=fs, nperseg=nperseg, noverlap=noverlap)
+
+    return x_filt, f_nom, Pxx_nom,f_filt, Pxx_filt, info

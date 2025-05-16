@@ -18,10 +18,11 @@ def plot_spectrum_and_modes(spec, modes, mode_l, outfile):
     if not hasattr(plot_spectrum_and_modes, "tit"):
         plot_spectrum_and_modes.tit = itertools.cycle([
             "Wall Pressure Spectrum",
-            "Free-Stream Pressure Spectrum"
+            "Free-Stream Pressure Spectrum",
+            "CSD"
         ])
     if not hasattr(plot_spectrum_and_modes, "col"):
-        plot_spectrum_and_modes.col = itertools.cycle(["blue", "green"])
+        plot_spectrum_and_modes.col = itertools.cycle(["blue", "green", "orange"])
     title = next(plot_spectrum_and_modes.tit)
     color = next(plot_spectrum_and_modes.col)
     ax.plot(1/spec["f_nom"], spec["phi_nom"], color, lw=0.5, alpha=0.8)
@@ -73,14 +74,15 @@ def plot_filtered_spectrum(spec, spec_filt, peaks_info, outfile, line):
     for a in ax:
         a.set_xscale("log")
         a.set_xlim(1/5e-1, 1/5e-4)
-    ax[0].set_ylim(0,25)
-    ax[1].set_ylim(0,7)
+    ax[0].set_ylim(-1, 1)
+    ax[1].set_ylim(-1e-1, 1e-1)
     ax[0].set_xlabel("$T^+$");  ax[1].set_xlabel("$T^+$")
     ax[0].set_ylabel("$f\\Phi_{pp}^+$")
     if not hasattr(plot_filtered_spectrum, "suptit"):
         plot_filtered_spectrum.suptit = itertools.cycle([
             "Wall Spectrum w/ Notched Duct Modes",
-            "Free-Stream Spectrum w/ Notched Duct Modes"
+            "Free-Stream Spectrum w/ Notched Duct Modes",
+            "CSD Spectrum w/ Notched Duct Modes"
         ])
     fig.suptitle(next(plot_filtered_spectrum.suptit), y=0.95)
     plt.tight_layout()
@@ -104,3 +106,30 @@ def plot_filtered_diff(spec, spec_filt_w, spec_filt_fs, outfile):
     plt.tight_layout()
     plt.savefig(outfile)
     plt.close()
+
+def plot_coherence(T_plus, coh, Pyy, Pyy_coh, outfile):
+    """Plot coherence and PSDs."""
+    fig, ax = plt.subplots(figsize=(4,2.6), dpi=600)
+    ax.loglog(T_plus, Pyy, label='Original Wall PSD')
+    ax.loglog(T_plus, Pyy_coh, label='Coherent Portion', linestyle='--')
+    ax.set_xlabel('$T^+$')
+    ax.set_ylabel(r'$\gamma^2(f)$')
+    ax.set_title('Coherence between Freestream and Wall-Pressure')
+    # ax.set_ylim([0, 1])
+    ax.grid(True)
+    ax.legend()
+    plt.tight_layout()
+    plt.savefig(outfile)
+    plt.close()
+
+def plot_wiener_filter(T_plus, Pyy2, P_clean, outfile):
+    """Plot the Wiener filter applied to the time series."""
+    fig, ax = plt.subplots(figsize=(4,2.5), dpi=600)
+    ax.semilogx(T_plus, Pyy2, label='Original Wall PSD')
+    ax.semilogx(T_plus, P_clean, label='Cleaned Wall PSD')
+    ax.set_xlabel('$T^+$')
+    ax.set_ylabel('PSD')
+    ax.grid(True)
+    ax.legend()
+    plt.tight_layout()
+    plt.savefig(outfile)
