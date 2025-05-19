@@ -1,0 +1,97 @@
+\documentclass[aspectratio=169]{beamer}
+\usepackage{natbib}
+\usepackage{graphicx}
+\graphicspath{{../.}}
+\usepackage{tikz}
+\usetikzlibrary{positioning}
+\usetikzlibrary{calc}
+\usepackage{multimedia}
+\usepackage{animate}
+\usepackage{hyperref}
+\usepackage{mathpazo}
+
+\definecolor{cardinalred}{RGB}{140,21,21}
+%--- Custom footline
+\setbeamertemplate{footline}{%
+\begin{beamercolorbox}[wd=\paperwidth,ht=4ex,dp=2.5ex]{}
+    \centering
+    \makebox[0.32\paperwidth][l]{\scriptsize\texttt{Lndn. 04-04}}
+    \makebox[0.32\paperwidth][c]{\scriptsize\texttt{$^{\dag}$masseyj@stanford.edu}}
+    \makebox[0.32\paperwidth][r]{\scriptsize\insertframenumber/\inserttotalframenumber}
+  \end{beamercolorbox}
+}
+\include{setup}
+
+\newcommand{\Rt}{\mathit{Re}_{\tau}}
+\newcommand{\Rey}{\mathit{Re}}
+
+%--- Title info
+\title{Pressure signal processing}
+\author{JMO Massey$^{\dag}$, F Cabrera-Booman, J Klewicki, BJ McKeon}
+\institute{Center for Turbulence Research \\ Stanford University}
+% \thanks{This work was supported by DARPA under the CHAOS program}
+\date{April 4, 2025}
+
+\begin{document}
+
+%--- Title page
+\begin{frame}
+    \setcounter{framenumber}{0}
+    \titlepage
+    \vfill
+    {\scriptsize \centering Thanks to DARPA for funding this work.\par}
+\end{frame}
+
+\begin{frame}{Duct modes}
+\end{frame}
+
+\begin{frame}{Time series filter duct modes}
+    \centering
+    \includegraphics[width=0.7\linewidth]{figures/notched_pressure_spectrum.png}
+    \begin{itemize}
+            \centering
+        \item Filter signal with bandwidth filter in the timeseries
+    \end{itemize}
+
+\end{frame}
+
+\begin{frame}{Coherence between wall and free-stream pressure}
+    \centering
+    \includegraphics[width=0.7\linewidth]{figures/coherence.png}
+    \begin{itemize}
+        \item Miss-alignment of F-S and Wall mic causes a phase shift
+        \item Maximised coherence based on time lag
+        \item Still uncorrelated
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Transfer function between reference spectra and measurements}
+    \centering
+    \includegraphics[width=0.7\linewidth]{figures/transfer_function_magnitude.png}
+    \begin{itemize}
+        \item Transfer function between reference spectra and measurements
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Corrected signals}
+    \centering
+    \includegraphics[width=0.7\linewidth]{figures/corrected_wall_pressure_signal_spectrum.png}
+    \begin{itemize}
+        \item Corrected wall pressure signal spectrum
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Corrected spectra}
+    \includegraphics[width=0.7\linewidth]{figures/corrected_wall_pressure_spectrum.png}
+\end{frame}
+
+\begin{frame}[noframenumbering,allowframebreaks]
+    \frametitle{References}
+    \bibliographystyle{jfm}
+    \bibliography{refs}
+\end{frame}
+
+% \section{Backup}
+% \include{sections/greens}
+
+\end{document}

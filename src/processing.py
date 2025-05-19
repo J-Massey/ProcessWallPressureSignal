@@ -22,14 +22,14 @@ def compute_csd(signal1, signal2, fs, nperseg=None, noverlap=None):
     return csd(signal1, signal2, fs=fs, window="hann",
                  nperseg=nperseg, noverlap=noverlap)
 
-def propagate_frequency_error(f_raw, nu0, u_tau0, err_frac):
-    """Compute nominal and ±error bounds for f+ and Phi+."""
+def propagate_frequency_error(f_duct, nu0, u_tau0, err_frac):
+    """Compute nominal and ±error bounds for f_duct"""
     nu_min, nu_max     = nu0*(1-err_frac), nu0*(1+err_frac)
     u_tau_min, u_tau_max = u_tau0*(1-err_frac), u_tau0*(1+err_frac)
 
-    f_nom = f_raw * nu0 / u_tau0**2
-    f_min = f_raw * nu_min / u_tau_max**2
-    f_max = f_raw * nu_max / u_tau_min**2
+    f_nom = f_duct * nu0 / u_tau0**2
+    f_min = f_duct * nu_min / u_tau_max**2
+    f_max = f_duct * nu_max / u_tau_min**2
 
     return f_nom, f_min, f_max
 
@@ -47,7 +47,7 @@ def propagate_PSD_error(f_raw, psd, nu0, rho0, u_tau0, err_frac):
     phi_min = f_raw * psd / denom_min
     phi_max = f_raw * psd / denom_max
 
-    return {"phi_nom": phi_nom, "phi_min": phi_min, "phi_max": phi_max}
+    return phi_nom, phi_min, phi_max
 
 def duct_mode_freq(U, c, m, n, l, W, H, L):
     """Physical duct-mode frequency (quarter-wave, closed-open)."""
@@ -80,8 +80,8 @@ def notch_filter_fourier(f_nom, phi_nom, f_min, f_max, mode_freqs,
     idx = np.arange(len(f_nom))
     phi_filt = phi_nom.copy()
     info = []
-    for f0 in mode_freqs:
-        band = (f_min <= f0) & (f_max >= f0)
+    for f0, fmin, fmax in zip(f_nom, f_min, f_max):
+        band = (f_nom >= fmin) & (f_nom <= fmax)
         if not np.any(band):
             continue
         low, high = f_nom[band][0], f_nom[band][-1]
@@ -104,8 +104,7 @@ def notch_filter_fourier(f_nom, phi_nom, f_min, f_max, mode_freqs,
 
 def notch_filter_timeseries(p, fs,
                             f_duct_min, f_duct_max, f_duct_nom,
-                            nperseg=None, noverlap=None,
-                            min_height=None, prominence=0.002, rel_height=0.6):
+                            min_height=None, prominence=0.002, rel_height=0.5):
     """
     Notch out the largest PSD peak around each duct-mode frequency.
     Returns:
@@ -115,10 +114,8 @@ def notch_filter_timeseries(p, fs,
       info       : list of dicts with notch details
     """
     N = len(p)
-    if nperseg is None:
-        nperseg = max(256, N // 2000)
-    if noverlap is None:
-        noverlap = nperseg // 2
+    nperseg = max(256, N // 2000)
+    noverlap = nperseg // 2
 
     # original PSD
     f_nom, Pxx_nom = welch(p, fs=fs, nperseg=nperseg, noverlap=noverlap)
