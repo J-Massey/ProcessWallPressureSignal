@@ -43,6 +43,55 @@ def align_signals(p_free, p_wall, fs, max_lag_s=None):
     p_wall_al = p_wall   [start_w:start_w+n]
     return p_free_al, p_wall_al, tau
 
+def phase_match(sig1, sig2, fs):
+    """
+    Phase-match two signals in the frequency domain.
+
+    This function finds a frequency-dependent phase correction between sig1 (e.g., freestream pressure)
+    and sig2 (e.g., wall pressure), and applies it to sig1 to align its phase with sig2's phase:contentReference[oaicite:0]{index=0}.
+    It uses the cross power spectrum to estimate the phase difference at each frequency,
+    which represents the phase lag between the two signals:contentReference[oaicite:1]{index=1}.
+
+    Parameters:
+    sig1 : array_like
+        The first time-series signal (e.g., freestream pressure).
+    sig2 : array_like
+        The second time-series signal (reference signal, e.g., wall pressure).
+    fs : float
+        Sampling frequency of the signals (not explicitly used in phase matching calculation,
+        included for completeness or future use).
+
+    Returns:
+    sig1_phase_matched : ndarray
+        The phase-corrected version of sig1, aligned in phase with sig2.
+
+    Notes:
+    - The signals are assumed to be time-aligned (no major time lag).
+    - The method computes the cross-spectrum and adjusts the phase of sig1 to match sig2
+      at each frequency. This preserves sig1's magnitude spectrum and only alters its phase.
+    - The output is a real signal, obtained via inverse FFT after phase correction.
+    - This approach is efficient (uses FFT) and numerically stable for large signals, preserving the coherent phase relationships required for Wiener filtering:contentReference[oaicite:2]{index=2}.
+    """
+    sig1 = np.asarray(sig1)
+    sig2 = np.asarray(sig2)
+    N = len(sig1) if len(sig1) <= len(sig2) else len(sig2)  # ensure same length
+    sig1 = sig1[:N]
+    sig2 = sig2[:N]
+    # Compute one-sided FFT (rfft) for efficiency with real signals
+    F1 = np.fft.rfft(sig1)
+    F2 = np.fft.rfft(sig2)
+    # Compute phase difference for each frequency bin
+    phase_diff = np.angle(F2) - np.angle(F1)
+    # Unwrap the phase difference to avoid 2π discontinuities
+    phase_diff = np.unwrap(phase_diff)
+    # Construct complex phase correction (unit magnitude factors)
+    phase_correction = np.exp(1j * phase_diff)
+    # Apply phase correction to F1's spectrum
+    F1_matched = F1 * phase_correction
+    # Inverse FFT to get the phase-adjusted time-domain signal
+    sig1_phase_matched = np.fft.irfft(F1_matched, n=N)
+    return sig1_phase_matched
+
 def compute_coherence(p_free, p_wall, fs):
     """
     Compute coherence between free-stream and wall-pressure signals.
