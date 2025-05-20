@@ -63,11 +63,14 @@ def main():
 
 
     # 3) Compute wall pressure spectrum w. and w.out duct modes
-    x_wall_filt, f_wall_nom_nom_filt, phi_wall_filt, f_wall_nom, phi_wall_nom, info_wall =\
-        notch_filter_timeseries(p_w, SAMPLE_RATE,
-                                np.array(duct_modes['min'])*(U_TAU0**2/NU0),
-                                np.array(duct_modes['max'])*(U_TAU0**2/NU0),
-                                np.array(duct_modes["nom"])*(U_TAU0**2/NU0))
+    x_wall_filt, (f_wall_nom_filt, phi_wall_filt), (f_wall_nom, phi_wall_nom), info_wall = \
+        notch_filter_timeseries(
+            p_w,
+            SAMPLE_RATE,
+            np.array(duct_modes['min']) * (U_TAU0**2 / NU0),
+            np.array(duct_modes['max']) * (U_TAU0**2 / NU0),
+            np.array(duct_modes["nom"]) * (U_TAU0**2 / NU0),
+        )
     p_w = x_wall_filt
     # 3) Compute wall pressure spectrum and free-stream pressure spectrum
     f_wall_nom, phi_wall_nom = compute_psd(p_w, fs=SAMPLE_RATE)

@@ -107,11 +107,16 @@ def notch_filter_timeseries(p, fs,
                             min_height=None, prominence=0.002, rel_height=0.5):
     """
     Notch out the largest PSD peak around each duct-mode frequency.
-    Returns:
-      x_filt     : filtered time series
-      f_nom,Pxx_nom : original PSD
-      f_filt,Pxx_filt : PSD after notch
-      info       : list of dicts with notch details
+    Returns
+    -------
+    x_filt : ndarray
+        Filtered time series.
+    (f_nom, Pxx_nom) : tuple(ndarray, ndarray)
+        Frequency vector and PSD of the original signal.
+    (f_filt, Pxx_filt) : tuple(ndarray, ndarray)
+        Frequency vector and PSD after notch filtering.
+    info : list of dict
+        List with details about each notch applied.
     """
     N = len(p)
     nperseg = max(256, N // 2000)
@@ -158,4 +163,4 @@ def notch_filter_timeseries(p, fs,
     # PSD of filtered signal
     f_filt, Pxx_filt = welch(x_filt, fs=fs, nperseg=nperseg, noverlap=noverlap)
 
-    return x_filt, f_nom, Pxx_nom,f_filt, Pxx_filt, info
+    return x_filt, (f_nom, Pxx_nom), (f_filt, Pxx_filt), info
