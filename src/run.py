@@ -65,6 +65,8 @@ def main():
     proc.compute_duct_modes()
     proc.notch_filter()
 
+    # Compute coherence
+
     # Load reference spectrum for transfer function
     data = sio.loadmat("data/premultiplied_spectra_Pw_ReT2000_Deshpande_JFM_2025.mat")
     T_plus_ref = data["Tplus"][0]
