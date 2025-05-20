@@ -71,16 +71,38 @@ def main():
             np.array(duct_modes['max']) * (U_TAU0**2 / NU0),
             np.array(duct_modes["nom"]) * (U_TAU0**2 / NU0),
         )
+    # f_fs_nom, phi_fs_nom = compute_psd(p_fs, fs=SAMPLE_RATE)
+
+    x_filt_fs, f_nom_filt_fs, phi_filt_fs, f_nom_fs, phi_nom_fs, info_fs =\
+        notch_filter_timeseries(p_fs, SAMPLE_RATE,
+                                np.array(duct_modes['min'])*(U_TAU0**2/NU0),
+                                np.array(duct_modes['max'])*(U_TAU0**2/NU0),
+                                np.array(duct_modes["nom"])*(U_TAU0**2/NU0))
+    
+    fig, axes = plt.subplots(1, 2, figsize=(5.6,3.2), dpi=600)
+    title = "Wall Pressure Spectrum"
+    color = "blue"
+    ax = axes[0]
+    ax.plot(1/f_wall_nom, phi_wall_nom, color, lw=0.5, alpha=0.8)
+    for idx, f0 in enumerate(duct_modes["nom"]):
+        label = "Duct Mode" if idx==0 else None
+        ax.axvline(1/f0, color="red", linestyle="--", lw=0.8, alpha=0.5, label=label)
+        ax.text(1/f0, ax.get_ylim()[1]*0.9, f"l={duct_modes['l'][idx]}",
+                rotation=90, ha="right", va="center", fontsize=8, color="red")
+    ax.set_xscale("log")
+    ax.set_xlim(1/1e-1, 1/5e-4)
+    ax.set_ylim(0, 25)
+    ax.set_title(title)
+    ax.set_xlabel("$T^+$")
+    ax.set_ylabel("$f\\Phi_{pp}^+$")
+    ax.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(OUTPUT_DIR, "duct_wall_pressure_spectrum.png"))
+    plt.close()
+
     p_w = x_wall_filt
     # 3) Compute wall pressure spectrum and free-stream pressure spectrum
     f_wall_nom, phi_wall_nom = compute_psd(p_w, fs=SAMPLE_RATE)
-    # f_fs_nom, phi_fs_nom = compute_psd(p_fs, fs=SAMPLE_RATE)
-
-    # x_filt_fs, f_nom_filt_fs, phi_filt_fs, f_nom_fs, phi_nom_fs, info_fs =\
-    #     notch_filter_timeseries(p_fs, SAMPLE_RATE,
-    #                             np.array(duct_modes['min'])*(U_TAU0**2/NU0),
-    #                             np.array(duct_modes['max'])*(U_TAU0**2/NU0),
-    #                             np.array(duct_modes["nom"])*(U_TAU0**2/NU0))
     
     T_plus = 1 / (f_wall_nom * NU0 / U_TAU0**2)
     ax.plot(f_wall_nom,  phi_wall_nom, 'g-', lw=0.5, alpha=0.8, label="Wall Pressure Spectrum")
