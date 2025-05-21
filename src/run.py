@@ -7,11 +7,12 @@ import os
 import scipy.io as sio
 import numpy as np
 from matplotlib import pyplot as plt
-from scipy.signal import welch
+from scipy.signal import welch, coherence
 import seaborn as sns
 import scienceplots
 
 from processor import WallPressureProcessor
+from noise_rejection import *
 
 plt.style.use(["science"])
 plt.rcParams["font.size"] = "10.5"
@@ -62,28 +63,52 @@ def main():
     )
 
     proc.load_data(WALL_PRESSURE_MAT, FREESTREAM_PRESSURE_MAT)
-    proc.compute_duct_modes()
-    proc.notch_filter()
+    # proc.compute_duct_modes()
+    # proc.notch_filter()
 
-    # Compute coherence
+    # proc.p_fs = phase_match(proc.p_fs, proc.p_w)
 
-    # Load reference spectrum for transfer function
-    data = sio.loadmat("data/premultiplied_spectra_Pw_ReT2000_Deshpande_JFM_2025.mat")
-    T_plus_ref = data["Tplus"][0]
-    f_ref = 1 / T_plus_ref / (1.68e-5 / 0.358**2)
-    denom_ref = (1.11 * 0.358**2) ** 2
-    Pxx_ref = data["premul_Pw_plus"][0] * denom_ref / f_ref
+    nperseg = len(proc.p_w) // 5000
+    noverlap = nperseg // 2
+    f, P_w = welch(proc.p_w, fs=SAMPLE_RATE, nperseg=nperseg,
+                   noverlap=noverlap, window="hann")
+    f, P_fs = welch(proc.p_fs, fs=SAMPLE_RATE, nperseg=nperseg,
+                    noverlap=noverlap, window="hann")
+    f, P_w_fs = csd(proc.p_w, proc.p_fs, fs=SAMPLE_RATE,
+                    nperseg=nperseg, noverlap=noverlap, window="hann")
+    # f, coh = coherence(proc.p_w, proc.p_fs, fs=SAMPLE_RATE,
+    #                    nperseg=len(proc.p_w)//2000, noverlap=len(proc.p_w)//4000)
+    fig, ax = plt.subplots(figsize=(5.6, 3.2), dpi=600)
 
-    proc.compute_transfer_function(f_ref, Pxx_ref)
-    proc.apply_transfer_function()
+    ax.plot(f, P_w_fs.real, lw=0.5, alpha=0.8)
+    ax.plot(f, P_w.real, lw=0.5, alpha=0.8)
+    ax.plot(f, P_fs.real, lw=0.5, alpha=0.8)
+    ax.set_xscale("log")
 
-    # Example: save corrected spectrum
-    f_corr, P_corr = welch(proc.p_w_corrected, fs=SAMPLE_RATE,
-                           nperseg=len(proc.p_w_corrected)//2000,
-                           noverlap=len(proc.p_w_corrected)//4000,
-                           window="hann")
-    np.savez(os.path.join(OUTPUT_DIR, "wall_corrected_spectrum.npz"),
-             freq=f_corr, pxx=P_corr)
+    ax.set_xlabel("$f$ [Hz]")
+    ax.set_ylabel("$\\Phi_{pp}$")
+    ax.legend(["$P_{wf}$", "$P_{ww}$", "$P_{ff}$"])
+    # ax.set_xlim(1e-1, 1e-4)
+    # ax.set_ylim(0, 1)
+    plt.savefig(os.path.join(OUTPUT_DIR, "coherence.png"))
+
+    # # Load reference spectrum for transfer function
+    # data = sio.loadmat("data/premultiplied_spectra_Pw_ReT2000_Deshpande_JFM_2025.mat")
+    # T_plus_ref = data["Tplus"][0]
+    # f_ref = 1 / T_plus_ref / (1.68e-5 / 0.358**2)
+    # denom_ref = (1.11 * 0.358**2) ** 2
+    # Pxx_ref = data["premul_Pw_plus"][0] * denom_ref / f_ref
+
+    # proc.compute_transfer_function(f_ref, Pxx_ref)
+    # proc.apply_transfer_function()
+
+    # # Example: save corrected spectrum
+    # f_corr, P_corr = welch(proc.p_w_corrected, fs=SAMPLE_RATE,
+    #                        nperseg=len(proc.p_w_corrected)//2000,
+    #                        noverlap=len(proc.p_w_corrected)//4000,
+    #                        window="hann")
+    # np.savez(os.path.join(OUTPUT_DIR, "wall_corrected_spectrum.npz"),
+    #          freq=f_corr, pxx=P_corr)
 
 
 if __name__ == "__main__":
