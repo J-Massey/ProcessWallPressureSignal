@@ -181,3 +181,15 @@ def plot_wiener_filter(f, P_w, P_fs, P_w_clean, outfile):
     ax.legend(["$P_{ww}$", "$P_{ff}$", "$P_{ww}^{clean}$"])
     plt.savefig(outfile)
     plt.close()
+
+def plot_reference_transfer_function(f_grid, H_mag, outfile):
+    fig, ax = plt.subplots(figsize=(5.6, 2.5), dpi=600)
+    ax.plot(f_grid, H_mag, lw=0.5, alpha=0.8)
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlabel("$f$ [Hz]")
+    ax.set_ylabel("$|H(f)|$")
+    ax.legend(["$|H(f)|$"])
+    ax.grid(True, which="both", ls="--", alpha=0.5)
+    plt.savefig(outfile)
+    plt.close()
