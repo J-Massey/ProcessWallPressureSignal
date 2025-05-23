@@ -2,43 +2,53 @@ import os
 import sys
 import types
 import unittest
-import numpy as np
-import torch
+
+try:
+    import numpy as np
+    import torch
+    HAS_DEPS = True
+except ModuleNotFoundError:
+    np = None
+    torch = None
+    HAS_DEPS = False
 
 # ----------------------------------------------------------------------
 # Create minimal scipy stub so that processor module can be imported
 scipy_stub = types.ModuleType('scipy')
 signal_stub = types.ModuleType('signal')
 
-# simple PSD using numpy's FFT
-def simple_welch(x, fs=1.0, nperseg=None, noverlap=None, window=None):
-    freqs = np.fft.rfftfreq(len(x), 1/fs)
-    psd = np.abs(np.fft.rfft(x))**2 / len(x)
-    return freqs, psd
+if HAS_DEPS:
+    # simple PSD using numpy's FFT
+    def simple_welch(x, fs=1.0, nperseg=None, noverlap=None, window=None):
+        freqs = np.fft.rfftfreq(len(x), 1/fs)
+        psd = np.abs(np.fft.rfft(x))**2 / len(x)
+        return freqs, psd
 
-signal_stub.welch = simple_welch
-signal_stub.savgol_filter = lambda x, window_length=0, polyorder=0: x
-signal_stub.find_peaks = lambda x, height=None, prominence=None: (np.array([], dtype=int), {})
-signal_stub.peak_widths = lambda *args, **kwargs: (np.array([0.0]), None, np.array([0.0]), np.array([0.0]))
-signal_stub.iirnotch = lambda w0, Q: (np.array([1.0]), np.array([1.0]))
-signal_stub.filtfilt = lambda b, a, x: x
+if HAS_DEPS:
+    signal_stub.welch = simple_welch
+    signal_stub.savgol_filter = lambda x, window_length=0, polyorder=0: x
+    signal_stub.find_peaks = lambda x, height=None, prominence=None: (np.array([], dtype=int), {})
+    signal_stub.peak_widths = lambda *args, **kwargs: (np.array([0.0]), None, np.array([0.0]), np.array([0.0]))
+    signal_stub.iirnotch = lambda w0, Q: (np.array([1.0]), np.array([1.0]))
+    signal_stub.filtfilt = lambda b, a, x: x
 
-scipy_stub.signal = signal_stub
-io_stub = types.ModuleType('io')
-io_stub.loadmat = lambda path: {}
-scipy_stub.io = io_stub
+    scipy_stub.signal = signal_stub
+    io_stub = types.ModuleType('io')
+    io_stub.loadmat = lambda path: {}
+    scipy_stub.io = io_stub
 
-sys.modules.setdefault('scipy', scipy_stub)
-sys.modules.setdefault('scipy.signal', signal_stub)
-sys.modules.setdefault('scipy.io', io_stub)
+    sys.modules.setdefault('scipy', scipy_stub)
+    sys.modules.setdefault('scipy.signal', signal_stub)
+    sys.modules.setdefault('scipy.io', io_stub)
 
-# ----------------------------------------------------------------------
-# Add src directory to path and import module
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-from processor import WallPressureProcessor
-import processing
+    # ------------------------------------------------------------------
+    # Add src directory to path and import module
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+    from processor import WallPressureProcessor
+    import processing
 
 
+@unittest.skipUnless(HAS_DEPS, "NumPy and PyTorch required")
 class WallPressureProcessorTest(unittest.TestCase):
     def setUp(self):
         self.proc = WallPressureProcessor(
@@ -148,6 +158,23 @@ class WallPressureProcessorTest(unittest.TestCase):
         self.proc.p_fs = torch.zeros(4)
         cleaned, f, H = self.proc.reject_free_stream_noise()
         self.assertEqual(len(cleaned), 4)
+
+    # --------------------------------------------------------------
+    def test_propagate_frequency_error(self):
+        f_duct = torch.tensor([1.0, 2.0])
+        f_nom, f_min, f_max = processing.propagate_frequency_error(
+            f_duct, 1e-5, 0.1, 0.1
+        )
+        nu_min = 1e-5 * (1 - 0.1)
+        nu_max = 1e-5 * (1 + 0.1)
+        u_tau_min = 0.1 * (1 - 0.1)
+        u_tau_max = 0.1 * (1 + 0.1)
+        exp_nom = f_duct * 1e-5 / 0.1**2
+        exp_min = f_duct * nu_min / u_tau_max**2
+        exp_max = f_duct * nu_max / u_tau_min**2
+        self.assertTrue(torch.allclose(f_nom, exp_nom))
+        self.assertTrue(torch.allclose(f_min, exp_min))
+        self.assertTrue(torch.allclose(f_max, exp_max))
 
 
 if __name__ == '__main__':
