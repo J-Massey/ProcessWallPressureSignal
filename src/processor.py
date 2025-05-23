@@ -1,3 +1,4 @@
+import torch
 import numpy as np
 from scipy.signal import savgol_filter, welch, csd
 from i_o import load_stan_wallpressure
@@ -58,9 +59,9 @@ class WallPressureProcessor:
         if self.duct_modes is None:
             self.compute_duct_modes()
 
-        modes_min = np.array(self.duct_modes["min"]) * (self.u_tau0 ** 2 / self.nu0)
-        modes_max = np.array(self.duct_modes["max"]) * (self.u_tau0 ** 2 / self.nu0)
-        modes_nom = np.array(self.duct_modes["nom"]) * (self.u_tau0 ** 2 / self.nu0)
+        modes_min = self.duct_modes["min"] * (self.u_tau0 ** 2 / self.nu0)
+        modes_max = self.duct_modes["max"] * (self.u_tau0 ** 2 / self.nu0)
+        modes_nom = self.duct_modes["nom"] * (self.u_tau0 ** 2 / self.nu0)
 
         results_w = notch_filter_timeseries(
             self.p_w, self.sample_rate, modes_min, modes_max, modes_nom
@@ -117,26 +118,31 @@ class WallPressureProcessor:
         """
         sig1 = self.p_w_filt if self.filtered else self.p_w
         sig2 = self.p_fs_filt if self.filtered else self.p_fs
-        sig1 = np.asarray(sig1)
-        sig2 = np.asarray(sig2)
+        sig1 = torch.as_tensor(sig1)
+        sig2 = torch.as_tensor(sig2)
         N = len(sig1)
         # Compute one-sided FFT (rfft) for efficiency with real signals
-        F1 = np.fft.rfft(sig1)
-        F2 = np.fft.rfft(sig2)
+        F1 = torch.fft.rfft(sig1)
+        F2 = torch.fft.rfft(sig2)
         # Compute phase difference for each frequency bin
-        phase_diff = np.angle(F2) - np.angle(F1)
+        phase_diff = torch.angle(F2) - torch.angle(F1)
         # Unwrap the phase difference to avoid 2π discontinuities
-        phase_diff = np.unwrap(phase_diff)
+        phase_diff = torch.from_numpy(
+            np.unwrap(phase_diff.detach().cpu().numpy())
+        )
         # smooth the unwrapped phase
         if smoothing_len > 1:
-            kernel = np.ones(smoothing_len) / smoothing_len
-            phase_diff = np.convolve(phase_diff, kernel, mode='same')
+            kernel = torch.ones(smoothing_len) / smoothing_len
+            pad = smoothing_len // 2
+            phase_diff = torch.nn.functional.conv1d(
+                phase_diff.view(1,1,-1), kernel.view(1,1,-1), padding=pad
+            ).view(-1)
         # Construct complex phase correction (unit magnitude factors)
-        phase_correction = np.exp(1j * phase_diff)
+        phase_correction = torch.exp(1j * phase_diff)
         # Apply phase correction to F1's spectrum
         F1_matched = F1 * phase_correction
         # Inverse FFT to get the phase-adjusted time-domain signal
-        self.p_w_matched = np.fft.irfft(F1_matched, n=N)
+        self.p_w_matched = torch.fft.irfft(F1_matched, n=N)
 
     def reject_free_stream_noise(self, eps=1e-8):
         """
@@ -178,17 +184,20 @@ class WallPressureProcessor:
         noverlap = nperseg // 2
 
         # estimate spectra via Welch
-        f, P_ff = welch(self.p_fs, fs=self.sample_rate, nperseg=nperseg, noverlap=noverlap)
-        f, P_fw = csd(self.p_fs, self.p_w_matched, fs=self.sample_rate, nperseg=nperseg, noverlap=noverlap)
+        f, P_ff = welch(self.p_fs.detach().cpu().numpy(), fs=self.sample_rate, nperseg=nperseg, noverlap=noverlap)
+        _, P_fw = csd(self.p_fs.detach().cpu().numpy(), self.p_w_matched.detach().cpu().numpy(), fs=self.sample_rate, nperseg=nperseg, noverlap=noverlap)
+        f = torch.tensor(f)
+        P_ff = torch.tensor(P_ff)
+        P_fw = torch.tensor(P_fw)
 
         # Wiener filter
         H = P_fw / (P_ff + eps)
 
         # apply in frequency domain
-        P_f = np.fft.rfft(self.p_fs)
-        F   = np.fft.rfftfreq(N, 1/self.sample_rate)
-        H_interp = np.interp(F, f, H)       # align filter to full-spectrum bins
-        p_est    = np.fft.irfft(H_interp * P_f, n=N)
+        P_f = torch.fft.rfft(self.p_fs)
+        F   = torch.fft.rfftfreq(N, 1/self.sample_rate)
+        H_interp = torch.tensor(np.interp(F.cpu().numpy(), f.numpy(), H.numpy()))
+        p_est    = torch.fft.irfft(H_interp * P_f, n=N)
 
         # subtract predicted free-stream contribution
         p_clean = self.p_w_matched - p_est
@@ -209,11 +218,11 @@ class WallPressureProcessor:
         denom = (self.rho0 * self.u_tau0 ** 2) ** 2
 
         f_grid = np.logspace(
-            np.log10(f_nom.min() + 1e-1), np.log10(f_nom.max()), 2048
+            np.log10(f_nom.min().item() + 1e-1), np.log10(f_nom.max().item()), 2048
         )
-        phi_wall_grid = np.interp(f_grid, f_nom, phi_nom / denom, left=0, right=0)
+        phi_wall_grid = np.interp(f_grid, f_nom.numpy(), (phi_nom / denom).numpy(), left=0, right=0)
         phi_wall_grid = savgol_filter(phi_wall_grid, window_length=64, polyorder=1)
-        ref_grid = np.interp(f_grid, ref_freq, ref_pxx / denom, left=0, right=0)
+        ref_grid = np.interp(f_grid, ref_freq, (ref_pxx / denom), left=0, right=0)
 
         H_power_ratio = np.ones_like(f_grid)
         band_idx = np.logical_and(f_grid >= f_grid.min(), f_grid <= f_grid.max())
@@ -221,9 +230,9 @@ class WallPressureProcessor:
         H_mag = np.sqrt(H_power_ratio)
         H_mag = savgol_filter(H_mag, window_length=16, polyorder=1)
 
-        self.transfer_freq = f_grid
-        self.transfer_mag = H_mag
-        return f_grid, H_mag
+        self.transfer_freq = torch.tensor(f_grid)
+        self.transfer_mag = torch.tensor(H_mag)
+        return self.transfer_freq, self.transfer_mag
 
     # ------------------------------------------------------------------
     def apply_transfer_function(self):
@@ -231,10 +240,12 @@ class WallPressureProcessor:
         if not hasattr(self, "transfer_mag"):
             raise RuntimeError("Transfer function not computed")
         N = len(self.p_w_clean)
-        freqs = np.fft.rfftfreq(N, 1 / self.sample_rate)
-        wall_fft = np.fft.rfft(self.p_w_clean)
-        H_full = np.interp(freqs, self.transfer_freq, self.transfer_mag, left=1.0, right=1.0)
+        freqs = torch.fft.rfftfreq(N, 1 / self.sample_rate)
+        wall_fft = torch.fft.rfft(self.p_w_clean)
+        H_full = torch.tensor(
+            np.interp(freqs.cpu().numpy(), self.transfer_freq.numpy(), self.transfer_mag.numpy(), left=1.0, right=1.0)
+        )
         corrected_fft = wall_fft * H_full
-        self.p_w_corrected = np.fft.irfft(corrected_fft, n=N)
+        self.p_w_corrected = torch.fft.irfft(corrected_fft, n=N)
         return self.p_w_corrected
 
