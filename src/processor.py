@@ -28,9 +28,9 @@ class WallPressureProcessor:
         self.L = self.L0 + self.delta_L0
 
         self.duct_modes = None
-        self.fs_w = None
+        self.f_w = None
         self.p_w = None
-        self.fs_fs = None
+        self.f_fs = None
         self.p_fs = None
         self.filtered = False
 
@@ -48,9 +48,9 @@ class WallPressureProcessor:
     # ------------------------------------------------------------------
     def load_data(self, wall_mat, fs_mat):
         """Load wall and freestream pressure signals from .mat files."""
-        self.fs_w, self.p_w = load_stan_wallpressure(wall_mat)
-        self.fs_fs, self.p_fs = load_stan_wallpressure(fs_mat)
-        return (self.fs_w, self.p_w), (self.fs_fs, self.p_fs)
+        self.f_w, self.p_w = load_stan_wallpressure(wall_mat)
+        self.f_fs, self.p_fs = load_stan_wallpressure(fs_mat)
+        return (self.f_w, self.p_w), (self.f_fs, self.p_fs)
 
     # ------------------------------------------------------------------
     def notch_filter(self):
@@ -178,20 +178,20 @@ class WallPressureProcessor:
         noverlap = nperseg // 2
 
         # estimate spectra via Welch
-        f, P_ff = welch(self.p_fs, fs=self.fs, nperseg=nperseg, noverlap=noverlap)
-        f, P_fw = csd(self.p_fs, self.self.p_w_matched, fs=self.fs, nperseg=nperseg, noverlap=noverlap)
+        f, P_ff = welch(self.p_fs, fs=self.sample_rate, nperseg=nperseg, noverlap=noverlap)
+        f, P_fw = csd(self.p_fs, self.p_w_matched, fs=self.sample_rate, nperseg=nperseg, noverlap=noverlap)
 
         # Wiener filter
         H = P_fw / (P_ff + eps)
 
         # apply in frequency domain
         P_f = np.fft.rfft(self.p_fs)
-        F   = np.fft.rfftfreq(N, 1/self.fs)
+        F   = np.fft.rfftfreq(N, 1/self.sample_rate)
         H_interp = np.interp(F, f, H)       # align filter to full-spectrum bins
         p_est    = np.fft.irfft(H_interp * P_f, n=N)
 
         # subtract predicted free-stream contribution
-        p_clean = self.self.p_w_matched - p_est
+        p_clean = self.p_w_matched - p_est
         self.p_w_clean = p_clean
         return p_clean, f, H
 

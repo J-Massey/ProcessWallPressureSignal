@@ -117,16 +117,9 @@ def main(sanity=None):
 
     f_grid, H_mag = proc.compute_transfer_function(f_ref, Pxx_ref)
     if sanity is not None:
-        fig, ax = plt.subplots(figsize=(5.6, 2.5), dpi=600)
-        ax.plot(f_grid, H_mag, lw=0.5, alpha=0.8)
-        ax.set_xscale("log")
-        ax.set_yscale("log")
-        ax.set_xlabel("$f$ [Hz]")
-        ax.set_ylabel("$|H(f)|$")
-        ax.legend(["$|H(f)|$"])
-        ax.grid(True, which="both", ls="--", alpha=0.5)
-        plt.savefig(os.path.join(OUTPUT_DIR, "transfer_function.png"))
-        plt.close()
+        plot_reference_transfer_function(
+            f_grid, H_mag, os.path.join(OUTPUT_DIR, "reference_transfer_function.png")
+        )
     proc.apply_transfer_function()
     f, P_w_corrected = welch(proc.p_w_corrected, fs=SAMPLE_RATE,
                             nperseg=nperseg, noverlap=noverlap, window="hann")
