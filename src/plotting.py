@@ -1,6 +1,7 @@
 import itertools
 
 import numpy as np
+import torch
 from scipy.signal import savgol_filter
 
 from matplotlib import pyplot as plt
@@ -25,13 +26,13 @@ def plot_spectrum_and_modes(spec, modes, mode_l, outfile):
         plot_spectrum_and_modes.col = itertools.cycle(["blue", "green", "orange"])
     title = next(plot_spectrum_and_modes.tit)
     color = next(plot_spectrum_and_modes.col)
-    ax.plot(1/spec["f_nom"], spec["phi_nom"], color, lw=0.5, alpha=0.8)
-    ax.fill_betweenx(spec["phi_nom"], spec["f_min"], spec["f_max"],
+    ax.plot(1/torch.as_tensor(spec["f_nom"]).cpu(), torch.as_tensor(spec["phi_nom"]).cpu(), color, lw=0.5, alpha=0.8)
+    ax.fill_betweenx(torch.as_tensor(spec["phi_nom"]).cpu(), torch.as_tensor(spec["f_min"]).cpu(), torch.as_tensor(spec["f_max"]).cpu(),
                      color="gray", alpha=0.3, edgecolor="none", label="±3%")
     for idx, f0 in enumerate(modes["nom"]):
         label = "Duct Mode" if idx==0 else None
-        ax.axvline(1/f0, color="red", linestyle="--", lw=0.8, alpha=0.5, label=label)
-        ax.text(1/f0, ax.get_ylim()[1]*0.9, f"l={mode_l[idx]}",
+        ax.axvline(1/float(f0), color="red", linestyle="--", lw=0.8, alpha=0.5, label=label)
+        ax.text(1/float(f0), ax.get_ylim()[1]*0.9, f"l={mode_l[idx]}",
                 rotation=90, ha="right", va="center", fontsize=8, color="red")
     ax.set_xscale("log")
     ax.set_xlim(1/1e-1, 1/5e-4)
@@ -47,8 +48,8 @@ def plot_spectrum_and_modes(spec, modes, mode_l, outfile):
 def plot_pw_p_fs(fs_w, fs_fs, p_w, p_fs, outfile):
     """Plot raw φ+ signals vs T+."""
     fig, ax = plt.subplots(figsize=(4,2.5), dpi=600)
-    ax.plot(1/fs_w, p_w, label="Wall", lw=1)
-    ax.plot(1/fs_fs, p_fs, label="Free-Stream", lw=1)
+    ax.plot(1/torch.as_tensor(fs_w).cpu(), torch.as_tensor(p_w).cpu(), label="Wall", lw=1)
+    ax.plot(1/torch.as_tensor(fs_fs).cpu(), torch.as_tensor(p_fs).cpu(), label="Free-Stream", lw=1)
     ax.set_xscale("log")
     ax.set_xlim(1/5e-1, 1/5e-4)
     ax.set_ylim(0, 20)
@@ -62,11 +63,14 @@ def plot_pw_p_fs(fs_w, fs_fs, p_w, p_fs, outfile):
 def plot_filtered_spectrum(spec, spec_filt, peaks_info, outfile, line):
     """Plot notched spectrum and Savitzky-Golay smoothing."""
     fig, ax = plt.subplots(1,2,figsize=(5.6,3.2),dpi=600,sharex=True)
-    ax[0].plot(1/spec["f_nom"], spec["phi_nom"], 'k-', lw=0.5, alpha=0.5)
-    ax[0].plot(1/spec["f_nom"], spec_filt, line, lw=0.7, alpha=0.8, label="Notched")
+    f_nom = torch.as_tensor(spec["f_nom"]).cpu()
+    phi_nom = torch.as_tensor(spec["phi_nom"]).cpu()
+    spec_filt = torch.as_tensor(spec_filt).cpu()
+    ax[0].plot(1/f_nom, phi_nom, 'k-', lw=0.5, alpha=0.5)
+    ax[0].plot(1/f_nom, spec_filt, line, lw=0.7, alpha=0.8, label="Notched")
     ax[0].legend()
     f_samp = np.logspace(np.log10(5e-4), np.log10(5e-1), 1024)
-    p_int = np.interp(f_samp, spec["f_nom"], spec_filt)
+    p_int = np.interp(f_samp, f_nom.numpy(), spec_filt.numpy())
     sg = savgol_filter(p_int, 101, 1)
     ax[1].plot(1/f_samp, p_int, line, lw=0.7, alpha=0.5)
     ax[1].plot(1/f_samp, sg, 'r-', lw=0.7, alpha=0.8, label="Savitzky-Golay")
@@ -93,8 +97,8 @@ def plot_filtered_diff(spec, spec_filt_w, spec_filt_fs, outfile):
     """Plot difference between wall and free-stream SG-filtered spectra."""
     fig, ax = plt.subplots(figsize=(4,2.5),dpi=600)
     f_samp = np.logspace(np.log10(5e-4), np.log10(5e-1), 1024)
-    sg_w  = savgol_filter(np.interp(f_samp, spec["f_nom"], spec_filt_w), 101,1)
-    sg_fs = savgol_filter(np.interp(f_samp, spec["f_nom"], spec_filt_fs), 101,1)
+    sg_w  = savgol_filter(np.interp(f_samp, torch.as_tensor(spec["f_nom"]).cpu().numpy(), torch.as_tensor(spec_filt_w).cpu().numpy()), 101,1)
+    sg_fs = savgol_filter(np.interp(f_samp, torch.as_tensor(spec["f_nom"]).cpu().numpy(), torch.as_tensor(spec_filt_fs).cpu().numpy()), 101,1)
     ax.plot(1/f_samp, sg_w, 'b-', label="Wall")
     ax.plot(1/f_samp, sg_fs,'g-', label="Free-Stream")
     ax.set_xscale("log")
@@ -127,6 +131,8 @@ def plot_transfer(f, H, outfile, decim=None):
     if decim:
         f = f[::decim]
         H = H[::decim]
+    f = torch.as_tensor(f).cpu().numpy()
+    H = torch.as_tensor(H).cpu().numpy()
     mag   = np.abs(H)
     phase = np.unwrap(np.angle(H))
 
@@ -143,10 +149,11 @@ def plot_transfer(f, H, outfile, decim=None):
 def plot_phase_match_csd(f, P_w, P_fs, P_w_fs, P_w_fs_opt, outfile):
     fig, ax = plt.subplots(figsize=(5.6, 3.2), dpi=600)
 
-    ax.plot(f, P_w_fs.real, lw=0.5, alpha=0.8)
-    ax.plot(f, P_w.real, lw=0.5, alpha=0.8)
-    ax.plot(f, P_fs.real, lw=0.5, alpha=0.8)
-    ax.plot(f, P_w_fs_opt.real, lw=0.5, alpha=0.8)
+    f = torch.as_tensor(f).cpu()
+    ax.plot(f, torch.as_tensor(P_w_fs).real.cpu(), lw=0.5, alpha=0.8)
+    ax.plot(f, torch.as_tensor(P_w).real.cpu(), lw=0.5, alpha=0.8)
+    ax.plot(f, torch.as_tensor(P_fs).real.cpu(), lw=0.5, alpha=0.8)
+    ax.plot(f, torch.as_tensor(P_w_fs_opt).real.cpu(), lw=0.5, alpha=0.8)
 
     ax.set_xscale("log")
     ax.set_yscale("log")
@@ -159,8 +166,8 @@ def plot_phase_match_csd(f, P_w, P_fs, P_w_fs, P_w_fs_opt, outfile):
 
 def plot_coherence(f, coh, f_match, coh_match, outfile):
     fig, ax = plt.subplots(figsize=(5.6, 3.2), dpi=600)
-    ax.plot(f, coh, lw=0.5, alpha=0.8)
-    ax.plot(f_match, coh_match, lw=0.5, alpha=0.8)
+    ax.plot(torch.as_tensor(f).cpu(), torch.as_tensor(coh).cpu(), lw=0.5, alpha=0.8)
+    ax.plot(torch.as_tensor(f_match).cpu(), torch.as_tensor(coh_match).cpu(), lw=0.5, alpha=0.8)
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xlabel("$f$ [Hz]")
@@ -171,9 +178,9 @@ def plot_coherence(f, coh, f_match, coh_match, outfile):
 
 def plot_wiener_filter(f, P_w, P_fs, P_w_clean, outfile):
     fig, ax = plt.subplots(figsize=(5.6, 3.2), dpi=600)
-    ax.plot(f, P_w, lw=0.5, alpha=0.8)
-    ax.plot(f, P_fs, lw=0.5, alpha=0.8)
-    ax.plot(f, P_w_clean, lw=0.5, alpha=0.8)
+    ax.plot(torch.as_tensor(f).cpu(), torch.as_tensor(P_w).cpu(), lw=0.5, alpha=0.8)
+    ax.plot(torch.as_tensor(f).cpu(), torch.as_tensor(P_fs).cpu(), lw=0.5, alpha=0.8)
+    ax.plot(torch.as_tensor(f).cpu(), torch.as_tensor(P_w_clean).cpu(), lw=0.5, alpha=0.8)
     ax.set_xscale("log")
 
     ax.set_xlabel("$f$ [Hz]")
@@ -184,7 +191,7 @@ def plot_wiener_filter(f, P_w, P_fs, P_w_clean, outfile):
 
 def plot_reference_transfer_function(f_grid, H_mag, outfile):
     fig, ax = plt.subplots(figsize=(5.6, 2.5), dpi=600)
-    ax.plot(f_grid, H_mag, lw=0.5, alpha=0.8)
+    ax.plot(torch.as_tensor(f_grid).cpu(), torch.as_tensor(H_mag).cpu(), lw=0.5, alpha=0.8)
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xlabel("$f$ [Hz]")
