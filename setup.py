@@ -12,6 +12,7 @@ setup(
         "seaborn",
         "icecream",
         "scienceplots",
+        "torch",
     ],
     # optional: include_package_data=True, and MANIFEST.in to include data files if needed
 )
