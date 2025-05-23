@@ -98,9 +98,9 @@ def phase_match(sig1, sig2, smoothing_len=10):
     Phase-match two signals in the frequency domain.
 
     This function finds a frequency-dependent phase correction between sig1 (e.g., freestream pressure)
-    and sig2 (e.g., wall pressure), and applies it to sig1 to align its phase with sig2's phase:contentReference[oaicite:0]{index=0}.
+    and sig2 (e.g., wall pressure), and applies it to sig1 to align its phase with sig2.
     It uses the cross power spectrum to estimate the phase difference at each frequency,
-    which represents the phase lag between the two signals:contentReference[oaicite:1]{index=1}.
+    which represents the phase lag between the two signals.
 
     Parameters:
     sig1 : array_like
@@ -117,7 +117,8 @@ def phase_match(sig1, sig2, smoothing_len=10):
     - The method computes the cross-spectrum and adjusts the phase of sig1 to match sig2
       at each frequency. This preserves sig1's magnitude spectrum and only alters its phase.
     - The output is a real signal, obtained via inverse FFT after phase correction.
-    - This approach is efficient (uses FFT) and numerically stable for large signals, preserving the coherent phase relationships required for Wiener filtering:contentReference[oaicite:2]{index=2}.
+    - This approach is efficient (uses FFT) and numerically stable for large signals,
+      preserving the coherent phase relationships required for Wiener filtering.
     """
     sig1 = np.asarray(sig1)
     sig2 = np.asarray(sig2)
