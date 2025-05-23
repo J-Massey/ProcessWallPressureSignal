@@ -34,6 +34,10 @@ class WallPressureProcessor:
         self.f_fs = None
         self.p_fs = None
         self.filtered = False
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+        else:
+            self.device = torch.device("cpu")
 
     # ------------------------------------------------------------------
     def compute_duct_modes(self):
