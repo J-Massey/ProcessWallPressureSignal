@@ -77,9 +77,9 @@ def propagate_PSD_error(f_raw, psd, nu0, rho0, u_tau0, err_frac):
 
 def duct_mode_freq(U, c, m, n, l, W, H, L):
     """Physical duct-mode frequency (quarter-wave, closed-open)."""
-    delta2 = c**2 - U**2
-    k_sq   = (m*torch.pi/W)**2 + (n*torch.pi/H)**2
-    kz_sq  = ((2*l+1)*torch.pi/L)**2
+    delta2 = torch.tensor(c**2 - U**2, dtype=torch.float32)
+    k_sq   = torch.tensor((m*torch.pi/W)**2 + (n*torch.pi/H)**2, dtype=torch.float32)
+    kz_sq  = torch.tensor(((2*l+1)*torch.pi/L)**2, dtype=torch.float32)
     return (1/(2*torch.pi)) * torch.sqrt(delta2*k_sq + delta2**2/(4*c**2)*kz_sq)
 
 def compute_duct_modes(U, c, mode_m, mode_n, mode_l, W, H, L, nu0, u_tau0, err_frac):
