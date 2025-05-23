@@ -107,29 +107,77 @@ def plot_filtered_diff(spec, spec_filt_w, spec_filt_fs, outfile):
     plt.savefig(outfile)
     plt.close()
 
-def plot_coherence(T_plus, coh, Pyy, Pyy_coh, outfile):
-    """Plot coherence and PSDs."""
-    fig, ax = plt.subplots(figsize=(4,2.6), dpi=600)
-    ax.loglog(T_plus, Pyy, label='Original Wall PSD')
-    ax.loglog(T_plus, Pyy_coh, label='Coherent Portion', linestyle='--')
-    ax.set_xlabel('$T^+$')
-    ax.set_ylabel(r'$\gamma^2(f)$')
-    ax.set_title('Coherence between Freestream and Wall-Pressure')
-    # ax.set_ylim([0, 1])
-    ax.grid(True)
-    ax.legend()
-    plt.tight_layout()
+def plot_transfer(f, H, outfile, decim=None):
+    """
+    Plot |H(f)| and arg H(f) versus frequency for sanity checks.
+
+    Parameters
+    ----------
+    f : ndarray, shape (M,)
+        Frequency bins [Hz].
+    H : ndarray, shape (M,)
+        Complex transfer function.
+    decim : int or None
+        If set, plot every decim-th point to reduce density.
+
+    Returns
+    -------
+    fig, (ax_mag, ax_ph) : matplotlib objects
+    """
+    if decim:
+        f = f[::decim]
+        H = H[::decim]
+    mag   = np.abs(H)
+    phase = np.unwrap(np.angle(H))
+
+    fig, (ax_mag, ax_ph) = plt.subplots(2, 1, sharex=True, figsize=(6, 4))
+    ax_mag.loglog(f, mag, lw=1)
+    ax_mag.set_ylabel(r'$|H(f)|$')
+    ax_ph.semilogx(f, phase, lw=1)
+    ax_ph.set_ylabel(r'$\arg H(f)$')
+    ax_ph.set_xlabel(r'$f\ \mathrm{[Hz]}$')
+    fig.tight_layout()
     plt.savefig(outfile)
     plt.close()
 
-def plot_wiener_filter(T_plus, Pyy2, P_clean, outfile):
-    """Plot the Wiener filter applied to the time series."""
-    fig, ax = plt.subplots(figsize=(4,2.5), dpi=600)
-    ax.semilogx(T_plus, Pyy2, label='Original Wall PSD')
-    ax.semilogx(T_plus, P_clean, label='Cleaned Wall PSD')
-    ax.set_xlabel('$T^+$')
-    ax.set_ylabel('PSD')
-    ax.grid(True)
-    ax.legend()
-    plt.tight_layout()
+def plot_phase_match_csd(f, P_w, P_fs, P_w_fs, P_w_fs_opt, outfile):
+    fig, ax = plt.subplots(figsize=(5.6, 3.2), dpi=600)
+
+    ax.plot(f, P_w_fs.real, lw=0.5, alpha=0.8)
+    ax.plot(f, P_w.real, lw=0.5, alpha=0.8)
+    ax.plot(f, P_fs.real, lw=0.5, alpha=0.8)
+    ax.plot(f, P_w_fs_opt.real, lw=0.5, alpha=0.8)
+
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+
+    ax.set_xlabel("$f$ [Hz]")
+    ax.set_ylabel("$\\Phi$")
+    ax.legend(["$P_{wf}$", "$P_{ww}$", "$P_{ff}$", "$P_{wf}^{opt}$"])
     plt.savefig(outfile)
+    plt.close()
+
+def plot_coherence(f, coh, f_match, coh_match, outfile):
+    fig, ax = plt.subplots(figsize=(5.6, 3.2), dpi=600)
+    ax.plot(f, coh, lw=0.5, alpha=0.8)
+    ax.plot(f_match, coh_match, lw=0.5, alpha=0.8)
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlabel("$f$ [Hz]")
+    ax.set_ylabel("$\\gamma^2$")
+    ax.legend(["$\\gamma^2_{wf}$", "$\\gamma^{2, opt}_{wf}$"])
+    plt.savefig(outfile)
+    plt.close()
+
+def plot_wiener_filter(f, P_w, P_fs, P_w_clean, outfile):
+    fig, ax = plt.subplots(figsize=(5.6, 3.2), dpi=600)
+    ax.plot(f, P_w, lw=0.5, alpha=0.8)
+    ax.plot(f, P_fs, lw=0.5, alpha=0.8)
+    ax.plot(f, P_w_clean, lw=0.5, alpha=0.8)
+    ax.set_xscale("log")
+
+    ax.set_xlabel("$f$ [Hz]")
+    ax.set_ylabel("$\\Phi$")
+    ax.legend(["$P_{ww}$", "$P_{ff}$", "$P_{ww}^{clean}$"])
+    plt.savefig(outfile)
+    plt.close()

@@ -3,47 +3,97 @@ import os
 from scipy.signal import welch, csd, detrend, correlate, coherence, savgol_filter
 from scipy.interpolate import interp1d
 from icecream import ic
+import torch
+from tqdm import tqdm
 
 
-def align_signals(p_free, p_wall, fs, max_lag_s=None):
+def optimize_delay_by_csd_torch(p_wall, p_fs, fs,
+                                max_lag_s=0.1, min_lag_s=0.001,
+                                device=None):
     """
-    Align p_free to p_wall by cross-correlation and clip to common length.
+    Find the time‐delay τ that maximises ∫|S_wp(f;τ)|² df using PyTorch on CUDA.
 
-    Inputs:
-      p_free    : (N,) free-stream trace
-      p_wall    : (M,) wall-pressure trace
-      fs        : sampling rate [Hz]
-      max_lag_s : optional max lag to search [s]
+    Parameters
+    ----------
+    p_free    : array_like or Tensor, shape (N,)
+        Free‐stream signal.
+    p_wall    : array_like or Tensor, shape (M,)
+        Wall‐pressure signal (time‐aligned).
+    fs        : float
+        Sampling rate [Hz].
+    max_lag_s : float
+        Max lag to search ±[s] (default 0.01 s).
+    nperseg   : int
+        FFT segment length for Welch‐style CSD (default 1024).
+    noverlap  : int or None
+        Overlap between segments (default nperseg//2).
+    device    : str or torch.device or None
+        Compute device (e.g. 'cuda'). Defaults to CUDA if available.
 
-    Returns:
-      p_free_al, p_wall_al, tau  : aligned arrays and time shift [s]
+    Returns
+    -------
+    p_free_opt : Tensor, shape (N,)
+        p_free phase‐shifted by optimal lag.
+    tau_opt    : float
+        Optimal delay [s].
+    score_opt  : float
+        Maximum ∫|CSD|² df achieved.
     """
-    # cross-correlation
-    R = correlate(p_wall, p_free, mode='full')
-    lags = np.arange(-len(p_free)+1, len(p_wall))
-    if max_lag_s is not None:
-        max_lag = int(max_lag_s * fs)
-        mask = (lags >= -max_lag) & (lags <= max_lag)
-        lag = lags[mask][np.argmax(R[mask])]
-    else:
-        lag = lags[np.argmax(R)]
-    tau = lag / fs
+    nperseg = len(p_fs) // 2000  # segment length for Welch's method
+    noverlap = nperseg // 2  # overlap between segments
+    # --- setup ---
+    device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
+    dtype  = torch.get_default_dtype()
+    # convert inputs to tensors
+    def to_tensor(x):
+        if not torch.is_tensor(x):
+            x = np.ascontiguousarray(x)
+            x = torch.from_numpy(x)
+        return x.to(device=device, dtype=dtype)
+    x = to_tensor(p_wall)
+    y = to_tensor(p_fs)
 
-    # shift free-stream
-    p_free_shifted = np.roll(p_free, -lag)
+    hop    = nperseg - noverlap
+    window = torch.hann_window(nperseg, device=device, dtype=dtype)
+    U      = window.pow(2).sum()
+    # frequency vector for integration
+    f = torch.fft.rfftfreq(nperseg, 1/fs, device=device)
 
-    # clip to overlap
-    if lag > 0:
-        start_f, start_w = lag, 0
-    else:
-        start_f, start_w = 0, -lag
-    n = min(len(p_free_shifted)-start_f, len(p_wall)-start_w)
+    # helper: compute CSD via STFT
+    def csd_torch(a, b):
+        A = torch.stft(a, n_fft=nperseg, hop_length=hop,
+                       win_length=nperseg, window=window,
+                       return_complex=True)
+        B = torch.stft(b, n_fft=nperseg, hop_length=hop,
+                       win_length=nperseg, window=window,
+                       return_complex=True)
+        S_ab = (A * B.conj() / (fs * U)).mean(dim=-1)
+        return S_ab
 
-    p_free_al = p_free_shifted[start_f:start_f+n]
-    p_wall_al = p_wall   [start_w:start_w+n]
-    return p_free_al, p_wall_al, tau
+    # search over integer lags
+    max_lag = int(max_lag_s * fs)
+    min_lag = int(min_lag_s * fs)
+    best_score = float('-inf')
+    best_lag   = 0
 
-def phase_match(sig1, sig2):
+    for lag in tqdm(range(min_lag, max_lag+1)):
+        # roll and clip to common length
+        y_shift = torch.roll(x, -lag)
+        L = min(y_shift.shape[0], y.shape[0])
+        S_xy = csd_torch(y[:L], y_shift[:L])
+        score = torch.trapz(torch.abs(S_xy)**2, f).item()
+        if score > best_score:
+            best_score = score
+            best_lag   = lag
+
+    # compute final outputs
+    tau_opt    = best_lag / fs
+    p_wall_opt = torch.roll(x, -best_lag)
+    score_opt  = best_score
+
+    return p_wall_opt.cpu(), tau_opt, score_opt
+
+def phase_match(sig1, sig2, smoothing_len=10):
     """
     Phase-match two signals in the frequency domain.
 
@@ -71,9 +121,7 @@ def phase_match(sig1, sig2):
     """
     sig1 = np.asarray(sig1)
     sig2 = np.asarray(sig2)
-    N = len(sig1) if len(sig1) <= len(sig2) else len(sig2)  # ensure same length
-    sig1 = sig1[:N]
-    sig2 = sig2[:N]
+    N = len(sig1)
     # Compute one-sided FFT (rfft) for efficiency with real signals
     F1 = np.fft.rfft(sig1)
     F2 = np.fft.rfft(sig2)
@@ -81,6 +129,10 @@ def phase_match(sig1, sig2):
     phase_diff = np.angle(F2) - np.angle(F1)
     # Unwrap the phase difference to avoid 2π discontinuities
     phase_diff = np.unwrap(phase_diff)
+    # smooth the unwrapped phase
+    if smoothing_len > 1:
+        kernel = np.ones(smoothing_len) / smoothing_len
+        phase_diff = np.convolve(phase_diff, kernel, mode='same')
     # Construct complex phase correction (unit magnitude factors)
     phase_correction = np.exp(1j * phase_diff)
     # Apply phase correction to F1's spectrum
@@ -89,218 +141,107 @@ def phase_match(sig1, sig2):
     sig1_phase_matched = np.fft.irfft(F1_matched, n=N)
     return sig1_phase_matched
 
-def phase_align(sig, ref, fs, max_lag_s=None):
+
+def phase_match_transfer(sig1, sig2, fs, smoothing_len=10):
     """
-    Find a single time‐delay τ that phase-matches sig to ref,
-    then apply that delay (fractionally) via a linear-phase filter.
+    Return the complex transfer function H(f) implemented by phase_match:
+      H(f) = exp[i·(angle(F2) - angle(F1))_smoothed]
 
     Parameters
     ----------
-    sig : array_like, shape (N,)
-        Signal to be shifted (e.g. free-stream pressure).
-    ref : array_like, shape (M,)
-        Reference signal (e.g. wall-pressure), already time-aligned.
+    sig1 : array_like, shape (N,)
+        Input signal (to be phase-matched).
+    sig2 : array_like, shape (N,)
+        Reference signal.
     fs : float
-        Sampling frequency [Hz].
-    max_lag_s : float, optional
-        Maximum lag (±max_lag_s) to search [s].  Default: full length.
+        Sampling rate [Hz].
+    smoothing_len : int
+        Moving-average window length for unwrapped phase.
 
     Returns
     -------
-    sig_matched : ndarray, shape (L,)
-        Phase-matched version of sig, clipped to overlap with ref.
-    tau : float
-        Estimated time delay (sig must be shifted by +τ to match ref).
+    f : ndarray, shape (N//2+1,)
+        Frequency bins [Hz].
+    H : ndarray, shape (N//2+1,)
+        Complex transfer function.
     """
-    # 1) cross-correlate to find best integer lag
-    sig = np.asarray(sig)
-    ref = np.asarray(ref)
-    N, M = len(sig), len(ref)
-    R = correlate(ref, sig, mode='full')
-    lags = np.arange(-N+1, M)
-    if max_lag_s is not None:
-        max_lag = int(max_lag_s * fs)
-        mask = (lags >= -max_lag) & (lags <= max_lag)
-        lag = lags[mask][np.argmax(R[mask])]
-    else:
-        lag = lags[np.argmax(R)]
-    tau = lag / fs
+    sig1 = np.asarray(sig1)
+    sig2 = np.asarray(sig2)
+    N = min(sig1.size, sig2.size)
+    # one-sided FFT
+    F1 = np.fft.rfft(sig1[:N])
+    F2 = np.fft.rfft(sig2[:N])
 
-    # 2) fractional-delay via linear phase in freq-domain
-    L = max(N, M)
-    sig_pad = np.zeros(L, dtype=sig.dtype)
-    sig_pad[:N] = sig
-    F = np.fft.rfft(sig_pad)
-    freqs = np.fft.rfftfreq(L, 1/fs)
-    # linear phase shift e^(−j2πf τ)
-    shift = np.exp(-1j * 2*np.pi * freqs * tau)
-    F_shifted = F * shift
-    sig_shifted = np.fft.irfft(F_shifted, n=L)
+    # Δφ(f) = arg F2 – arg F1
+    phase_diff = np.unwrap(np.angle(F2) - np.angle(F1))
 
-    # 3) clip to common overlap
-    if lag >= 0:
-        start_sig, start_ref = lag, 0
-    else:
-        start_sig, start_ref = 0, -lag
-    n = min(L - start_sig, M - start_ref)
-    sig_matched = sig_shifted[start_sig:start_sig+n]
+    # smooth Δφ
+    if smoothing_len > 1:
+        kernel = np.ones(smoothing_len) / smoothing_len
+        phase_diff = np.convolve(phase_diff, kernel, mode='same')
 
-    return sig_matched, tau
+    # all-pass: H(f) = exp[i·Δφ(f)]
+    H = np.exp(1j * phase_diff)
+    f = np.fft.rfftfreq(N, 1/fs)
+    return f, H
 
-def match_via_transfer(p_free, p_wall, fs):
+
+def reject_free_stream_noise(p_free, p_wall, fs, eps=1e-8):
     """
-    Use the full complex transfer function H(f)=S_wf/S_ff to align and scale
-    p_free so it best matches p_wall in both amplitude and phase.
+    Wiener-filter rejection of free-stream noise from wall-pressure signal.
 
-    Inputs
-    ------
-    p_free   : (N,) free‐stream trace
-    p_wall   : (N,) wall‐pressure trace (time‐aligned)
-    fs       : sampling rate [Hz]
-    nperseg  : length of Welch segments
-    noverlap : overlap between segments (defaults to nperseg//2)
+    We estimate
+    \begin{equation}
+    H(f)=\frac{S_{fw}(f)}{S_{ff}(f)},\quad
+    \hat p_w(t)=\mathcal F^{-1}\{H(f)\,P_f(f)\},\quad
+    p_{w,\mathrm{clean}}(t)=p_w(t)-\hat p_w(t).
+    \end{equation}
+
+    Parameters
+    ----------
+    p_free : array_like, shape (N,)
+        Free-stream (noise) signal.
+    p_wall : array_like, shape (N,)
+        Wall-pressure signal.
+    fs : float
+        Sampling rate [Hz].
+    nperseg : int or None
+        FFT segment length for Welch (default = N).
+    noverlap : int or None
+        Overlap between segments (default = nperseg//2).
+    eps : float
+        Small regularisation to avoid division by zero.
 
     Returns
     -------
-    p_free_matched : (N,) free‐stream after gain+phase correction
-    H              : (M,) complex transfer function on Welch grid
-    f              : (M,) frequency vector [Hz]
+    p_clean : ndarray, shape (N,)
+        Noise-rejected wall-pressure time series.
+    f       : ndarray, shape (M,)
+        Frequency bins [Hz].
+    H       : ndarray, shape (M,)
+        Complex Wiener filter transfer function.
     """
-    nperseg = len(p_wall) // 2000  # segment length for Welch's method
-    noverlap = nperseg // 2  # overlap between segments
-
-    # 1) estimate spectra & cross‐spectrum
-    f,   S_ff = welch(p_free, fs, nperseg=nperseg, noverlap=noverlap)
-    _,   S_ww = welch(p_wall, fs, nperseg=nperseg, noverlap=noverlap)
-    _,   S_wf = csd(p_wall, p_free, fs, nperseg=nperseg, noverlap=noverlap)
-
-    # 2) complex transfer function H(f)
-    eps = 1e-16
-    H = S_wf / (S_ff + eps)
-
-    # 3) apply H in freq‐domain to p_free
     N = len(p_free)
-    P_free = np.fft.rfft(p_free, n=N)
-    # interpolate H onto full FFT grid if needed
-    f_full = np.fft.rfftfreq(N, 1/fs)
-    H_full = np.interp(f_full, f, H.real) + 1j*np.interp(f_full, f, H.imag)
-    P_matched = P_free * H_full
-    p_free_matched = np.fft.irfft(P_matched, n=N)
+    nperseg = N//2000
+    noverlap = nperseg // 2
 
-    return p_free_matched, H, f
+    # estimate spectra via Welch
+    f, P_ff = welch(p_free, fs=fs, nperseg=nperseg, noverlap=noverlap)
+    f, P_fw = csd (p_free, p_wall, fs=fs, nperseg=nperseg, noverlap=noverlap)
 
-def restore_coherence(free_stream_signal, wall_signal, fs):
-    """
-    Returns a filtered version of wall_signal with coherence-restored relative to free_stream_signal.
-    """
-    nperseg = len(wall_signal) // 4000  # segment length for Welch's method
-    noverlap = nperseg // 2  # overlap between segments
-    # 1. Estimate power spectral densities (PSDs) and cross-PSD using Welch’s method
-    f, Pxx = welch(free_stream_signal, fs=fs, nperseg=nperseg, noverlap=noverlap)
-    _, Pyy = welch(wall_signal, fs=fs, nperseg=nperseg, noverlap=noverlap)
-    _, Pxy = csd(free_stream_signal, wall_signal, fs=fs, nperseg=nperseg, noverlap=noverlap)
+    # Wiener filter
+    H = P_fw / (P_ff + eps)
 
-    # 2. Compute Wiener filter transfer function H(f) = Pxy / Pxx
-    H = Pxy / (Pxx + 1e-12)   # small epsilon to avoid division by zero
-    H = np.interp(np.fft.rfftfreq(len(free_stream_signal), 1/fs), f, H, left=1, right=1)  # interpolate to full FFT grid
-    
-    # 3. Apply H(f) to free_stream_signal via FFT to get the coherent part of wall_signal
-    X = np.fft.rfft(free_stream_signal)         # FFT of input signal
-    Y_coherent = np.fft.irfft(X * H, n=len(free_stream_signal))  # filter in freq domain
-    
-    return Y_coherent
+    # apply in frequency domain
+    P_f = np.fft.rfft(p_free)
+    F   = np.fft.rfftfreq(N, 1/fs)
+    H_interp = np.interp(F, f, H)       # align filter to full-spectrum bins
+    p_est    = np.fft.irfft(H_interp * P_f, n=N)
 
-def compute_coherence(p_free, p_wall, fs):
-    """
-    Compute coherence between free-stream and wall-pressure signals.
+    # subtract predicted free-stream contribution
+    p_clean = p_wall - p_est
 
-    Inputs:
-      p_free    : (N,) free-stream trace
-      p_wall    : (M,) wall-pressure trace
-      fs        : sampling rate [Hz]
-      max_lag_s : optional max lag to search [s]
-
-    Returns:
-      f         : frequency vector [Hz]
-      coh       : magnitude-squared coherence
-      Pyy       : original wall-pressure PSD
-      Pyy_coh   : portion of Pyy coherent with p_free
-    """
-    nperseg = len(p_wall) // 2000  # segment length for Welch's method
-    noverlap = nperseg // 2  # overlap between segments
-    f, coh2 = coherence(p_wall, p_free, fs, nperseg=nperseg, noverlap=noverlap, window='hann')
-    return f, coh2
-
-
-def reject_freestream_noise(p_free, p_wall, fs):
-    """
-    Remove free-stream pressure noise from wall-pressure via spectral subtraction.
-
-    Inputs:
-      p_free  : 1D array of free-stream pressure fluctuations
-      p_wall  : 1D array of wall-pressure fluctuations (duct modes already filtered)
-      fs      : sampling frequency [Hz]
-      nperseg : segment length for Welch's method
-      noverlap: overlap between segments (defaults to nperseg//2 if None)
-
-    Outputs:
-      f        : frequency vector [Hz]
-      Phi_orig : original wall-pressure PSD
-      Phi_clean: wall-pressure PSD with free-stream noise rejected
-    """
-    nperseg = len(p_wall) // 2000  # segment length for Welch's method
-    noverlap = nperseg // 2  # overlap between segments
-    # 1) estimate spectra
-    f, S_ww = welch(p_wall, fs=fs, nperseg=nperseg, noverlap=noverlap)
-    _, S_ff = welch(p_free, fs=fs, nperseg=nperseg, noverlap=noverlap)
-    _, S_wf = csd(p_wall, p_free, fs=fs, nperseg=nperseg, noverlap=noverlap)
-
-    # 2) optimal transfer function H(f) = S_wf / S_ff
-    H_opt = S_wf / S_ff
-
-    # 3) reconstruct noise in time domain
-    #    compute FFT of free-stream, apply H, then IFFT
-    P_free = np.fft.rfft(p_free, n=2*(len(H_opt)-1))
-    # align lengths: len(P_free)==len(H_opt)
-    noise_hat = np.fft.irfft(H_opt * P_free, n=len(p_free))
-
-    # 4) subtract estimated noise
-    p_clean = p_wall - noise_hat
-
-    # 5) PSD of cleaned signal
-    _, Phi_clean = welch(p_clean, fs=fs, nperseg=nperseg, noverlap=noverlap)
-
-    return f, S_ww, Phi_clean
-
-def reject_noise_by_coherence(p_free, p_wall, fs, thresh=3e-4):
-    """
-    Remove wall-PSD where free-stream coherence > thresh.
-
-    Inputs:
-      p_free   : (N,) free-stream trace
-      p_wall   : (N,) wall-pressure trace (aligned & notched)
-      fs       : sampling rate [Hz]
-      thresh   : coherence^2 threshold
-      nperseg  : Welch segment length
-      noverlap : overlap (defaults to nperseg//2)
-
-    Returns:
-      f        : (M,) frequency vector
-      Phi_orig : (M,) original wall-PSD
-      Phi_clean: (M,) cleaned wall-PSD
-    """
-    nperseg = len(p_wall) // 2000  # segment length for Welch's method
-    noverlap = nperseg // 2  # overlap between segments
-
-    f, Phi_orig = welch(p_wall, fs=fs,
-                        nperseg=nperseg, noverlap=noverlap)
-    _, coh2       = coherence(p_wall, p_free, fs=fs,
-                            nperseg=nperseg, noverlap=noverlap, window='hann')
-
-    Phi_clean = Phi_orig.copy()
-    Phi_clean[coh2.real > thresh] = np.nan
-    return f, Phi_orig, Phi_clean
-
+    return p_clean, f, H
 
 
 def fill_and_smooth_psd(f, Pclean,
@@ -338,37 +279,3 @@ def fill_and_smooth_psd(f, Pclean,
         Pfilled_sm = Pfilled
     return Pfilled_sm
 
-
-def wiener_psd_clean_thresh(p_free, p_wall, fs, thresh=1e-3):
-    """
-    Wiener‐filter PSD cleaning with coherence threshold.
-
-    Inputs:
-      p_free   : (N,) free-stream trace
-      p_wall   : (N,) wall-pressure trace
-      fs       : sampling rate [Hz]
-      thresh   : coherence^2 threshold
-      nperseg  : Welch segment length
-      noverlap : overlap (defaults to nperseg//2)
-
-    Returns:
-      f, Sww_orig, Sww_clean
-    """
-    nperseg = len(p_wall) // 2000  # segment length for Welch's method
-    noverlap = nperseg // 2  # overlap between segments
-
-    f, Sww = welch(p_wall, fs, nperseg=nperseg, noverlap=noverlap)
-    _, Sff = welch(p_free, fs, nperseg=nperseg, noverlap=noverlap)
-    _, Swf = csd(p_wall, p_free, fs, nperseg=nperseg, noverlap=noverlap)
-    _, coh2  = coherence(p_wall, p_free, fs, nperseg=nperseg, noverlap=noverlap)
-
-    # thresholded transfer function
-    eps = 1e-16
-    H = Swf/(Sff+eps)
-    H[coh2 < thresh] = 0
-
-    # clean PSD
-    Sww_clean = Sww - np.abs(H)**2 * Sff
-    Sww_clean[Sww_clean < 0] = 0
-
-    return f, Sww, Sww_clean

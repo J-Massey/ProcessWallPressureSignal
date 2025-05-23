@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.signal import savgol_filter, welch
+from scipy.signal import savgol_filter, welch, csd
 from i_o import load_stan_wallpressure
 from processing import compute_duct_modes, notch_filter_timeseries, compute_psd
 
@@ -88,11 +88,117 @@ class WallPressureProcessor:
 
         self.filtered = True
         return results_w, results_fs
+    
+    def phase_match(self, smoothing_len=1):
+        """
+        Phase-match two signals in the frequency domain.
+
+        This function finds a frequency-dependent phase correction between sig1 (e.g., freestream pressure)
+        and sig2 (e.g., wall pressure), and applies it to sig1 to align its phase with sig2's phase:contentReference[oaicite:0]{index=0}.
+        It uses the cross power spectrum to estimate the phase difference at each frequency,
+        which represents the phase lag between the two signals:contentReference[oaicite:1]{index=1}.
+
+        Parameters:
+        sig1 : array_like
+            The first time-series signal (e.g., freestream pressure).
+        sig2 : array_like
+            The second time-series signal (reference signal, e.g., wall pressure).
+
+        Returns:
+        sig1_phase_matched : ndarray
+            The phase-corrected version of sig1, aligned in phase with sig2.
+
+        Notes:
+        - The signals are assumed to be time-aligned (no major time lag).
+        - The method computes the cross-spectrum and adjusts the phase of sig1 to match sig2
+        at each frequency. This preserves sig1's magnitude spectrum and only alters its phase.
+        - The output is a real signal, obtained via inverse FFT after phase correction.
+        - This approach is efficient (uses FFT) and numerically stable for large signals, preserving the coherent phase relationships required for Wiener filtering:contentReference[oaicite:2]{index=2}.
+        """
+        sig1 = self.p_w_filt if self.filtered else self.p_w
+        sig2 = self.p_fs_filt if self.filtered else self.p_fs
+        sig1 = np.asarray(sig1)
+        sig2 = np.asarray(sig2)
+        N = len(sig1)
+        # Compute one-sided FFT (rfft) for efficiency with real signals
+        F1 = np.fft.rfft(sig1)
+        F2 = np.fft.rfft(sig2)
+        # Compute phase difference for each frequency bin
+        phase_diff = np.angle(F2) - np.angle(F1)
+        # Unwrap the phase difference to avoid 2π discontinuities
+        phase_diff = np.unwrap(phase_diff)
+        # smooth the unwrapped phase
+        if smoothing_len > 1:
+            kernel = np.ones(smoothing_len) / smoothing_len
+            phase_diff = np.convolve(phase_diff, kernel, mode='same')
+        # Construct complex phase correction (unit magnitude factors)
+        phase_correction = np.exp(1j * phase_diff)
+        # Apply phase correction to F1's spectrum
+        F1_matched = F1 * phase_correction
+        # Inverse FFT to get the phase-adjusted time-domain signal
+        self.p_w_matched = np.fft.irfft(F1_matched, n=N)
+
+    def reject_free_stream_noise(self, eps=1e-8):
+        """
+        Wiener-filter rejection of free-stream noise from wall-pressure signal.
+
+        We estimate
+        \begin{equation}
+        H(f)=\frac{S_{fw}(f)}{S_{ff}(f)},\quad
+        \hat p_w(t)=\mathcal F^{-1}\{H(f)\,P_f(f)\},\quad
+        p_{w,\mathrm{clean}}(t)=p_w(t)-\hat p_w(t).
+        \end{equation}
+
+        Parameters
+        ----------
+        p_free : array_like, shape (N,)
+            Free-stream (noise) signal.
+        p_wall : array_like, shape (N,)
+            Wall-pressure signal.
+        fs : float
+            Sampling rate [Hz].
+        nperseg : int or None
+            FFT segment length for Welch (default = N).
+        noverlap : int or None
+            Overlap between segments (default = nperseg//2).
+        eps : float
+            Small regularisation to avoid division by zero.
+
+        Returns
+        -------
+        p_clean : ndarray, shape (N,)
+            Noise-rejected wall-pressure time series.
+        f       : ndarray, shape (M,)
+            Frequency bins [Hz].
+        H       : ndarray, shape (M,)
+            Complex Wiener filter transfer function.
+        """
+        N = len(self.p_fs)
+        nperseg = N//2000
+        noverlap = nperseg // 2
+
+        # estimate spectra via Welch
+        f, P_ff = welch(self.p_fs, fs=self.fs, nperseg=nperseg, noverlap=noverlap)
+        f, P_fw = csd(self.p_fs, self.self.p_w_matched, fs=self.fs, nperseg=nperseg, noverlap=noverlap)
+
+        # Wiener filter
+        H = P_fw / (P_ff + eps)
+
+        # apply in frequency domain
+        P_f = np.fft.rfft(self.p_fs)
+        F   = np.fft.rfftfreq(N, 1/self.fs)
+        H_interp = np.interp(F, f, H)       # align filter to full-spectrum bins
+        p_est    = np.fft.irfft(H_interp * P_f, n=N)
+
+        # subtract predicted free-stream contribution
+        p_clean = self.self.p_w_matched - p_est
+        self.p_w_clean = p_clean
+        return p_clean, f, H
 
     # ------------------------------------------------------------------
     def compute_wall_spectrum(self):
         """Compute PSD for the (optionally filtered) wall signal."""
-        signal = self.p_w_filt if self.filtered else self.p_w
+        signal = self.p_w_clean if self.filtered else self.p_w
         f_nom, phi_nom = compute_psd(signal, fs=self.sample_rate)
         return f_nom, phi_nom
 
@@ -103,7 +209,7 @@ class WallPressureProcessor:
         denom = (self.rho0 * self.u_tau0 ** 2) ** 2
 
         f_grid = np.logspace(
-            np.log10(f_nom.min() + 1e-1), np.log10(f_nom.max()), 1024
+            np.log10(f_nom.min() + 1e-1), np.log10(f_nom.max()), 2048
         )
         phi_wall_grid = np.interp(f_grid, f_nom, phi_nom / denom, left=0, right=0)
         phi_wall_grid = savgol_filter(phi_wall_grid, window_length=64, polyorder=1)
@@ -124,9 +230,9 @@ class WallPressureProcessor:
         """Apply previously computed transfer function to wall signal."""
         if not hasattr(self, "transfer_mag"):
             raise RuntimeError("Transfer function not computed")
-        N = len(self.p_w)
+        N = len(self.p_w_clean)
         freqs = np.fft.rfftfreq(N, 1 / self.sample_rate)
-        wall_fft = np.fft.rfft(self.p_w)
+        wall_fft = np.fft.rfft(self.p_w_clean)
         H_full = np.interp(freqs, self.transfer_freq, self.transfer_mag, left=1.0, right=1.0)
         corrected_fft = wall_fft * H_full
         self.p_w_corrected = np.fft.irfft(corrected_fft, n=N)
