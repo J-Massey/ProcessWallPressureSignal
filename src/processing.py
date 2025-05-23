@@ -2,6 +2,7 @@ import torch
 import scipy.io as sio
 from scipy.signal import welch, find_peaks, peak_widths, csd, iirnotch, filtfilt
 from icecream import ic
+import numpy as np
 
 
 def compute_psd(signal, fs, nperseg=None, noverlap=None):
