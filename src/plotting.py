@@ -136,7 +136,7 @@ def plot_transfer(f, H, outfile, decim=None):
     mag   = np.abs(H)
     phase = np.unwrap(np.angle(H))
 
-    fig, (ax_mag, ax_ph) = plt.subplots(2, 1, sharex=True, figsize=(6, 4))
+    fig, (ax_mag, ax_ph) = plt.subplots(2, 1, sharex=True, figsize=(6, 4), dpi=600)
     ax_mag.loglog(f, mag, lw=1)
     ax_mag.set_ylabel(r'$|H(f)|$')
     ax_ph.semilogx(f, phase, lw=1)
