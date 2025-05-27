@@ -86,12 +86,15 @@ def main(sanity=False):
     ic(f"Phase-matched: {proc.p_w.shape}")
 
     if sanity:
-        f, P_w_fs_opt = csd(proc.p_w.cpu(), proc.p_fs.cpu(), fs=SAMPLE_RATE,
+        f, H_match = phase_match_transfer(p_w_org, proc.p_w.cpu(), SAMPLE_RATE, smoothing_len=1)
+        plot_transfer(f, H_match, os.path.join(OUTPUT_DIR, "complex_transfer_function.png"))
+
+        f, P_w_fs_opt = csd(p_w_org, proc.p_fs.cpu(), fs=SAMPLE_RATE,
                             nperseg=nperseg, noverlap=noverlap, window="hann")
         plot_phase_match_csd(f, P_w, P_fs, P_w_fs, P_w_fs_opt,
                             os.path.join(OUTPUT_DIR, "phase_match_csd.png"))
 
-        f, coh = coherence(proc.p_w.cpu(), proc.p_fs.cpu(), fs=SAMPLE_RATE,
+        f, coh = coherence(p_w_org, proc.p_fs.cpu(), fs=SAMPLE_RATE,
                         nperseg=nperseg, noverlap=noverlap)
         f_match, coh_match = coherence(proc.p_w.cpu(), proc.p_fs.cpu(), fs=SAMPLE_RATE,
                                     nperseg=nperseg, noverlap=noverlap)
@@ -100,14 +103,12 @@ def main(sanity=False):
                     os.path.join(OUTPUT_DIR, "coherence.png"))
 
         # Plot estimated transfer function
-        f, H_match = phase_match_transfer(p_w_org, proc.p_w.cpu(), SAMPLE_RATE, smoothing_len=1)
-        plot_transfer(f, H_match, os.path.join(OUTPUT_DIR, "transfer_function.png"))
 
     # Wiener filter time series
     proc.reject_free_stream_noise()
     ic(f"Noise-rejected: {proc.p_w.shape}")
     if sanity:
-        f, P_w_clean = welch(proc.p_w_clean.cpu(), fs=SAMPLE_RATE, nperseg=nperseg,
+        f, P_w_clean = welch(proc.p_w.cpu(), fs=SAMPLE_RATE, nperseg=nperseg,
                             noverlap=noverlap, window="hann")
         plot_wiener_filter(f, P_w, P_fs, P_w_clean,
                                     os.path.join(OUTPUT_DIR, "wiener_filtered_spectrum.png"))
@@ -131,6 +132,8 @@ def main(sanity=False):
     f_grid, Phi_w_corrected, H_mag = proc.compute_transfer_function(f_ref, Pxx_ref)
     f_grid = f_grid.cpu()
     Phi_w_corrected = Phi_w_corrected.cpu()
+    # Smooth
+    Phi_w_corrected  = savgol_filter(Phi_w_corrected, 51, 1)  # window length 51, polynomial order 3
     H_mag = H_mag.cpu()
 
 
@@ -146,25 +149,17 @@ def main(sanity=False):
     ax.plot(T_plus, f_grid * Phi_w_corrected/denom, lw=0.5, alpha=0.8)
 
     ax.set_xscale("log")
-    ax.set_ylim(0, 4)
+    ax.set_ylim(0, 6)
     # ax.set_yscale("log")
     ax.set_xlabel("$T^+$")
     ax.set_ylabel("$f\\Phi^+$")
-    ax.legend(["Deshpande et al. (2025)", "$P_{ww}^{\mathrm{corrected}}$"])
+    ax.legend(["Deshpande et al. (2025)", "$P_{ww}^{\\mathrm{corrected}}$"])
     ax.grid(True, which="both", ls="--", alpha=0.5)
     plt.savefig(os.path.join(OUTPUT_DIR, "final_spectrum.png"))
     plt.close()
 
-    # Example: save corrected spectrum
-    # f_corr, P_corr = welch(proc.p_w_corrected, fs=SAMPLE_RATE,
-    #                        nperseg=len(proc.p_w_corrected)//2000,
-    #                        noverlap=len(proc.p_w_corrected)//4000,
-    #                        window="hann")
-    # np.savez(os.path.join(OUTPUT_DIR, "wall_corrected_spectrum.npz"),
-    #          freq=f_corr, pxx=P_corr)
-
 
 if __name__ == "__main__":
-    main(sanity=0)
+    main(sanity=1)
     # main(sanity=True)
 
