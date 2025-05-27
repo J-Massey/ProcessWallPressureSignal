@@ -42,51 +42,53 @@
     {\scriptsize \centering Thanks to DARPA for funding this work.\par}
 \end{frame}
 
-\begin{frame}{Duct modes}
-\end{frame}
-
-\begin{frame}{Time series filter duct modes}
+\begin{frame}{Match mics by finding the complex transfer function}
     \centering
-    \includegraphics[width=0.7\linewidth]{figures/notched_pressure_spectrum.png}
+    \includegraphics[width=0.7\linewidth]{figures/complex_transfer_function.png}
     \begin{itemize}
             \centering
-        \item Filter signal with bandwidth filter in the timeseries
+        \item The microphones aren't phase matched
+        \item We need to match the phase response of the microphones by finding the complex transfer function
     \end{itemize}
-
 \end{frame}
 
-\begin{frame}{Coherence between wall and free-stream pressure}
+\begin{frame}{Phase matching dramatically increases the coherence}
     \centering
-    \includegraphics[width=0.5\linewidth]{figures/coherence.png}
+    \includegraphics[width=0.7\linewidth]{figures/coherence.png}
     \begin{itemize}
         \centering
-        \item Miss-alignment of F-S and Wall mic causes a phase shift
-        \item Maximised coherence based on time lag
-        \item Still uncorrelated
+        \item Without the complex transfer function, the coherence is very low
+        \item There's still a missing piece regarding the magnitude response
+        \item Fitting in the same way would cause the wiener filter to force the cleaned signal to be zero
     \end{itemize}
 \end{frame}
+
+\begin{frame}{Phase matched CSD}
+    The Wiener filter has equation
+    \begin{equation}
+        H(f) = \frac{P_{fw}(f)}{S_{ww}(f)}
+    \end{equation}
+    \centering
+    \includegraphics[width=0.7\linewidth]{figures/wiener_filtered_spectrum.png}
+\end{frame}
+
 
 \begin{frame}{Transfer function between reference spectra and measurements}
     \centering
-    \includegraphics[width=0.7\linewidth]{figures/transfer_function_magnitude.png}
+    \includegraphics[width=0.7\linewidth]{figures/reference_transfer_function.png}
     \begin{itemize}
         \centering
-        \item Transfer function between reference spectra and measurements
+        \item Transfer function between reference spectrum \citep{deshpande_active_2025} and current measurements
     \end{itemize}
 \end{frame}
 
 \begin{frame}{Corrected signals}
     \centering
-    \includegraphics[width=0.7\linewidth]{figures/corrected_wall_pressure_signal_spectrum.png}
+    \includegraphics[width=0.7\linewidth]{figures/final_spectrum.png}
     \begin{itemize}
         \centering
         \item Corrected wall pressure signal spectrum
     \end{itemize}
-\end{frame}
-
-\begin{frame}{Corrected spectra}
-    \centering
-    \includegraphics[width=0.7\linewidth]{figures/corrected_wall_pressure_spectrum.png}
 \end{frame}
 
 \begin{frame}[noframenumbering,allowframebreaks]
@@ -94,8 +96,5 @@
     \bibliographystyle{jfm}
     \bibliography{refs}
 \end{frame}
-
-% \section{Backup}
-% \include{sections/greens}
 
 \end{document}

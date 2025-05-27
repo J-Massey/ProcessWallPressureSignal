@@ -199,21 +199,22 @@ class WallPressureProcessor:
         self.mode_n = mode_n
         self.mode_l = mode_l
 
-        self.L = self.L0 + self.delta_L0
-
-        self.duct_modes = None
-        self.f_w = None
-        self.p_w = None
-        self.f_fs = None
-        self.p_fs = None
-        self.filtered = False
         if torch.cuda.is_available():
             self.device = torch.device("cuda")
         else:
             self.device = torch.device("cpu")
 
+        self.L = self.L0 + self.delta_L0
+
+        self.duct_modes = None
+        self.f_w = torch.tensor([], device=torch.device(device=self.device), dtype=torch.float64)
+        self.p_w = torch.tensor([], device=torch.device(device=self.device), dtype=torch.float64)
+        self.f_fs = torch.tensor([], device=torch.device(device=self.device), dtype=torch.float64)
+        self.p_fs = torch.tensor([], device=torch.device(device=self.device), dtype=torch.float64)
+        self.filtered = False
+
     # ------------------------------------------------------------------
-    def compute_duct_modes(self) -> Dict[str, torch.Tensor]:
+    def compute_duct_modes(self) -> Dict[str, Any]:
         """Identify duct modes using current parameters."""
         self.duct_modes = compute_duct_modes(
             self.U, self.C,
@@ -430,6 +431,11 @@ class WallPressureProcessor:
 
         # H  = torch.sqrt(H2)
         H  = torch.nan_to_num(H2,  nan=1., posinf=1., neginf=1.)
+        # Smooth the transfer function
+        # H = torch_savgol_filter(
+        #     H, window_length=701, polyorder=1, deriv=0
+        # )
+
 
         self.transfer_freq = f_grid
         self.transfer_mag  = H
