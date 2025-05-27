@@ -1,8 +1,12 @@
-import torch
-import numpy as np
-from scipy.signal import savgol_filter, welch, csd
+from __future__ import annotations
+
 import math
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+import numpy as np
+import torch
 import torch.nn.functional as F
+from scipy.signal import savgol_filter, welch, csd
 
 from i_o import load_stan_wallpressure
 from processing import compute_duct_modes, notch_filter_timeseries, compute_psd
@@ -24,7 +28,12 @@ def torch_unwrap1d(x: torch.Tensor) -> torch.Tensor:
     corr = F.pad(corr, (1, 0))
     return x + corr
 
-def torch_welch(x, fs=1.0, nperseg=None, noverlap=None):
+def torch_welch(
+    x: torch.Tensor,
+    fs: float = 1.0,
+    nperseg: Optional[int] = None,
+    noverlap: Optional[int] = None,
+) -> Tuple[torch.Tensor, torch.Tensor]:
     N = x.numel()
     L = nperseg or N
     O = noverlap or L//2
@@ -57,12 +66,13 @@ def torch_welch(x, fs=1.0, nperseg=None, noverlap=None):
     return f, Pxx
 
 
-def torch_csd(x: torch.Tensor,
-                y: torch.Tensor,
-                fs: float = 1.0,
-                nperseg: int = None,
-                noverlap: int = None
-                ):
+def torch_csd(
+    x: torch.Tensor,
+    y: torch.Tensor,
+    fs: float = 1.0,
+    nperseg: Optional[int] = None,
+    noverlap: Optional[int] = None,
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Return (f, Pxy) via cross-spectral density in PyTorch,
     forcing a real-valued output by taking the real part.
@@ -121,7 +131,12 @@ def torch_interp(x: torch.Tensor,
     return y
 
 
-def torch_savgol_filter(x, window_length, polyorder, deriv=0):
+def torch_savgol_filter(
+    x: torch.Tensor,
+    window_length: int,
+    polyorder: int,
+    deriv: int = 0,
+) -> torch.Tensor:
     """
     x: 1D torch.Tensor
     window_length: odd int > polyorder
@@ -152,9 +167,23 @@ def torch_savgol_filter(x, window_length, polyorder, deriv=0):
 class WallPressureProcessor:
     """Processing pipeline for wall-pressure and free-stream signals."""
 
-    def __init__(self, sample_rate, nu0, rho0, u_tau0, err_frac,
-                 W, H, L0, delta_L0, U, C,
-                 mode_m, mode_n, mode_l):
+    def __init__(
+        self,
+        sample_rate: float,
+        nu0: float,
+        rho0: float,
+        u_tau0: float,
+        err_frac: float,
+        W: float,
+        H: float,
+        L0: float,
+        delta_L0: float,
+        U: float,
+        C: float,
+        mode_m: Sequence[int],
+        mode_n: Sequence[int],
+        mode_l: Sequence[int],
+    ) -> None:
         self.sample_rate = sample_rate
         self.nu0 = nu0
         self.rho0 = rho0
@@ -184,7 +213,7 @@ class WallPressureProcessor:
             self.device = torch.device("cpu")
 
     # ------------------------------------------------------------------
-    def compute_duct_modes(self):
+    def compute_duct_modes(self) -> Dict[str, torch.Tensor]:
         """Identify duct modes using current parameters."""
         self.duct_modes = compute_duct_modes(
             self.U, self.C,
@@ -195,7 +224,11 @@ class WallPressureProcessor:
         return self.duct_modes
 
     # ------------------------------------------------------------------
-    def load_data(self, wall_mat, fs_mat):
+    def load_data(
+        self,
+        wall_mat: str,
+        fs_mat: str,
+    ) -> Tuple[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor, torch.Tensor]]:
         """Load wall and freestream pressure signals from .mat files."""
         self.f_w, self.p_w = load_stan_wallpressure(wall_mat)
         self.f_fs, self.p_fs = load_stan_wallpressure(fs_mat)
@@ -207,7 +240,7 @@ class WallPressureProcessor:
         return (self.f_w, self.p_w), (self.f_fs, self.p_fs)
 
     # ------------------------------------------------------------------
-    def notch_filter(self):
+    def notch_filter(self) -> Tuple[Any, Any]:
         """Apply duct-mode notch filtering to wall and free-stream signals."""
         if self.duct_modes is None:
             self.compute_duct_modes()
@@ -243,7 +276,7 @@ class WallPressureProcessor:
         self.filtered = True
         return results_w, results_fs
     
-    def phase_match(self, smoothing_len=1):
+    def phase_match(self, smoothing_len: int = 1) -> None:
         """
         Phase-match two signals in the frequency domain.
 
@@ -295,7 +328,7 @@ class WallPressureProcessor:
         self.p_w = torch.fft.irfft(F1_matched, n=N)
         self.phase_matched = True
 
-    def reject_free_stream_noise(self, eps=1e-8):
+    def reject_free_stream_noise(self, eps: float = 1e-8) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Wiener-filter rejection of free-stream noise from wall-pressure signal.
 
@@ -356,7 +389,7 @@ class WallPressureProcessor:
         return p_clean, f, H
 
     # --------------------------------------- Spectra ---------------------------------------
-    def compute_wall_spectrum(self):
+    def compute_wall_spectrum(self) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute PSD for the (optionally filtered) wall signal."""
         signal = self.p_w
         N = len(signal)
@@ -367,7 +400,11 @@ class WallPressureProcessor:
         )
         return f_nom, phi_nom
 
-    def compute_transfer_function(self, ref_freq, ref_pxx):
+    def compute_transfer_function(
+        self,
+        ref_freq: Sequence[float] | torch.Tensor,
+        ref_pxx: Sequence[float] | torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # tensors on correct device
         f_ref = torch.as_tensor(ref_freq , device=self.device)
         P_ref = torch.as_tensor(ref_pxx  , device=self.device)
@@ -401,7 +438,7 @@ class WallPressureProcessor:
         return f_grid, self.Phi_p_corr, H
 
 
-    def apply_transfer_function(self):
+    def apply_transfer_function(self) -> torch.Tensor:
         p = self.p_w.to(device=self.device,
                         dtype=self.transfer_mag.dtype)
         N = p.shape[0]
