@@ -138,7 +138,7 @@ def plot_transfer(f, H, outfile, decim=None):
 
     fig, ax_ph = plt.subplots(1, 1, sharex=True, figsize=(5.6, 2.6), dpi=600)
     ax_ph.semilogx(f, phase, lw=1)
-    ax_ph.set_ylabel(r'$\arg H(f)$')
+    ax_ph.set_ylabel(r'$\arg H_{fw}(f)$')
     ax_ph.set_xlabel(r'$f\ \mathrm{[Hz]}$')
     fig.tight_layout()
     plt.savefig(outfile)
@@ -193,8 +193,7 @@ def plot_reference_transfer_function(f_grid, H_mag, outfile):
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xlabel("$f$ [Hz]")
-    ax.set_ylabel("$|H(f)|$")
-    ax.legend(["$|H(f)|$"])
+    ax.set_ylabel("$|H_{\mathrm{ref}}(f)|$")
     ax.grid(True, which="both", ls="--", alpha=0.5)
     plt.savefig(outfile)
     plt.close()

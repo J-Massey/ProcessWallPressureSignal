@@ -15,7 +15,7 @@
 \setbeamertemplate{footline}{%
 \begin{beamercolorbox}[wd=\paperwidth,ht=4ex,dp=2.5ex]{}
     \centering
-    \makebox[0.32\paperwidth][l]{\scriptsize\texttt{Lndn. 04-04}}
+    \makebox[0.32\paperwidth][l]{\scriptsize\texttt{pressure proc. 05-28}}
     \makebox[0.32\paperwidth][c]{\scriptsize\texttt{$^{\dag}$masseyj@stanford.edu}}
     \makebox[0.32\paperwidth][r]{\scriptsize\insertframenumber/\inserttotalframenumber}
   \end{beamercolorbox}
@@ -27,7 +27,7 @@
 
 %--- Title info
 \title{Pressure signal processing}
-\author{JMO Massey$^{\dag}$, F Cabrera-Booman, J Klewicki, BJ McKeon}
+\author{JMO Massey$^{\dag}$, F Cabrera-Booman, T Jaroslawski, J Klewicki, BJ McKeon}
 \institute{Center for Turbulence Research \\ Stanford University}
 % \thanks{This work was supported by DARPA under the CHAOS program}
 \date{April 4, 2025}
@@ -48,7 +48,8 @@
     \begin{itemize}
             \centering
         \item The microphones aren't phase matched
-        \item We need to match the phase response of the microphones by finding the complex transfer function
+        \item Here, we match the phase response of the fs and wall measurements to approximate the complex transfer function
+        \item $argH_{fw}(f)$ \emph{should} be found in an anechoic chamber with a known input signal
     \end{itemize}
 \end{frame}
 
@@ -58,18 +59,28 @@
     \begin{itemize}
         \centering
         \item Without the complex transfer function, the coherence is very low
-        \item There's still a missing piece regarding the magnitude response
-        \item Fitting in the same way would cause the wiener filter to force the cleaned signal to be zero
+        \item The magnitude of the transfer function between fs and wall measurements needs to be determined
+        \item We \emph{assume} it is unity for the purposes of this analysis
     \end{itemize}
 \end{frame}
 
-\begin{frame}{Phase matched CSD}
-    The Wiener filter has equation
+\begin{frame}{Wiener filter}
+    The Wiener filter is used to reject free-stream noise from the wall-pressure measurements. It has equation
     \begin{equation}
-        H(f) = \frac{P_{fw}(f)}{S_{ww}(f)}
+        H_{\text{Wiener}}(f) = \frac{P_{fw}(f)}{P_{ww}(f)}
     \end{equation}
-    \centering
-    \includegraphics[width=0.7\linewidth]{figures/wiener_filtered_spectrum.png}
+    where $P_{fw}(f)$ is the cross spectral density between the reference and wall pressure signals, and $P_{ww}(f)$ is the power spectral density of the wall pressure signal.
+    \begin{minipage}{0.6\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/wiener_filtered_spectrum.png}
+    \end{minipage}
+    \begin{minipage}{0.35\textwidth}
+        \centering
+        \begin{itemize}
+            \item Duct modes \emph{should} be removed by the Wiener filter
+            \item Need $|H_{wf}(f)|$ for this
+        \end{itemize}
+    \end{minipage}
 \end{frame}
 
 
@@ -79,6 +90,7 @@
     \begin{itemize}
         \centering
         \item Transfer function between reference spectrum \citep{deshpande_active_2025} and current measurements
+        \item Duct modes show up through the troughs of the transfer function
     \end{itemize}
 \end{frame}
 
@@ -87,7 +99,9 @@
     \includegraphics[width=0.7\linewidth]{figures/final_spectrum.png}
     \begin{itemize}
         \centering
-        \item Corrected wall pressure signal spectrum
+        \item Corrected wall pressure signal spectrum will always match the reference spectrum
+        \item We need the actual transfer function to do this
+        \item Pressurising the facility will likely change the transfer function
     \end{itemize}
 \end{frame}
 
