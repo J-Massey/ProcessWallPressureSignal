@@ -149,7 +149,7 @@ def main(sanity=False):
     ax.plot(T_plus, f_grid * Phi_w_corrected/denom, lw=0.5, alpha=0.8)
 
     ax.set_xscale("log")
-    ax.set_ylim(0, 6)
+    ax.set_ylim(0, 4)
     # ax.set_yscale("log")
     ax.set_xlabel("$T^+$")
     ax.set_ylabel("$f\\Phi^+$")
