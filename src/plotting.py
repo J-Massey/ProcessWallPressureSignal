@@ -123,37 +123,34 @@ def plot_filtered_diff(spec, spec_filt_w, spec_filt_fs, outfile):
     plt.savefig(outfile)
     plt.close()
 
-def plot_transfer(f, H, mag_diff, outfile, decim=None):
-    """
-    Plot |H(f)| and arg H(f) versus frequency for sanity checks.
-
-    Parameters
-    ----------
-    f : ndarray, shape (M,)
-        Frequency bins [Hz].
-    H : ndarray, shape (M,)
-        Complex transfer function.
-    decim : int or None
-        If set, plot every decim-th point to reduce density.
-
-    Returns
-    -------
-    fig, (ax_mag, ax_ph) : matplotlib objects
-    """
-    if decim:
-        f = f[::decim]
-        H = H[::decim]
-    f = torch.as_tensor(f).cpu().numpy()
-    H = torch.as_tensor(H).cpu().numpy()
-    mag   = np.abs(H)
-    phase = np.unwrap(np.angle(H))
-
-    fig, (ax_mag, ax_ph) = plt.subplots(2, 1, sharex=True, figsize=(5.6, 5.2), dpi=600)
-    ax_mag.loglog(f, mag_diff, lw=1)
+def plot_transfer(f, H, outfile):
+    mag = np.abs(H); ph = np.unwrap(np.angle(H))
+    fig, (ax_mag, ax_ph) = plt.subplots(2, 1, sharex=True, figsize=(6, 3), dpi=600)
+    ax_mag.loglog(f, 1+mag, lw=1)
     ax_mag.set_ylabel(r'$|H_{fw}(f)|$')
-    ax_ph.semilogx(f, phase, lw=1)
-    ax_ph.set_ylabel(r'$\arg H_{fw}(f)$')
+    ax_ph.semilogx(f, ph, lw=1)
+    ax_ph.set_ylabel(r'$\arg H_{yx}(f)\,[\mathrm{rad}]$')
     ax_ph.set_xlabel(r'$f\ \mathrm{[Hz]}$')
+    fig.tight_layout()
+    plt.savefig(outfile)
+    plt.close()
+
+def plot_corrected_trace(t, ref, trt, trt_corr, outfile, tspan=0.032):
+    tspan = (t[0], t[0]+tspan)
+    m = (t>=tspan[0]) & (t<=tspan[1])
+    fig, (ax_raw, ax_corr) = plt.subplots(2, 1, sharex=True, figsize=(6, 3), dpi=600)
+    ax_raw.plot(t[m], ref[m], lw=0.5)
+    ax_raw.plot(t[m], trt[m], lw=0.5)
+    ax_raw.set_ylabel(r'$p$')
+    corr_coeff = np.corrcoef(ref[m], trt[m])[0,1]
+    ax_raw.set_title(f"Raw Signals (Corr: {corr_coeff:.3f})")
+    ax_raw.legend(["Reference", "Treated"])
+    ax_corr.plot(t[m], ref[m], lw=0.5)
+    ax_corr.plot(t[m], trt_corr[m], lw=0.5)
+    ax_corr.set_ylabel(r'$p$')
+    ax_corr.set_xlabel(r'$t$ [s]')
+    corr_coeff = np.corrcoef(ref[m], trt_corr[m])[0,1]
+    ax_corr.set_title(f"Corrected Signals (Corr: {corr_coeff:.3f})")
     fig.tight_layout()
     plt.savefig(outfile)
     plt.close()
