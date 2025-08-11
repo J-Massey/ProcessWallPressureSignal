@@ -7,3 +7,4 @@ Requires-Dist: matplotlib
 Requires-Dist: seaborn
 Requires-Dist: icecream
 Requires-Dist: scienceplots
+Requires-Dist: torch

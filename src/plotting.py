@@ -13,6 +13,18 @@ plt.rcParams["font.size"] = "10.5"
 plt.rc("text", usetex=True)
 plt.rc("text.latex", preamble=r"\usepackage{mathpazo}")
 
+def plot_raw_signals(p_w, p_fs, outfile):
+    """Plot raw wall and free-stream pressure signals."""
+    fig, ax = plt.subplots(figsize=(4, 2.5), dpi=600)
+    ax.plot(p_w.cpu(), label="Wall Pressure", lw=1)
+    ax.plot(p_fs.cpu(), label="Free-Stream Pressure", lw=1)
+    ax.set_xlabel("Sample Index")
+    ax.set_ylabel("Pressure [Pa]")
+    ax.legend()
+    plt.tight_layout()
+    plt.savefig(outfile)
+    plt.close()
+
 def plot_spectrum_and_modes(spec, modes, mode_l, outfile):
     """Plot Phi+ vs T+ with uncertainty and duct-mode lines."""
     fig, ax = plt.subplots(figsize=(5.6,3.), dpi=600)
@@ -111,7 +123,7 @@ def plot_filtered_diff(spec, spec_filt_w, spec_filt_fs, outfile):
     plt.savefig(outfile)
     plt.close()
 
-def plot_transfer(f, H, outfile, decim=None):
+def plot_transfer(f, H, mag_diff, outfile, decim=None):
     """
     Plot |H(f)| and arg H(f) versus frequency for sanity checks.
 
@@ -136,7 +148,9 @@ def plot_transfer(f, H, outfile, decim=None):
     mag   = np.abs(H)
     phase = np.unwrap(np.angle(H))
 
-    fig, ax_ph = plt.subplots(1, 1, sharex=True, figsize=(5.6, 2.6), dpi=600)
+    fig, (ax_mag, ax_ph) = plt.subplots(2, 1, sharex=True, figsize=(5.6, 5.2), dpi=600)
+    ax_mag.loglog(f, mag_diff, lw=1)
+    ax_mag.set_ylabel(r'$|H_{fw}(f)|$')
     ax_ph.semilogx(f, phase, lw=1)
     ax_ph.set_ylabel(r'$\arg H_{fw}(f)$')
     ax_ph.set_xlabel(r'$f\ \mathrm{[Hz]}$')
@@ -166,6 +180,7 @@ def plot_coherence(f, coh, f_match, coh_match, outfile):
     fig, ax = plt.subplots(figsize=(5.6, 2.6), dpi=600)
     ax.plot(torch.as_tensor(f).cpu(), torch.as_tensor(coh).cpu(), lw=0.5, alpha=0.8)
     ax.plot(torch.as_tensor(f_match).cpu(), torch.as_tensor(coh_match).cpu(), lw=0.5, alpha=0.8)
+    coh = torch.as_tensor(coh_match).cpu()
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xlabel("$f$ [Hz]")
@@ -176,9 +191,10 @@ def plot_coherence(f, coh, f_match, coh_match, outfile):
 
 def plot_wiener_filter(f, P_w, P_fs, P_w_clean, outfile):
     fig, ax = plt.subplots(figsize=(5.6, 2.6), dpi=600)
-    ax.plot(torch.as_tensor(f).cpu(), torch.as_tensor(P_w).cpu(), lw=0.5, alpha=0.8)
-    ax.plot(torch.as_tensor(f).cpu(), torch.as_tensor(P_fs).cpu(), lw=0.5, alpha=0.8)
-    ax.plot(torch.as_tensor(f).cpu(), torch.as_tensor(P_w_clean).cpu(), lw=0.5, alpha=0.8)
+    f = torch.as_tensor(f).cpu()
+    ax.plot(f, f*torch.as_tensor(P_w).cpu(), lw=0.5, alpha=0.8)
+    ax.plot(f, f*torch.as_tensor(P_fs).cpu(), lw=0.5, alpha=0.8)
+    ax.plot(f, f*torch.as_tensor(P_w_clean).cpu(), lw=0.5, alpha=0.8)
     ax.set_xscale("log")
 
     ax.set_xlabel("$f$ [Hz]")
