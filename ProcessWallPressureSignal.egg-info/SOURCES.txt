@@ -1,3 +1,4 @@
+README.md
 setup.py
 ProcessWallPressureSignal.egg-info/PKG-INFO
 ProcessWallPressureSignal.egg-info/SOURCES.txt
@@ -5,8 +6,13 @@ ProcessWallPressureSignal.egg-info/dependency_links.txt
 ProcessWallPressureSignal.egg-info/requires.txt
 ProcessWallPressureSignal.egg-info/top_level.txt
 src/__init__.py
-src/io.py
+src/duct_table.py
+src/i_o.py
 src/noise_rejection.py
 src/plotting.py
 src/processing.py
+src/processor.py
 src/run.py
+src/run_melb.py
+tests/__init__.py
+tests/test_processor.py

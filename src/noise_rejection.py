@@ -143,7 +143,7 @@ def phase_match(sig1, sig2, smoothing_len=10):
     return sig1_phase_matched
 
 
-def phase_match_transfer(sig1, sig2, fs, smoothing_len=10):
+def phase_match_transfer(sig1, sig2, fs, smoothing_len=1):
     """
     Return the complex transfer function H(f) implemented by phase_match:
       H(f) = exp[i·(angle(F2) - angle(F1))_smoothed]
@@ -175,6 +175,7 @@ def phase_match_transfer(sig1, sig2, fs, smoothing_len=10):
 
     # Δφ(f) = arg F2 – arg F1
     phase_diff = np.unwrap(np.angle(F2) - np.angle(F1))
+    mag_diff = np.abs(F2) / np.abs(F1)
 
     # smooth Δφ
     if smoothing_len > 1:
@@ -184,7 +185,7 @@ def phase_match_transfer(sig1, sig2, fs, smoothing_len=10):
     # all-pass: H(f) = exp[i·Δφ(f)]
     H = np.exp(1j * phase_diff)
     f = np.fft.rfftfreq(N, 1/fs)
-    return f, H
+    return f, H, mag_diff
 
 
 def reject_free_stream_noise(p_free, p_wall, fs, eps=1e-8):

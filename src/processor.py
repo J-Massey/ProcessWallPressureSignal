@@ -8,7 +8,7 @@ import torch
 import torch.nn.functional as F
 from scipy.signal import savgol_filter, welch, csd
 
-from i_o import load_stan_wallpressure
+from i_o import load_stan_wallpressure, load_test_wallpressure
 from processing import compute_duct_modes, notch_filter_timeseries, compute_psd
 
 from icecream import ic
@@ -175,7 +175,7 @@ class WallPressureProcessor:
         u_tau0: float,
         err_frac: float,
         W: float,
-        H: float,
+        He: float,
         L0: float,
         delta_L0: float,
         U: float,
@@ -190,7 +190,7 @@ class WallPressureProcessor:
         self.u_tau0 = u_tau0
         self.err_frac = err_frac
         self.W = W
-        self.H = H
+        self.H = He
         self.L0 = L0
         self.delta_L0 = delta_L0
         self.U = U
@@ -238,6 +238,21 @@ class WallPressureProcessor:
         self.p_w = torch.tensor(self.p_w, device=self.device)
         self.f_fs = torch.tensor(self.f_fs, device=self.device)
         self.p_fs = torch.tensor(self.p_fs, device=self.device)
+        return (self.f_w, self.p_w), (self.f_fs, self.p_fs)
+    
+    def load_test(
+            self,
+        mat: str,
+    ) -> Tuple[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor, torch.Tensor]]:
+        """Load wall and freestream pressure signals from .mat files."""
+        p_fs, p_w = load_test_wallpressure(mat)
+        f_fs = torch.fft.rfftfreq(len(p_fs), 1/self.sample_rate)
+        f_w = torch.fft.rfftfreq(len(p_w), 1/self.sample_rate)
+        # Convert to torch tensors
+        self.f_w = torch.tensor(f_w, device=self.device)
+        self.p_w = torch.tensor(p_w, device=self.device)
+        self.f_fs = torch.tensor(f_fs, device=self.device)
+        self.p_fs = torch.tensor(p_fs, device=self.device)
         return (self.f_w, self.p_w), (self.f_fs, self.p_fs)
 
     # ------------------------------------------------------------------
