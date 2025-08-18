@@ -136,7 +136,7 @@ def plot_transfer(f, H, outfile):
     plt.close()
 
 def plot_corrected_trace(t, ref, trt, trt_corr, outfile, tspan=0.032):
-    tspan = (t[0], t[0]+tspan)
+    tspan = (t[0]+2, t[0]+2+tspan)
     m = (t>=tspan[0]) & (t<=tspan[1])
     fig, (ax_raw, ax_corr) = plt.subplots(2, 1, sharex=True, figsize=(6, 3), dpi=600)
     ax_raw.plot(t[m], ref[m], lw=0.5)
