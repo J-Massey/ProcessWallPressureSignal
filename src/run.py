@@ -27,16 +27,24 @@ sns.set_palette("colorblind")
 WALL_PRESSURE_MAT = "data/wallpressure_booman_Pa.mat"
 FREESTREAM_PRESSURE_MAT = "data/booman_wallpressure_fspressure_650sec_40khz.mat"
 
-fn_train = [
-    'Sensor1(naked)Sensor2(plug1).mat',
-    'Sensor1(naked)Sensor3(plug2).mat',
-    'Sensor1(naked)Sensor2(naked).mat',
-    'Sensor1(naked)Sensor3(naked).mat',
-    'Sensor1(naked)Sensor3(nosecone).mat',
+# fn_train = [
+#     'Sensor1(naked)Sensor2(plug1).mat',
+#     'Sensor1(naked)Sensor3(plug2).mat',
+#     'Sensor1(naked)Sensor2(naked).mat',
+#     'Sensor1(naked)Sensor3(naked).mat',
+#     'Sensor1(naked)Sensor3(nosecone).mat',
+# ]
+fn_run2 = [
+    'Sensor1(naked)Sensor2(plug1)_Run2.mat',
+    # 'Sensor1(naked)Sensor2(naked)_Run2.mat',
 ]
 
-idx = 0
-TEST_MAT = f"data/calibration/{fn_train[1]}"
+fn_naked_pressures = [
+    'pressure/naked/data_10psi.mat',
+    'pressure/naked/data_30psi.mat',
+    'pressure/pinhole/data_10psi.mat',
+    'pressure/pinhole/data_30psi.mat',
+]
 OUTPUT_DIR = "figures/calibration_08-11"
 
 # === Physical & processing parameters ===
@@ -71,12 +79,11 @@ def estimate_frf(x, y, fs, nperseg=4096, noverlap=2048, window='hann'):
     return f, H, coh2
 
 # ---------- 3) Inverse filtering (for Fig. 20-style time traces) ----------
-def inverse_filter(y, fs, f, H, coh2=None, f_band=[0.1, 5000], reg=1e-4, pad=0):
+def inverse_filter(y, fs, f, H, coh2, f_band=None, reg=1e-4, pad=0):
     """
     Recover x from y when y ≈ H * x (+ noise).
     Assumes H was estimated for x→y (H = S_xy/S_xx).
-    Uses Wiener inverse: W ≈ γ^2/H when coh2 is provided,
-    else Tikhonov-like H* / (|H|^2 + λ).
+    Uses Wiener inverse: W ≈ coh^2/H
     """
     y = np.asarray(y, float) - np.mean(y)
     N = len(y); Nfft = N + int(pad)
@@ -90,12 +97,8 @@ def inverse_filter(y, fs, f, H, coh2=None, f_band=[0.1, 5000], reg=1e-4, pad=0):
     H_i = mag_i * np.exp(1j*phi_i)
 
     eps = np.finfo(float).eps
-    if coh2 is not None:
-        coh_i = np.clip(np.interp(fr, f, coh2, left=0.0, right=0.0), 0.0, 1.0)
-        Hinv = coh_i * np.conj(H_i) / np.maximum(mag_i**2, eps)  # = γ^2 / H
-    else:
-        lam = reg * np.nanmax(mag_i**2)
-        Hinv = np.conj(H_i) / (mag_i**2 + lam)
+    coh_i = np.clip(np.interp(fr, f, coh2, left=0.0, right=0.0), 0.0, 1.0)
+    Hinv = coh_i * np.conj(H_i) / np.maximum(mag_i**2, eps)  # = γ^2 / H
 
     # band-limit the inverse (e.g. (0, 3000] Hz as in the paper)
     if f_band is not None:
@@ -126,16 +129,18 @@ def main(idx):
     )
 
     # proc.load_data(WALL_PRESSURE_MAT, FREESTREAM_PRESSURE_MAT)
-    TEST_MAT = f"data/calibration/{fn_train[idx]}"
+    TEST_MAT = f"data/calibration/{fn_naked_pressures[idx]}"
     proc.load_test(TEST_MAT)
     ic(f"Loaded data: {proc.p_w.shape}, {proc.p_fs.shape}")
-    ref, trt, fs = proc.p_fs.cpu().numpy(), proc.p_w.cpu().numpy(), SAMPLE_RATE
+    trt, ref, fs = proc.p_fs.cpu().numpy(), proc.p_w.cpu().numpy(), SAMPLE_RATE
 
+    # proc.load_test(f"data/calibration/{fn_run2[idx]}")
     f, H, coh2 = estimate_frf(ref, trt, fs)
-    plot_transfer(f, H, os.path.join(OUTPUT_DIR, f"transfer_function_{idx}.png"))
-    trt_corr = inverse_filter(trt, fs, f, H)
+    plot_transfer(f, H, os.path.join(OUTPUT_DIR, f"pressure/{idx}_transfer_function.png"))
+
+    trt_corr = inverse_filter(trt, fs, f, H, coh2)
     t = np.arange(len(ref))/fs
-    plot_corrected_trace(t, ref, trt, trt_corr, os.path.join(OUTPUT_DIR, f"corrected_trace_{idx}.png"))
+    plot_corrected_trace(t, ref, trt, trt_corr, os.path.join(OUTPUT_DIR, f"pressure/{idx}_trace.png"))
 
 
 
@@ -260,6 +265,7 @@ def main2(sanity=False):
 
 if __name__ == "__main__":
     # main(sanity=1)
-    for idx in range(len(fn_train)):
-        main(idx)
+    # for idx in range(len(fn_train)):
+    #     main(idx)
+    main(2)
 
