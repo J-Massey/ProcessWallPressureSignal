@@ -212,14 +212,14 @@ def real_data():
         # plot_spectrum(f, f*Pyy, f"{OUTPUT_DIR}/Pyryr_{psi[idx]}_corr")
         ###
         # TF between NC and PH
-        f, H, gamma2 = estimate_frf(x, y, fs)
+        f, H, gamma2 = estimate_frf(y, x, fs)
         plot_transfer_PH(f, H, f"{OUTPUT_DIR}/H_{psi[idx]}", psi[idx])
 
         y_rej = wiener_inverse(y, fs, f, H, gamma2)
         t = np.arange(len(y)) / fs
         plot_corrected_trace_PH(t, x, y, y_rej, f"{OUTPUT_DIR}/y_{psi[idx]}", psi[idx])
         f, Pyy_rej = compute_spec(fs, y_rej)
-        plot_spectrum(f, f*Pxx, f*Pyy_rej, f"{OUTPUT_DIR}/P_{psi[idx]}_rej")
+        plot_spectrum(f, f*Pyy, f*Pyy_rej, f"{OUTPUT_DIR}/spectra/P_{psi[idx]}_rej")
 
 
 if __name__ == "__main__":

@@ -64,7 +64,7 @@ def plot_spectrum(f, spec, spec2, outfile):
     ax.plot(1/f, spec2, 'r-', lw=0.5, alpha=0.5)
     ax.set_xscale("log")
     # ax.set_xlim(1/1e-1, 1/5e-4)
-    # ax.set_ylim(0, 25)
+    ax.set_ylim(0, 2)
     ax.set_xlabel("$T^+$")
     ax.set_ylabel("$f\\Phi_{pp}^+$")
     plt.tight_layout()
