@@ -11,7 +11,7 @@ from scipy.signal import savgol_filter, welch, csd
 from i_o import load_stan_wallpressure, load_test_wallpressure
 from processing import compute_duct_modes, notch_filter_timeseries, compute_psd
 
-from icecream import ic
+# from icecream import ic
 
 
 def torch_unwrap1d(x: torch.Tensor) -> torch.Tensor:

@@ -12,12 +12,24 @@
 \usepackage{hyperref}
 \usepackage{algorithm}
 \usepackage[noend]{algpseudocode}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,shapes.geometric,shapes.misc,positioning}
+
+\tikzset{
+  >={Stealth},
+  proc/.style = {rectangle, rounded corners, draw, align=left, minimum height=8mm, text width=35mm, align=center},
+  meas/.style    = {trapezium, trapezium left angle=70, trapezium right angle=110, draw, align=left, minimum height=8mm, text width=19mm, align=center},
+  decision/.style = {diamond, aspect=2.2, draw, align=center, inner xsep=1.2ex, inner ysep=1ex, text width=2cm},
+  smldec/.style = {diamond, aspect=2.2, draw, align=center, inner xsep=1.2ex, inner ysep=1ex, text width=19mm},
+  terminator/.style = {ellipse, draw, align=center, minimum height=8mm, minimum width=16mm},
+  line/.style  = {->, line width=0.6pt}
+}
 
 \geometry{margin=1in}
 \hypersetup{hidelinks}
 
-\title{Wall- and Free-Stream Pressure Processing: Algorithmic Specification}
-\author{Generated from the provided Python script}
+\title{Wall- and Free-Stream Pressure Processing}
+\author{Stanford Team}
 \date{\today}
 
 \algrenewcommand\algorithmicrequire{\textbf{Inputs:}}
@@ -28,16 +40,15 @@
 \maketitle
 
 \begin{abstract}
-This document formalises, in pseudocode, the processing pipeline. The pipeline estimates a frequency response  transfer function ($H_1$) between a reference (free-stream) microphone and a treated (wall) microphone, then performs coherence-weighted Wiener inverse filtering to recover an estimate of the reference signal from the treated measurements.
-
-The output amplitude from the speaker is still unknown at pressure so conversion from volts to decibels is TBD.
+    This document formalises, in pseudocode, the processing pipeline. The pipeline estimates a frequency response  transfer function ($H$) between a reference and a treated microphone, then performs coherence-weighted Wiener inverse filtering to recover an estimate of the reference signal from the treated measurements.
 \end{abstract}
 
+
 \section{Notation and Inputs}
-    Let $x[n]$ denote the discrete-time \emph{reference} pressure signal, and $y[n]$ the \emph{treated}, both sampled at $f_s$~Hz. Frequency-domain quantities are indexed by $k$ for Welch frequency bins and by $r$ for the dense FFT grid used in deconvolution.
+    Let $x[n]$ denote the discrete-time \emph{reference} pressure signal, and $y[n]$ the \emph{treated}, both sampled at $f_s=2_500$~Hz.
 
     \paragraph{Spectral definitions}
-    Welch auto-spectra $S_{xx}[k]$, $S_{yy}[k]$ and cross-spectrum $S_{xy}[k]$ are computed with segment length $N_{\mathrm{seg}}$, overlap $N_{\mathrm{ov}}$, and Hann window $w[\cdot]$. The magnitude-squared coherence is
+    Welch auto-spectra $S_{xx}[k]$, $S_{yy}[k]$ and cross-spectrum $S_{xy}[k]$ are computed with segment length $N_{\mathrm{seg}}=4096$, overlap $N_{\mathrm{ov}}=2048$, and a Hann window $w[\cdot]$. The magnitude-squared coherence is
     \begin{equation}
         \gamma^2[k] \;=\; \frac{|S_{xy}[k]|^2}{S_{xx}[k]\,S_{yy}[k]}\in[0,1].
     \end{equation}
@@ -46,14 +57,14 @@ The output amplitude from the speaker is still unknown at pressure so conversion
 \section{Algorithms}
 
 \begin{algorithm}
-    \caption{$H_1$ Transfer-Function Estimation}
-    \label{alg:h1}
+    \caption{$H$ Transfer-Function Estimation}
+    \label{alg:H}
     \begin{algorithmic}[1]
         \Require Time series $x[n]$ (reference), $y[n]$ (treated), sampling rate $f_s$; Welch parameters $N_{\mathrm{seg}}, N_{\mathrm{ov}}, w[\cdot]$.
         \Ensure Frequency vector $f[k]$; complex FRF $H[k]$; coherence $\gamma^2[k]$.
-        \State Optionally de-mean $x$ and $y$.
+        % \State Optionally de-mean $x$ and $y$.
         \State Compute $S_{xx}[k]$ and $S_{yy}[k]$ using Welch's method with $(N_{\mathrm{seg}}, N_{\mathrm{ov}}, w)$.
-        \State Compute cross-spectrum $S_{xy}[k]$ using the same Welch settings. \Comment{e.g.\ via a cross-spectral density routine}
+        \State Compute cross-spectrum $S_{xy}[k]$ using the same Welch settings.
         \State $H[k] \gets S_{xy}[k]/S_{xx}[k]$.
         \State $\gamma^2[k] \gets \frac{|S_{xy}[k]|^2}{S_{xx}[k]\,S_{yy}[k]}$, clipped to $[0,1]$.
         \State Return $(f[k], H[k], \gamma^2[k])$.
@@ -61,78 +72,120 @@ The output amplitude from the speaker is still unknown at pressure so conversion
 \end{algorithm}
 
 \begin{algorithm}
-    \caption{Wiener Inverse Filtering for Trace Recovery}
-        \label{alg:inv}
-        \begin{algorithmic}[1]
-        \Require Output $y[n]$; sampling rate $f_s$; FRF samples $(f[k], H[k])$; coherence $\gamma^2[k]$; optional band-limit $[f_{\min},f_{\max}]$; regulariser $\lambda\ge 0$; zero-padding $N_{\mathrm{pad}}\ge 0$.
-        \Ensure Estimate $\hat{x}[n]$ of the input.
-        \State De-mean $y$.
-        \State $N \gets \text{length}(y)$; $N_{\mathrm{FFT}} \gets N + N_{\mathrm{pad}}$.
-        \State $Y[r] \gets \mathrm{rFFT}\big(y, N_{\mathrm{FFT}}\big)$; $f_r \gets \mathrm{rFFTFreq}\big(N_{\mathrm{FFT}}, d=1/f_s\big)$.
-        \State Interpolate $|H[k]|$ and $\phi[k]=\mathrm{unwrap}(\angle H[k])$ onto $f_r$ to obtain $|H|_r$ and $\phi_r$.
-        \State $H_r \gets |H|_r\,e^{\mathrm{j}\phi_r}$.
-        \State Interpolate $\gamma^2[k]$ onto $f_r$, clip to $[0,1]$ to get $\gamma^2_r$.
-        \State Compute inverse filter (Wiener form)
-        \begin{equation}
-        H_r^{-1} \;\gets\; \gamma^2_r \,\frac{H_r^\ast}{|H|_r^2 + \lambda},
-        \end{equation}
-        or equivalently use $|H|_r^2 \leftarrow \max(|H|_r^2,\varepsilon)$ for numerical safety when $\lambda=0$.
-        \If{$[f_{\min},f_{\max}]$ provided}
-        \State Zero out $H_r^{-1}$ for all $f_r \notin [f_{\min},f_{\max}]$. \Comment{Band-limited inverse}
-        \EndIf
-        \State Set DC: $H_r^{-1}[0]\gets 0$.
-        \State $\hat{x}[n] \gets \mathrm{iRFFT}\big(Y[r]\cdot H_r^{-1}, N_{\mathrm{FFT}}\big)[0{:}N]$.
-        \State \Return $\hat{x}[n]$.
-    \end{algorithmic}
-\end{algorithm}
-
-\begin{algorithm}
-\caption{Wall/Free-Stream Pressure Processing Pipeline}
-    \label{alg:pipeline}
+    \caption{Coherence-weighted Wiener Inverse ($\gamma^2/H$)}
+    \label{alg:inv}
     \begin{algorithmic}[1]
-        \Require Index $i$ selecting a calibration file; processing constants $f_s,\nu_0,\rho_0,u_{\tau 0},\mathrm{W},\mathrm{He},L_0,\Delta L_0,U,C$; mode sets $\mathcal{M},\mathcal{N},\mathcal{L}$.
-        \Ensure FRF plot and corrected-trace plot; arrays $(f,H,\gamma^2)$ and recovered trace $\hat{x}[n]$.
-        \State Instantiate \texttt{WallPressureProcessor} with the given physical and processing parameters.
-        \State Load calibration test $ (p_w[n], p_{fs}[n]) \leftarrow \text{load}(\texttt{fn\_naked\_pressures}[i])$.
-        \State Set $\text{ref}\gets p_w,\;\text{trt}\gets p_{fs}$.
-        \State $(f,H,\gamma^2) \gets \textsc{H1 Transfer-Function Estimation}(\text{ref}, \text{trt}, f_s)$ \Comment{Alg.~\ref{alg:h1}}
-        \State Save a transfer-function figure: magnitude and phase of $H$ vs.\ $f$, optionally with coherence overlay.
-        \State $\hat{x}[n] \gets \textsc{Wiener Inverse Filtering}(\text{trt}, f_s, f, H, \gamma^2, [f_{\min}, f_{\max}], \lambda, N_{\mathrm{pad}})$ \Comment{Alg.~\ref{alg:inv}}
-        \State Define $t[n] \gets n/f_s$.
-        \State Save a corrected-trace figure showing $ \{\text{ref}(t), \text{trt}(t), \hat{x}(t)\}$.
+        \Require $y_r$, sampling rate $f_s$, freq. grid $f$, transfer $H(f)$, coherence $\gamma^2(f)$%, optional band $B=[f_\ell,f_h]$
+        \Ensure $\hat{x}$
+        % \State $y \gets y - \mathrm{mean}(y)$
+        \State $\hat{y_r} \gets \mathcal{F}(y_r, N_{\mathrm{fft}})$
+        \State $m \gets |H|$;\quad $\phi \gets \mathrm{unwrap}(\angle H)$
+        \State $m_i \gets \mathrm{interp}_{f\to f_r}(m)$;\quad $\phi_i \gets \mathrm{interp}_{f\to f_r}(\phi)$;\quad $H_i \gets m_i\,e^{j\phi_i}$
+        \State $\gamma_i^2 \gets \mathrm{clip}\!\big(\mathrm{interp}_{f\to f_r}(\gamma^2),\,0,\,1\big)$
+        \State $\varepsilon \gets \text{machine epsilon}$;\quad $H_{\mathrm{inv}} \gets \gamma_i^2 \cdot H_i^{\!*} / \max(m_i^2,\varepsilon)$
+        % \If{$B$ given} \State $H_{\mathrm{inv}} \gets H_{\mathrm{inv}} \cdot \mathbf{1}_{[f_\ell,f_h]}(f_r)$ \EndIf
+        \State $H_{\mathrm{inv}}[0] \gets 0$
+        \State $\hat{x} \gets \mathcal{F}^{-1}\!\big(\hat{y_r} \cdot H_{\mathrm{inv}}, N_{\mathrm{fft}}\big)[0{:}N]$
+        \State \Return $y$
     \end{algorithmic}
 \end{algorithm}
 
-\section{Default Parameters (from the Script)}
-Unless otherwise stated, the following defaults are used in the reference implementation:
-\begin{center}
-    \begin{tabular}{@{}ll@{}}
-        \toprule
-        Quantity & Value \\ \midrule
-        Sampling rate $f_s$ & \SI{25000}{Hz} \\
-        % Kinematic viscosity $\nu_0$ & $1.52\times 10^{-5}\,\mathrm{m^2\,s^{-1}}$ \\
-        % Density $\rho_0$ & \SI{1.225}{kg\,m^{-3}} \\
-        % Friction velocity $u_{\tau 0}$ & \SI{0.358}{m\,s^{-1}} \\
-        % Uncertainty fraction & $\pm 3\%$ \\
-        % Duct width $W$ & \SI{0.30}{m} \\
-        % Duct height $H_e$ & \SI{0.152}{m} \\
-        % Duct length $L_0$ & \SI{3.0}{m} \\
-        % Low-frequency end correction $\Delta L_0$ & $0.1\,L_0$ \\
-        % Flow speed $U$ & \SI{14.2}{m\,s^{-1}} \\
-        % Speed of sound $C$ & $\sqrt{1.4\cdot 101325/\rho_0}$ \\
-        % Mode sets $(m,n,\ell)$ & $[0], [0], [0,1,4,5,8,11,15]$ \\
-        Welch defaults & $N_{\mathrm{seg}}{=}4096,\; N_{\mathrm{ov}}{=}2048,\; w{=}$ Hann \\
-        Inverse filter band (example) & $(0, 3000]\,\mathrm{Hz}$ \emph{optional} \\ \bottomrule
-    \end{tabular}
-\end{center}
+\begin{figure}
+    \centering
+    \begin{tikzpicture}[node distance=6mm and 18mm, every node/.style={font=\small}]{Generic Transfer Function}
+    \title{Generic Transfer Function}
+        % \centering
+    % Start
+        \node (start) [terminator] {Noise Source};
 
-% \section{Complexity and Numerical Notes}
-% \begin{itemize}
-%   \item Welch spectral estimates dominate runtime: $O(N\log N)$ per segment; inverse filtering adds an FFT/iFFT pair of size $N_{\mathrm{FFT}}$.
-%   \item Unwrapping the FRF phase before interpolation avoids $2\pi$ discontinuities and artefacts in the inverse.
-%   \item Coherence weighting $\gamma^2$ attenuates frequency bins where the input--output relation is weak, improving robustness to noise.
-%   \item Regularisation: choose $\lambda>0$ to stabilise the inverse near FRF minima; setting $\lambda=0$ with a small floor $\varepsilon$ is equivalent to the provided script.
-%   \item Zero the DC gain of the inverse to avoid ill-conditioning after de-meaning.
-% \end{itemize}
+        % Two separate measurement boxes
+        \node (ref)   [meas, below left = 6mm and 14mm of start, anchor=north east]
+            {Reference: $x$};
+        \node (treat) [meas, below right = 6mm and 14mm of start, anchor=north west]
+            {Treated: $y$};
+
+        \node (H)  [proc, below=18mm of start]
+            {Transfer function (alg~\ref{alg:H}): $H$};
+
+        \node (wien)  [proc, below=of H]
+            {Inverse Wiener (alg~\ref{alg:inv}): $W$};
+
+        \node (corr)  [decision, below right = 6mm and 14mm of wien]
+            {Corrected signal, $y \approxeq x$};
+
+        \draw [line] (start) -- (ref);
+        \draw [line] (start) -- (treat);
+        \draw [line] (ref) -- (H);
+        \draw [line] (treat) -- (H);
+        \draw [line] (H) -- (wien);
+        \draw [line] (wien) -- (corr);
+        \draw [line] (treat) -- (corr);
+
+    \end{tikzpicture}
+    \caption{Generic transfer function processing pipeline.}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \begin{tikzpicture}[node distance=6mm and 18mm, every node/.style={font=\small}]
+        \centering
+    % Start
+        \node (start) [terminator] {TBL};
+
+        % Two separate measurement boxes
+        \node (refraw)   [meas, below left = 6mm and 14mm of start, anchor=north east]
+            {FS-M, $x_r$};
+
+        \node (Href) [proc, below=of refraw]
+            {Algorithm~\ref{alg:inv}: $ \mathcal{H}_{\mathrm{NC-NKD}}$};
+
+        \node (ref) [decision, below=of Href]
+            {Corr, $x$};
+
+        \node (tretraw) [meas, below right = 6mm and 14mm of start, anchor=north west]
+            {WP-M, $y_r$};
+
+        \node (Htret)  [proc, below=of tretraw]
+            {Algorithm~\ref{alg:inv}: $\mathcal{H}_{\mathrm{PH-NKD}}$};
+
+        \node (tret)  [decision, below=of Htret]
+            {Corr, $y$};
+
+        \node (corr)  [proc, below=57mm of start]
+            {Coherence weighted Wiener filter};
+
+        \node (post)  [decision, below=of corr]
+            {WPFs};
+
+        \draw [line] (start) -- (refraw);
+        \draw [line] (refraw) -- (Href);
+        \draw [line] (Href) -- (ref);
+        \draw [line] (start) -- (tretraw);
+        \draw [line] (tretraw) -- (Htret);
+        \draw [line] (Htret) -- (tret);
+        \draw [line] (tret) -- (corr);
+        \draw [line] (ref) -- (corr);
+        \draw [line] (tret) -- (corr);
+        \draw [line] (corr) -- (post);
+
+    \end{tikzpicture}
+    \caption{Complete pressure processing pipeline for measurement of the WPFs through a pinhole microphone.}
+\end{figure}
+
+\begin{algorithm}[H]
+    \caption{Two-microphone Wiener noise cancellation for wall pressure}
+    \begin{algorithmic}[1]
+        \Require Wall mic $y[0{:}N\!-\!1]$, free-stream mic $r[0{:}N\!-\!1]$, sampling rate $f_s$
+        \Ensure Estimate of true wall pressure $\widehat{x}$
+        \State $y \gets y - \mathrm{mean}(y)$;\quad $r \gets r - \mathrm{mean}(r)$
+        \State Estimate spectra via Welch: $S_{rr}(f)$ and $S_{yr}(f)$ \Comment{$S_{yr}$ is cross-PSD}
+        \State $F(f) \gets \dfrac{S_{yr}(f)}{S_{rr}(f)+\varepsilon}$ \Comment{Wiener filter mapping $r \to y$}
+        \State $R(f) \gets \mathrm{rFFT}(r)$;\quad $Y(f) \gets \mathrm{rFFT}(y)$
+        \State $\widehat{D}(f) \gets F(f)\,R(f)$ \Comment{Predicted free-stream noise at wall mic}
+        \State $\widehat{X}(f) \gets Y(f) - \widehat{D}(f)$
+        \State $\widehat{x} \gets \mathrm{irFFT}\!\left(\widehat{X}(f)\right)$
+        \State \Return $\widehat{x}$
+    \end{algorithmic}
+\end{algorithm}
 
 \end{document}

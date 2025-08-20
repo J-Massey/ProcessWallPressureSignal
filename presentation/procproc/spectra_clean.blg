@@ -1,0 +1,47 @@
+This is BibTeX, Version 0.99d (TeX Live 2025/Homebrew)
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: spectra_clean.aux
+The style file: jfm.bst
+Database file #1: refs.bib
+Reallocated wiz_functions (elt_size=4) to 6000 items from 3000.
+You've used 1 entry,
+            3068 wiz_defined-function locations,
+            687 strings with 5381 characters,
+and the built_in function-call counts, 615 in all, are:
+= -- 51
+> -- 34
+< -- 0
++ -- 13
+- -- 12
+* -- 70
+:= -- 108
+add.period$ -- 2
+call.type$ -- 1
+change.case$ -- 9
+chr.to.int$ -- 1
+cite$ -- 1
+duplicate$ -- 30
+empty$ -- 44
+format.name$ -- 13
+if$ -- 113
+int.to.chr$ -- 1
+int.to.str$ -- 1
+missing$ -- 1
+newline$ -- 8
+num.names$ -- 4
+pop$ -- 8
+preamble$ -- 1
+purify$ -- 8
+quote$ -- 0
+skip$ -- 13
+stack$ -- 0
+substring$ -- 27
+swap$ -- 12
+text.length$ -- 0
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 9
+warning$ -- 0
+while$ -- 5
+width$ -- 0
+write$ -- 15
