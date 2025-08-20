@@ -5,6 +5,8 @@ import scipy.io as sio
 from icecream import ic
 import os
 
+from plotting import plot_transfer_PH, plot_transfer_NC, plot_corrected_trace_NC, plot_corrected_trace_PH
+
 
 def estimate_frf(
     x: np.ndarray,
@@ -83,21 +85,72 @@ def load_mat(path):
     return x_r, y_r
 
 
-def main_NC():
+def main_PH():
     psi = ['atm', '10psi', '30psi', '50psi', '70psi', '100psi']
     root = 'data/15082025/P2S1_S2naked'
     fn_sweep = [f'{root}/data_{p}.mat' for p in psi]
     OUTPUT_DIR = "figures/PH-NKD"
     os.system(f"mkdir -p {OUTPUT_DIR}")  # ensure output directory exists
-
-    x_r, y_r = load_mat(fn_sweep[0])
-    fs = 2500.0 
-    f, H, gamma2 = estimate_frf(x_r, y_r, fs)
-    ic(f.shape, H.shape, gamma2.shape)
-    # x_hat = wiener_inverse(y_r, fs, f, H, gamma2)
     
-    # ic(f.shape, H.shape, gamma2.shape)
-    # ic(x_hat[:10])  # Show first 10 samples of reconstructed signal
+    for idx in range(len(psi)):
+        ic(f"Processing {psi[idx]}...")
+
+        # Load data
+        x_r, y_r = load_mat(fn_sweep[idx])
+        fs = 25000.0 
+        f, H, gamma2 = estimate_frf(x_r, y_r, fs)
+        ic(f.shape, H.shape, gamma2.shape)
+        plot_transfer_PH(f, H, f"{OUTPUT_DIR}/H_{psi[idx]}", psi[idx])
+
+        y = wiener_inverse(y_r, fs, f, H, gamma2)
+        t = np.arange(len(y)) / fs
+        plot_corrected_trace_PH(t, x_r, y_r, y, f"{OUTPUT_DIR}/y_{psi[idx]}", psi[idx])
+
+
+
+def main_NC():
+    psi = ['atm', '10psi', '30psi', '50psi', '70psi', '100psi']
+    root = 'data/15082025/NCS2_S1naked'
+    fn_sweep = [f'{root}/data_{p}.mat' for p in psi]
+    OUTPUT_DIR = "figures/NC-NKD"
+    os.system(f"mkdir -p {OUTPUT_DIR}")  # ensure output directory exists
+    
+    for idx in range(len(psi)):
+        ic(f"Processing {psi[idx]}...")
+
+        # Load data
+        x_r, y_r = load_mat(fn_sweep[idx])
+        fs = 25000.0 
+        f, H, gamma2 = estimate_frf(x_r, y_r, fs)
+        ic(f.shape, H.shape, gamma2.shape)
+        plot_transfer_NC(f, H, f"{OUTPUT_DIR}/H_{psi[idx]}", psi[idx])
+
+        y = wiener_inverse(y_r, fs, f, H, gamma2)
+        t = np.arange(len(y)) / fs
+        plot_corrected_trace_NC(t, x_r, y_r, y, f"{OUTPUT_DIR}/y_{psi[idx]}", psi[idx])
+
+def main_NKD():
+    psi = ['atm', '10psi', '30psi', '50psi', '70psi', '100psi']
+    root = 'data/15082025/S1naked_S2naked'
+    fn_sweep = [f'{root}/data_{p}.mat' for p in psi]
+    OUTPUT_DIR = "figures/S1-S2"
+    os.system(f"mkdir -p {OUTPUT_DIR}")  # ensure output directory exists
+    
+    for idx in range(len(psi)):
+        ic(f"Processing {psi[idx]}...")
+
+        # Load data
+        x_r, y_r = load_mat(fn_sweep[idx])
+        fs = 25000.0 
+        f, H, gamma2 = estimate_frf(x_r, y_r, fs)
+        ic(f.shape, H.shape, gamma2.shape)
+        plot_transfer_NC(f, H, f"{OUTPUT_DIR}/H_{psi[idx]}", psi[idx])
+
+        y = wiener_inverse(y_r, fs, f, H, gamma2)
+        t = np.arange(len(y)) / fs
+        plot_corrected_trace_NC(t, x_r, y_r, y, f"{OUTPUT_DIR}/y_{psi[idx]}", psi[idx])
 
 if __name__ == "__main__":
-    main_NC()
+    # main_NC()
+    # main_PH()
+    main_NKD()
