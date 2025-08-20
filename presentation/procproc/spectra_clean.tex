@@ -28,7 +28,7 @@
 
 
 \newcommand{\shortdate}{\the\month-\the\day}
-\graphicspath{{../.}}
+\graphicspath{{../../figures/.}}
 
 \include{setup}
 \definecolor{cardinalred}{RGB}{140,21,21}
@@ -142,11 +142,11 @@
 \end{frame}
 
 \begin{frame}
-    \frametitle{Microphone calibration}
+    \frametitle{Microphone calibration: Nose Cone (NC)}
     \begin{columns}[c] % vertically centered
-        \column{0.42\textwidth}
+        \column{0.55\textwidth}
             \centering
-            \begin{tikzpicture}[scale=0.6, transform shape,
+            \begin{tikzpicture}[scale=0.7, transform shape,
                 node distance=6mm and 18mm, every node/.style={font=\small}]
                 \node (start) [terminator] {White Noise Source};
 
@@ -174,15 +174,77 @@
                 \draw [line] (treat) -- (corr);
 
             \end{tikzpicture}
-        \column{0.42\textwidth}
-        %   \includegraphics[width=\linewidth]{rightfig}
-            Show H at pressures
+        \column{0.4\textwidth}
+            \includegraphics[width=0.8\linewidth]{NC-NKD/H_atm.png}
+            % \includegraphics[width=0.8\linewidth]{NC-NKD/H_30psi.png}
+            \includegraphics[width=0.8\linewidth]{NC-NKD/H_50psi.png}
+            % \includegraphics[width=0.8\linewidth]{NC-NKD/H_70psi.png}
+            \includegraphics[width=0.8\linewidth]{NC-NKD/H_100psi.png}
+    \end{columns}
+\end{frame}
+
+\begin{frame}
+    \frametitle{Microphone calibration: Pinhole (PH)}
+    \begin{columns}[c] % vertically centered
+        \column{0.55\textwidth}
+            \centering
+            \begin{tikzpicture}[scale=0.7, transform shape,
+                node distance=6mm and 18mm, every node/.style={font=\small}]
+                \node (start) [terminator] {White Noise Source};
+
+                % Two separate measurement boxes
+                \node (ref)   [meas, below left = 6mm and 14mm of start, anchor=north east]
+                    {Reference: $x$};
+                \node (treat) [meas, below right = 6mm and 14mm of start, anchor=north west]
+                    {Treated: $y$};
+
+                \node (H)  [proc, below=18mm of start]
+                    {Transfer function (alg~\ref{alg:H}): $H$};
+
+                \node (wien)  [proc, below=of H]
+                    {Inverse Wiener (alg~\ref{alg:inv}): $W$};
+
+                \node (corr)  [decision, below right = 6mm and 14mm of wien]
+                    {Corrected signal, $y \approxeq x$};
+
+                \draw [line] (start) -- (ref);
+                \draw [line] (start) -- (treat);
+                \draw [line] (ref) -- (H);
+                \draw [line] (treat) -- (H);
+                \draw [line] (H) -- (wien);
+                \draw [line] (wien) -- (corr);
+                \draw [line] (treat) -- (corr);
+
+            \end{tikzpicture}
+        \column{0.4\textwidth}
+            \includegraphics[width=0.8\linewidth]{PH-NKD/H_atm.png}
+            % \includegraphics[width=0.8\linewidth]{PH-NKD/H_30psi.png}
+            \includegraphics[width=0.8\linewidth]{PH-NKD/H_50psi.png}
+            % \includegraphics[width=0.8\linewidth]{PH-NKD/H_70psi.png}
+            \includegraphics[width=0.8\linewidth]{PH-NKD/H_100psi.png}
     \end{columns}
 \end{frame}
 
 \begin{frame}
     \frametitle{Corrected signals}
-    Show corrected signals and coherence
+    \begin{columns}[c]
+        \column{0.3\textwidth}
+        \centering
+            Corrected NC trace
+            \includegraphics[width=\linewidth]{NC-NKD/y_atm.png}
+            % \includegraphics[width=\linewidth]{NC-NKD/y_30psi.png}
+            \includegraphics[width=\linewidth]{NC-NKD/y_50psi.png}
+            % \includegraphics[width=\linewidth]{NC-NKD/y_70psi.png}
+            \includegraphics[width=\linewidth]{NC-NKD/y_100psi.png}
+        \column{0.3\textwidth}
+        \centering
+            Corrected PH trace
+            \includegraphics[width=\linewidth]{PH-NKD/y_atm.png}
+            % \includegraphics[width=\linewidth]{PH-NKD/y_30psi.png}
+            \includegraphics[width=\linewidth]{PH-NKD/y_50psi.png}
+            % \includegraphics[width=\linewidth]{PH-NKD/y_70psi.png}
+            \includegraphics[width=\linewidth]{PH-NKD/y_100psi.png}
+    \end{columns}
 \end{frame}
 
 \begin{frame}
