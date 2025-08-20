@@ -57,6 +57,20 @@ def plot_spectrum_and_modes(spec, modes, mode_l, outfile):
     plt.savefig(outfile)
     plt.close()
 
+def plot_spectrum(f, spec, spec2, outfile):
+    """Plot Phi+ vs T+ with uncertainty."""
+    fig, ax = plt.subplots(figsize=(5.6, 3.), dpi=600)
+    ax.plot(1/f, spec, 'k-', lw=0.5, alpha=0.5)
+    ax.plot(1/f, spec2, 'r-', lw=0.5, alpha=0.5)
+    ax.set_xscale("log")
+    # ax.set_xlim(1/1e-1, 1/5e-4)
+    # ax.set_ylim(0, 25)
+    ax.set_xlabel("$T^+$")
+    ax.set_ylabel("$f\\Phi_{pp}^+$")
+    plt.tight_layout()
+    plt.savefig(outfile)
+    plt.close()
+
 def plot_pw_p_fs(fs_w, fs_fs, p_w, p_fs, outfile):
     """Plot raw φ+ signals vs T+."""
     fig, ax = plt.subplots(figsize=(4,2.5), dpi=600)
@@ -165,6 +179,21 @@ def plot_transfer_NC(f, H, outfile, pres: str):
     plt.savefig(outfile)
     plt.close()
 
+def plot_transfer_NKD(f, H, outfile, pres: str):
+    mag = np.abs(H); ph = np.unwrap(np.angle(H))
+    fig, (ax_mag, ax_ph) = plt.subplots(2, 1, sharex=True, figsize=(6, 3), dpi=600)
+    ax_mag.set_title(r'$H_{\mathrm{S1-S2}}$ at ' + pres)
+    ax_mag.loglog(f, 1+mag, lw=1)
+    ax_mag.set_ylabel(r'$|H_{\mathrm{S1-S2}}(f)|$')
+    ax_mag.set_ylim(1, 10)
+    ax_ph.semilogx(f, ph, lw=1)
+    ax_ph.set_ylabel(r'$\angle H_{\mathrm{S1-S2}}(f)\,[\mathrm{rad}]$')
+    ax_ph.set_xlabel(r'$f\ \mathrm{[Hz]}$')
+    ax_ph.set_ylim(-3, 15)
+    fig.tight_layout()
+    plt.savefig(outfile)
+    plt.close()
+
 def plot_corrected_trace(t, ref, trt, trt_corr, outfile, tspan=0.032):
     tspan = (t[0]+2, t[0]+2+tspan)
     m = (t>=tspan[0]) & (t<=tspan[1])
@@ -225,6 +254,26 @@ def plot_corrected_trace_PH(t, x_r, y_r, y, outfile, pres: str, tspan=0.032):
     plt.savefig(outfile)
     plt.close()
 
+def plot_corrected_trace_NKD(t, x_r, y_r, y, outfile, pres: str, tspan=0.032):
+    tspan = (t[0]+2, t[0]+2+tspan)
+    m = (t>=tspan[0]) & (t<=tspan[1])
+    fig, (ax_raw, ax_corr) = plt.subplots(2, 1, sharex=True, figsize=(6, 3), dpi=600)
+    ax_raw.plot(t[m], x_r[m], lw=0.5)
+    ax_raw.plot(t[m], y_r[m], lw=0.5)
+    ax_raw.set_ylabel(r'$p$')
+    corr_coeff = np.corrcoef(x_r[m], y_r[m])[0,1]
+    ax_raw.set_title(f"Raw Signals (Corr: {corr_coeff:.3f}) {pres}")
+    ax_raw.legend(["Nkd-S1", "NKD-S2"])
+    ax_corr.plot(t[m], x_r[m], lw=0.5)
+    ax_corr.plot(t[m], y[m], lw=0.5)
+    ax_corr.set_ylabel(r'$p$')
+    ax_corr.set_xlabel(r'$t$ [s]')
+    corr_coeff = np.corrcoef(x_r[m], y[m])[0,1]
+    ax_corr.set_title(f"Corrected Signals (Corr: {corr_coeff:.3f}) {pres}")
+    fig.tight_layout()
+    plt.savefig(outfile)
+    plt.close()
+
 def plot_phase_match_csd(f, P_w, P_fs, P_w_fs, P_w_fs_opt, outfile):
     fig, ax = plt.subplots(figsize=(5.6, 2.6), dpi=600)
 
@@ -243,16 +292,15 @@ def plot_phase_match_csd(f, P_w, P_fs, P_w_fs, P_w_fs_opt, outfile):
     plt.savefig(outfile)
     plt.close()
 
-def plot_coherence(f, coh, f_match, coh_match, outfile):
+def plot_coherence(f, coh, coh2, outfile):
     fig, ax = plt.subplots(figsize=(5.6, 2.6), dpi=600)
-    ax.plot(torch.as_tensor(f).cpu(), torch.as_tensor(coh).cpu(), lw=0.5, alpha=0.8)
-    ax.plot(torch.as_tensor(f_match).cpu(), torch.as_tensor(coh_match).cpu(), lw=0.5, alpha=0.8)
-    coh = torch.as_tensor(coh_match).cpu()
+    ax.plot(1/f, torch.as_tensor(coh).cpu(), lw=0.5, alpha=0.8)
+    ax.plot(1/f, torch.as_tensor(coh2).cpu(), lw=0.5, alpha=0.8)
     ax.set_xscale("log")
     ax.set_yscale("log")
-    ax.set_xlabel("$f$ [Hz]")
+    ax.set_xlabel("$T$ [s]")
     ax.set_ylabel("$\\gamma^2$")
-    ax.legend(["$\\gamma^2_{wf}$", "$\\gamma^{2, opt}_{wf}$"])
+    # ax.legend(["$\\gamma^2_{wf}$", "$\\gamma^{2, opt}_{wf}$"])
     plt.savefig(outfile)
     plt.close()
 

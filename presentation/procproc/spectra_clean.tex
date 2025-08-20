@@ -58,7 +58,7 @@
 
 %--- Title info
 \title{Pressure signal processing}
-\author{JMO Massey$^{\dag}$, F Cabrera-Booman, T Jaroslawski, J Klewicki, BJ McKeon}
+\author{JMO Massey$^{\dag}$, F Cabrera-Booman, T Jaroslawski, JC Klewicki, BJ McKeon}
 \institute{Center for Turbulence Research \\ Stanford University}
 % \thanks{This work was supported by DARPA under the CHAOS program}
 \date{\today}
@@ -114,13 +114,16 @@
 
 
         \node (Htret)  [proc, below=of tretraw]
-            {$ (\gamma^2,\mathcal{H})_{\mathrm{PH-NKD}} $ from callib.};
+            {$ (\gamma^2,\mathcal{H})_{\mathrm{PH-NKD^*}} $ from callib.};
 
         \node (tret)  [decision, below=of Htret]
             {Corr, $y$};
 
-        \node (corr)  [proc, below=57mm of start]
-            {Wiener filter FS};
+        \node (Hcomb)  [proc, below=57mm of start]
+            {$ (\gamma^2,\mathcal{H})_{\mathrm{FS-W}} $ (alg~\ref{alg:H})};
+
+        \node (corr)  [proc, below=of Hcomb]
+            {Inverse Wiener (alg~\ref{alg:inv})};
 
         \node (post)  [decision, below=of corr]
             {Clean WPFs};
@@ -131,14 +134,98 @@
         \draw [line] (start) -- (tretraw);
         \draw [line] (tretraw) -- (Htret);
         \draw [line] (Htret) -- (tret);
-        \draw [line] (tret) -- (corr);
-        \draw [line] (ref) -- (corr);
-        \draw [line] (tret) -- (corr);
+        \draw [line] (tret) -- (Hcomb);
+        \draw [line] (ref) -- (Hcomb);
+        \draw [line] (Hcomb) -- (corr);
         \draw [line] (corr) -- (post);
 
     \end{tikzpicture}
-    \caption{Complete pressure processing pipeline for measurement of the WPFs through a pinhole microphone. similar to \cite{tsuji_pressure_2007}}
+    \caption{Complete pressure processing pipeline for measurement of the WPFs through a pinhole microphone.}
     \end{figure}
+\end{frame}
+
+\begin{frame}
+    \frametitle{Microphone calibration: Naked (NKD)}
+    \begin{columns}[c] % vertically centered
+        \column{0.55\textwidth}
+            \centering
+            \begin{tikzpicture}[scale=0.7, transform shape,
+                node distance=6mm and 18mm, every node/.style={font=\small}]
+                \node (start) [terminator] {White Noise Source};
+
+                % Two separate measurement boxes
+                \node (ref)   [meas, below left = 6mm and 14mm of start, anchor=north east]
+                    {NKD S1, $x$};
+                \node (treat) [meas, below right = 6mm and 14mm of start, anchor=north west]
+                    {NKD S2, $y_r$};
+
+                \node (H)  [proc, below=18mm of start]
+                    {Compute $(\gamma^2,\mathcal{H})$ (alg~\ref{alg:H})};
+
+                \node (wien)  [proc, below=of H]
+                    {Inverse Wiener (alg~\ref{alg:inv})};
+
+                \node (corr)  [decision, below right = 6mm and 14mm of wien]
+                    {Corrected signal, $y \approxeq x$};
+
+                \draw [line] (start) -- (ref);
+                \draw [line] (start) -- (treat);
+                \draw [line] (ref) -- (H);
+                \draw [line] (treat) -- (H);
+                \draw [line] (H) -- (wien);
+                \draw [line] (wien) -- (corr);
+                \draw [line] (treat) -- (corr);
+
+            \end{tikzpicture}
+        \column{0.4\textwidth}
+            \includegraphics[width=0.8\linewidth]{S1-S2/H_atm.png}
+            % \includegraphics[width=0.8\linewidth]{S1-S2/H_30psi.png}
+            \includegraphics[width=0.8\linewidth]{S1-S2/H_50psi.png}
+            % \includegraphics[width=0.8\linewidth]{S1-S2/H_70psi.png}
+            \includegraphics[width=0.8\linewidth]{S1-S2/H_100psi.png}
+    \end{columns}
+\end{frame}
+
+\begin{frame}
+    \frametitle{Microphone calibration: Naked (NKD)}
+    \begin{columns}[c] % vertically centered
+        \column{0.55\textwidth}
+            \centering
+            \begin{tikzpicture}[scale=0.7, transform shape,
+                node distance=6mm and 18mm, every node/.style={font=\small}]
+                \node (start) [terminator] {White Noise Source};
+
+                % Two separate measurement boxes
+                \node (ref)   [meas, below left = 6mm and 14mm of start, anchor=north east]
+                    {NKD S1, $x$};
+                \node (treat) [meas, below right = 6mm and 14mm of start, anchor=north west]
+                    {NKD S2, $y_r$};
+
+                \node (H)  [proc, below=18mm of start]
+                    {Compute $(\gamma^2,\mathcal{H})$ (alg~\ref{alg:H})};
+
+                \node (wien)  [proc, below=of H]
+                    {Inverse Wiener (alg~\ref{alg:inv})};
+
+                \node (corr)  [decision, below right = 6mm and 14mm of wien]
+                    {Corrected signal, $y \approxeq x$};
+
+                \draw [line] (start) -- (ref);
+                \draw [line] (start) -- (treat);
+                \draw [line] (ref) -- (H);
+                \draw [line] (treat) -- (H);
+                \draw [line] (H) -- (wien);
+                \draw [line] (wien) -- (corr);
+                \draw [line] (treat) -- (corr);
+
+            \end{tikzpicture}
+        \column{0.4\textwidth}
+            \includegraphics[width=0.8\linewidth]{S1-S2/y_atm.png}
+            % \includegraphics[width=0.8\linewidth]{S1-S2/y_30psi.png}
+            \includegraphics[width=0.8\linewidth]{S1-S2/y_50psi.png}
+            % \includegraphics[width=0.8\linewidth]{S1-S2/y_70psi.png}
+            \includegraphics[width=0.8\linewidth]{S1-S2/y_100psi.png}
+    \end{columns}
 \end{frame}
 
 \begin{frame}
@@ -152,15 +239,15 @@
 
                 % Two separate measurement boxes
                 \node (ref)   [meas, below left = 6mm and 14mm of start, anchor=north east]
-                    {Reference: $x$};
+                    {NKD S1, $x$};
                 \node (treat) [meas, below right = 6mm and 14mm of start, anchor=north west]
-                    {Treated: $y$};
+                    {NC S2, $y_r$};
 
                 \node (H)  [proc, below=18mm of start]
-                    {Transfer function (alg~\ref{alg:H}): $H$};
+                    {Compute $(\gamma^2,\mathcal{H})$ (alg~\ref{alg:H})};
 
                 \node (wien)  [proc, below=of H]
-                    {Inverse Wiener (alg~\ref{alg:inv}): $W$};
+                    {Inverse Wiener (alg~\ref{alg:inv})};
 
                 \node (corr)  [decision, below right = 6mm and 14mm of wien]
                     {Corrected signal, $y \approxeq x$};
@@ -193,22 +280,32 @@
                 \node (start) [terminator] {White Noise Source};
 
                 % Two separate measurement boxes
-                \node (ref)   [meas, below left = 6mm and 14mm of start, anchor=north east]
-                    {Reference: $x$};
-                \node (treat) [meas, below right = 6mm and 14mm of start, anchor=north west]
-                    {Treated: $y$};
+                \node (refraw)   [meas, below left = 6mm and 14mm of start, anchor=north east]
+                    {NKD S2, $x_r$};
 
-                \node (H)  [proc, below=18mm of start]
-                    {Transfer function (alg~\ref{alg:H}): $H$};
+                \node (S1S2) [proc, below=of refraw]
+                    {Apply $\mathcal{H}_{\mathrm{S1-S2}}$, $x$};
+
+                \node (ref) [decision, below=of S1S2]
+                    {Corr, $x$};
+
+                \node (treat) [meas, below right = 8mm and 14mm of start, anchor=north west]
+                    {Treated S1, $y_r$};
+
+                \node (H)  [proc, below left = 28mm and -4mm of start, anchor=north west]
+                    {Compute $(\gamma^2,\mathcal{H})$ (alg~\ref{alg:H})};
+
 
                 \node (wien)  [proc, below=of H]
-                    {Inverse Wiener (alg~\ref{alg:inv}): $W$};
+                    {Inverse Wiener (alg~\ref{alg:inv})};
 
                 \node (corr)  [decision, below right = 6mm and 14mm of wien]
                     {Corrected signal, $y \approxeq x$};
 
-                \draw [line] (start) -- (ref);
+                \draw [line] (start) -- (refraw);
                 \draw [line] (start) -- (treat);
+                \draw [line] (refraw) -- (S1S2);
+                \draw [line] (S1S2) -- (ref);
                 \draw [line] (ref) -- (H);
                 \draw [line] (treat) -- (H);
                 \draw [line] (H) -- (wien);
@@ -287,10 +384,10 @@
 \end{frame}
 
 
-\begin{frame}[noframenumbering,allowframebreaks]
-    \frametitle{References}
-    \bibliographystyle{jfm}
-    \bibliography{refs}
-\end{frame}
+% \begin{frame}[noframenumbering,allowframebreaks]
+%     \frametitle{References}
+%     \bibliographystyle{jfm}
+%     \bibliography{refs}
+% \end{frame}
 
 \end{document}
