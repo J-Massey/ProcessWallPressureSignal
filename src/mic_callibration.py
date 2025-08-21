@@ -12,8 +12,8 @@ def estimate_frf(
     x: np.ndarray,
     y: np.ndarray,
     fs: float,
-    nperseg: int = 4096,
-    noverlap: int = 2048,
+    nperseg: int = 2**16,
+    noverlap: int = 2**15,
     window: str = "hann",
     detrend: str = "constant",
 ):
@@ -85,7 +85,7 @@ def load_mat(path):
     return x_r, y_r
 
 
-def compute_spec(fs, x: np.ndarray, nperseg: int = 4096):
+def compute_spec(fs, x: np.ndarray, nperseg: int = 2**16):
     f, Pxx = welch(x, fs=fs, nperseg=nperseg)
     return f, Pxx
 
@@ -179,17 +179,22 @@ def real_data():
     os.system(f"mkdir -p {OUTPUT_DIR}")  # ensure output directory exists
     PH_path = "figures/PH-NKD"
     NC_path = "figures/NC-NKD"
-    
+
+    freqs = []
+    Pyys = []
+    Pyryrs = []
     for idx in range(len(psi)):
         ic(f"Processing {psi[idx]}...")
 
         # Load data
         x_r, y_r = load_mat(fn_sweep[idx])
+        ic(x_r.shape, y_r.shape)
         # plot raw data
-        f, Pxx = compute_spec(25000.0, x_r)
+        # f, Pxx = compute_spec(25000.0, x_r)
         # plot_spectrum(f, f*Pxx, f"{OUTPUT_DIR}/Pxrxr_{psi[idx]}_raw")
-        f, Pyy = compute_spec(25000.0, y_r)
-        plot_spectrum(f, f*Pxx, f*Pyy, f"{OUTPUT_DIR}/spectra/P_{psi[idx]}_raw")
+        # f, Pyryr = compute_spec(25000.0, y_r)
+        # Pyryrs.append(f*Pyryr)
+        # plot_spectrum(f, f*Pxx, f*Pyy, f"{OUTPUT_DIR}/spectra/P_{psi[idx]}_raw")
         ###
         # Correct NC
         H_NC = np.load(f"{NC_path}/H_{psi[idx]}.npy")
@@ -209,17 +214,23 @@ def real_data():
         y = wiener_inverse(y_r, fs, f_PH, H_PH, gamma2_PH)
         # Plot corrected PH
         f, Pyy = compute_spec(fs, y)
+        freqs.append(f)
+        Pyys.append(f*Pyy)
+        ic(Pyy.max())
         # plot_spectrum(f, f*Pyy, f"{OUTPUT_DIR}/Pyryr_{psi[idx]}_corr")
         ###
         # TF between NC and PH
-        f, H, gamma2 = estimate_frf(y, x, fs)
-        plot_transfer_PH(f, H, f"{OUTPUT_DIR}/H_{psi[idx]}", psi[idx])
+        f, H, gamma2 = estimate_frf(x, y, fs)
+        # plot_transfer_PH(f, H, f"{OUTPUT_DIR}/H_{psi[idx]}", psi[idx])
 
         y_rej = wiener_inverse(y, fs, f, H, gamma2)
         t = np.arange(len(y)) / fs
-        plot_corrected_trace_PH(t, x, y, y_rej, f"{OUTPUT_DIR}/y_{psi[idx]}", psi[idx])
+        # plot_corrected_trace_PH(t, x, y, y_rej, f"{OUTPUT_DIR}/y_{psi[idx]}", psi[idx])
         f, Pyy_rej = compute_spec(fs, y_rej)
-        plot_spectrum(f, f*Pyy, f*Pyy_rej, f"{OUTPUT_DIR}/spectra/P_{psi[idx]}_rej")
+        Pyryrs.append(f*Pyy_rej)
+    Times = [1/f for f in freqs]
+
+    plot_spectrum(Times, Pyys, Pyryrs, f"{OUTPUT_DIR}/spectra/Pyy.png")
 
 
 if __name__ == "__main__":
