@@ -57,19 +57,26 @@ def plot_spectrum_and_modes(spec, modes, mode_l, outfile):
     plt.savefig(outfile)
     plt.close()
 
-def plot_spectrum(f, spec, spec2, outfile):
+
+def plot_spectrum(Ts, spec, spec2, outfile):
     """Plot Phi+ vs T+ with uncertainty."""
-    fig, ax = plt.subplots(figsize=(5.6, 3.), dpi=600)
-    ax.plot(1/f, spec, 'k-', lw=0.5, alpha=0.5)
-    ax.plot(1/f, spec2, 'r-', lw=0.5, alpha=0.5)
-    ax.set_xscale("log")
-    # ax.set_xlim(1/1e-1, 1/5e-4)
-    ax.set_ylim(0, 2)
-    ax.set_xlabel("$T^+$")
-    ax.set_ylabel("$f\\Phi_{pp}^+$")
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(5.6, 3.), dpi=600, sharex=True, sharey=True)
+    colors1 = sns.color_palette("tab10", n_colors=len(spec))
+    colors2 = sns.color_palette("tab10", n_colors=len(spec2))
+    for idx, T in enumerate(Ts):
+        ax1.plot(T, spec[idx], ls='-', lw=0.5, color=colors1[idx])
+        ax2.plot(T, spec2[idx], ls='-', lw=0.5, color=colors2[idx])
+    ax1.set_xscale("log")
+    ax2.set_xscale("log")
+    ax1.set_xlim(1e-2, 1e0)
+    ax1.set_ylim(0, 2)
+    ax1.set_xlabel("$T$")
+    ax2.set_xlabel("$T$")
+    ax1.set_ylabel(r"$f\Phi_{pp}$")
     plt.tight_layout()
     plt.savefig(outfile)
     plt.close()
+
 
 def plot_pw_p_fs(fs_w, fs_fs, p_w, p_fs, outfile):
     """Plot raw φ+ signals vs T+."""
@@ -85,6 +92,7 @@ def plot_pw_p_fs(fs_w, fs_fs, p_w, p_fs, outfile):
     plt.tight_layout()
     plt.savefig(outfile)
     plt.close()
+
 
 def plot_filtered_spectrum(spec, spec_filt, peaks_info, outfile, line):
     """Plot notched spectrum and Savitzky-Golay smoothing."""
