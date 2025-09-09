@@ -13,6 +13,28 @@ plt.rcParams["font.size"] = "10.5"
 plt.rc("text", usetex=True)
 plt.rc("text.latex", preamble=r"\usepackage{mathpazo}")
 
+def plot_psd_loglog(freqs, psds, outfile):
+    """Plot PSD vs frequency (log-log), MATLAB pwelch-style.
+
+    - Ignores f=0 to avoid log(0)
+    - Uses a distinct color per curve
+    """
+    fig, ax = plt.subplots(figsize=(5.6, 3.), dpi=600)
+    colors = sns.color_palette("tab10", n_colors=len(psds))
+    for idx, (f, p) in enumerate(zip(freqs, psds)):
+        f = np.asarray(f)
+        p = np.asarray(p)
+        m = np.isfinite(f) & np.isfinite(p) & (f > 0) & (p > 0)
+        if np.any(m):
+            ax.loglog(f[m], p[m], color=colors[idx], lw=0.8, alpha=0.9)
+    ax.set_xlabel(r"$T$")
+    ax.set_ylabel(r"$f\Phi_{pp}$")
+    ax.set_title("Welch PSD Estimate")
+    ax.grid(True, which="both", linestyle=":", alpha=0.5)
+    plt.tight_layout()
+    plt.savefig(outfile)
+    plt.close()
+
 def plot_raw_signals(p_w, p_fs, outfile):
     """Plot raw wall and free-stream pressure signals."""
     fig, ax = plt.subplots(figsize=(4, 2.5), dpi=600)
@@ -72,6 +94,21 @@ def plot_spectrum(Ts, spec, spec2, outfile):
     ax1.set_ylim(0, 2)
     ax1.set_xlabel("$T$")
     ax2.set_xlabel("$T$")
+    ax1.set_ylabel(r"$f\Phi_{pp}$")
+    plt.tight_layout()
+    plt.savefig(outfile)
+    plt.close()
+
+def plot_rawspectrum(Ts, spec, outfile):
+    """Plot Phi+ vs T+ with uncertainty."""
+    fig, ax1 = plt.subplots(1, 1, figsize=(5.6, 3.), dpi=600, sharex=True, sharey=True)
+    colors1 = sns.color_palette("tab10", n_colors=len(spec))
+    for idx, T in enumerate(Ts):
+        ax1.plot(T, spec[idx], ls='-', lw=0.5, color=colors1[idx])
+    ax1.set_xscale("log")
+    ax1.set_xlim(1e-4, 1e0)
+    # ax1.set_ylim(0, 2)
+    ax1.set_xlabel("$T$")
     ax1.set_ylabel(r"$f\Phi_{pp}$")
     plt.tight_layout()
     plt.savefig(outfile)
