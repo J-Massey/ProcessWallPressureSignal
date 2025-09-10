@@ -10,7 +10,7 @@ from plotting import plot_rawspectrum
 # Constants & defaults
 # -------------------
 FS = 25_000.0
-NPERSEG = 2**11
+NPERSEG = 2**12
 WINDOW = "hann"
 DETREND = "constant"
 

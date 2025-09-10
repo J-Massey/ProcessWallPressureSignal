@@ -106,7 +106,7 @@ def plot_rawspectrum(Ts, spec, outfile):
     for idx, T in enumerate(Ts):
         ax1.plot(T, spec[idx], ls='-', lw=0.5, color=colors1[idx])
     ax1.set_xscale("log")
-    ax1.set_yscale("log")
+    # ax1.set_yscale("log")
     # ax1.set_xlim(1e-4, 1e-1)
     # ax1.set_ylim(0, 2)
     ax1.set_xlabel("$T^+$")
