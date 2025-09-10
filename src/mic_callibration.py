@@ -15,13 +15,37 @@ from plotting import (
     plot_corrected_trace_PH,
 )
 
+############################
+# Constants & defaults
+############################
+FS = 25_000.0
+NPERSEG = 2**11
+WINDOW = "hann"
+
+
+R = 287.0         # J/kg/K
+T = 293.0         # K (adjust if you have per-case temps)
+P_ATM = 101_325.0 # Pa
+PSI_TO_PA = 6_894.76
+psi_labels = ['atm', '10psi', '30psi', '50psi', '70psi', '100psi']
+Re_taus = np.array([1500, 2500, 3500, 4500, 6000, 8000], dtype=float)
+u_taus  = np.array([0.571, 0.532, 0.492, 0.515, 0.433, 0.481], dtype=float)
+nu_atm  = 1.5e-5  # m^2/s
+
+
+def inner_scales(Re_taus, u_taus, nu_atm):
+    """Return delta (from the atm case) and nu for each case via Re_tau relation."""
+    Re_taus = np.asarray(Re_taus, dtype=float)
+    u_taus = np.asarray(u_taus, dtype=float)
+    delta = Re_taus[0] * nu_atm / u_taus[0]
+    nus = delta * u_taus / Re_taus
+    return float(delta), nus
+
 
 def estimate_frf(
     x: np.ndarray,
     y: np.ndarray,
     fs: float,
-    nperseg: int = 2**16,
-    noverlap: int = 2**15,
     window: str = "hann",
     detrend: str = "constant",
 ):
@@ -35,10 +59,10 @@ def estimate_frf(
     """
     x = np.asarray(x, float)
     y = np.asarray(y, float)
-    nseg = int(min(nperseg, x.size, y.size))
+    nseg = int(min(NPERSEG, x.size, y.size))
     if nseg < 8:
         raise ValueError(f"Signal too short for FRF: n={min(x.size, y.size)}")
-    nov = int(min(noverlap, nseg // 2))
+    nov = int(min(NPERSEG/2, nseg // 2))
     w = get_window(window, nseg, fftbins=True)
 
     f, Sxx = welch(x, fs=fs, window=w, nperseg=nseg, noverlap=nov, detrend=detrend)
@@ -235,6 +259,7 @@ def real_data():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     PH_path = "figures/PH-NKD"
     NC_path = "figures/NC-NKD"
+    NKD_path = "figures/S1-S2"
 
     freqs = []
     Pyys = []
@@ -243,29 +268,33 @@ def real_data():
         ic(f"Processing {psi[idx]}...")
 
         # Load data
-        x_r, y_r = load_mat(fn_sweep[idx])
+        x_r, y_r = load_mat(fn_sweep[idx]) # s1 mic is naked, so no need to correct NKD1 to NKD2
         ###
         # Correct NC (invert NC→NKD mapping to bring NC into NKD domain)
         H_NC = np.load(f"{NC_path}/H_{psi[idx]}.npy")
         gamma2_NC = np.load(f"{NC_path}/gamma2_{psi[idx]}.npy")
         f_NC = np.load(f"{NC_path}/f_{psi[idx]}.npy")
         fs = 25000.0
-        x = wiener_inverse(y_r, fs, f_NC, H_NC, gamma2_NC)
+        y = wiener_inverse(y_r, fs, f_NC, H_NC, gamma2_NC)
         # Plot corrected NC
-        f, Pxx = compute_spec(fs, x)
+        # f, Pxx = compute_spec(fs, y)
         # plot_spectrum(f, f*Pxx, f"{OUTPUT_DIR}/Pxx_{psi[idx]}_corr")
         ###
-        # Correct PH
+        # Correct PH (invert PH→NKD mapping to bring PH into NKD domain) # NKD mic is S2 mic, so we need to correct NKD2 to NKD1 first
         H_PH = np.load(f"{PH_path}/H_{psi[idx]}.npy")
         gamma2_PH = np.load(f"{PH_path}/gamma2_{psi[idx]}.npy")
         f_PH = np.load(f"{PH_path}/f_{psi[idx]}.npy")
-        fs = 25000.0
-        y = wiener_inverse(y_r, fs, f_PH, H_PH, gamma2_PH)
+        x_s2 = wiener_inverse(x_r, fs, f_PH, H_PH, gamma2_PH)
+        # This has now been inverted to the equivalend of the NKD-S2 mic, we need to map it to the response of the pristine S1 mic
+        H_NKD = np.load(f"{NKD_path}/H_{psi[idx]}.npy")
+        gamma2_NKD = np.load(f"{NKD_path}/gamma2_{psi[idx]}.npy")
+        f_NKD = np.load(f"{NKD_path}/f_{psi[idx]}.npy")
+        x = wiener_inverse(x_s2, fs, f_NKD, H_NKD, gamma2_NKD)
+        
         # Plot corrected PH
-        f, Pyy = compute_spec(fs, y)
+        f, Pxx = compute_spec(fs, x)
         freqs.append(f)
-        Pyys.append(f*Pyy)
-        ic(Pyy.max())
+        Pyys.append(f*Pxx)
         # plot_spectrum(f, f*Pyy, f"{OUTPUT_DIR}/Pyryr_{psi[idx]}_corr")
         ###
         # TF between NC and PH
@@ -283,7 +312,7 @@ def real_data():
 
 
 if __name__ == "__main__":
-    main_NC()
-    main_NKD()
-    main_PH()
+    # main_NC()
+    # main_NKD()
+    # main_PH()
     real_data()
