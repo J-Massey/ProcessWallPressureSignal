@@ -89,7 +89,7 @@ def plot_spectrum(Ts, spec, spec2, outfile):
         ax1.plot(T, spec[idx], ls='-', lw=0.5, color=colors1[idx])
         ax2.plot(T, spec2[idx], ls='-', lw=0.5, color=colors2[idx])
     ax1.set_xscale("log")
-    ax2.set_xscale("log")
+    ax2.set_yscale("log")
     ax1.set_xlim(1e-2, 1e0)
     ax1.set_ylim(0, 2)
     ax1.set_xlabel("$T$")
@@ -106,7 +106,8 @@ def plot_rawspectrum(Ts, spec, outfile):
     for idx, T in enumerate(Ts):
         ax1.plot(T, spec[idx], ls='-', lw=0.5, color=colors1[idx])
     ax1.set_xscale("log")
-    ax1.set_xlim(1e-4, 1e0)
+    ax1.set_yscale("log")
+    ax1.set_xlim(1e-4, 1e-1)
     # ax1.set_ylim(0, 2)
     ax1.set_xlabel("$T$")
     ax1.set_ylabel(r"$f\Phi_{pp}$")
