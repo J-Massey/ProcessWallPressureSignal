@@ -5,7 +5,15 @@ import scipy.io as sio
 from icecream import ic
 import os
 
-from plotting import plot_spectrum, plot_transfer_NKD, plot_transfer_PH, plot_transfer_NC, plot_corrected_trace_NKD, plot_corrected_trace_NC, plot_corrected_trace_PH
+from plotting import (
+    plot_spectrum,
+    plot_transfer_NKD,
+    plot_transfer_PH,
+    plot_transfer_NC,
+    plot_corrected_trace_NKD,
+    plot_corrected_trace_NC,
+    plot_corrected_trace_PH,
+)
 
 
 def estimate_frf(
@@ -18,13 +26,25 @@ def estimate_frf(
     detrend: str = "constant",
 ):
     """
-    H1 FRF and coherence via Welch/CSD.
-    Returns: f [Hz], H(f)=S_yx/S_xx (complex), gamma2(f).
+    Estimate H1 FRF and magnitude-squared coherence using Welch/CSD.
+
+    Returns
+    - f [Hz]
+    - H(f) = S_yx / S_xx (complex, x→y)
+    - gamma2(f) in [0, 1]
     """
-    w = get_window(window, nperseg, fftbins=True)
-    f, Sxx = welch(x, fs=fs, window=w, nperseg=nperseg, noverlap=noverlap, detrend=detrend)
-    _, Syy = welch(y, fs=fs, window=w, nperseg=nperseg, noverlap=noverlap, detrend=detrend)
-    _, Sxy = csd(x, y, fs=fs, window=w, nperseg=nperseg, noverlap=noverlap, detrend=detrend)  # x→y
+    x = np.asarray(x, float)
+    y = np.asarray(y, float)
+    nseg = int(min(nperseg, x.size, y.size))
+    if nseg < 8:
+        raise ValueError(f"Signal too short for FRF: n={min(x.size, y.size)}")
+    nov = int(min(noverlap, nseg // 2))
+    w = get_window(window, nseg, fftbins=True)
+
+    f, Sxx = welch(x, fs=fs, window=w, nperseg=nseg, noverlap=nov, detrend=detrend)
+    _, Syy = welch(y, fs=fs, window=w, nperseg=nseg, noverlap=nov, detrend=detrend)
+    _, Sxy = csd(x, y, fs=fs, window=w, nperseg=nseg, noverlap=nov, detrend=detrend)  # x→y
+
     H = Sxy / Sxx
     gamma2 = (np.abs(Sxy) ** 2) / (Sxx * Syy)
     gamma2 = np.clip(gamma2.real, 0.0, 1.0)
@@ -42,8 +62,16 @@ def wiener_inverse(
     zero_dc: bool = True,
 ):
     """
-    Reconstruct y from y_r using coherence-weighted inverse: H_inv = gamma^2 * H* / |H|^2.
-    Returns: y (time series).
+    Reconstruct source-domain signal from a measured signal using a
+    coherence-weighted inverse filter: H_inv = gamma^2 * H* / |H|^2.
+
+    Parameters
+    - y_r: measured time series (maps from source via H)
+    - fs:  sample rate [Hz]
+    - f,H,gamma2: FRF and coherence defined on frequency vector f
+    - pad: zero-padding in samples for FFT length
+    - demean: remove mean before FFT
+    - zero_dc: zero DC (and Nyquist if present) in inverse filter
     """
     y = np.asarray(y_r, float)
     if demean:
@@ -77,16 +105,44 @@ def wiener_inverse(
     return y
 
 
-def load_mat(path):
-    ic(sio.loadmat(path).keys())
-    data = sio.loadmat(path)['channelData']
-    x_r = np.array(data[:, 0])
-    y_r = np.array(data[:, 1])
+def load_mat(path: str, key: str = "channelData"):
+    """Load an Nx2 array from a MATLAB .mat file under `key` robustly."""
+    mat = sio.loadmat(path, squeeze_me=True)
+    if key not in mat:
+        raise KeyError(f"Key '{key}' not found in {path}. Available: {list(mat.keys())}")
+    data = np.asarray(mat[key])
+    if data.ndim != 2:
+        raise ValueError(f"Expected 2D array under '{key}', got shape {data.shape} in {path}")
+    # Handle either (N,2) or (2,N)
+    if data.shape[1] == 2:
+        x_r = data[:, 0].astype(float)
+        y_r = data[:, 1].astype(float)
+    elif data.shape[0] == 2:
+        x_r = data[0, :].astype(float)
+        y_r = data[1, :].astype(float)
+    else:
+        raise ValueError(f"Unsupported shape for '{key}': {data.shape} in {path}")
     return x_r, y_r
 
 
-def compute_spec(fs, x: np.ndarray, nperseg: int = 2**16):
-    f, Pxx = welch(x, fs=fs, nperseg=nperseg)
+def compute_spec(fs: float, x: np.ndarray, nperseg: int = 2**16):
+    """Welch PSD with sane defaults and shape guarding."""
+    x = np.asarray(x, float)
+    nseg = int(min(nperseg, x.size))
+    if nseg < 8:
+        raise ValueError(f"Signal too short for PSD: n={x.size}")
+    nov = nseg // 2
+    w = get_window("hann", nseg, fftbins=True)
+    f, Pxx = welch(
+        x,
+        fs=fs,
+        window=w,
+        nperseg=nseg,
+        noverlap=nov,
+        detrend="constant",
+        scaling="density",
+        return_onesided=True,
+    )
     return f, Pxx
 
 
@@ -95,7 +151,7 @@ def main_PH():
     root = 'data/15082025/P2S1_S2naked'
     fn_sweep = [f'{root}/data_{p}.mat' for p in psi]
     OUTPUT_DIR = "figures/PH-NKD"
-    os.system(f"mkdir -p {OUTPUT_DIR}")  # ensure output directory exists
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
     NKD_path = "figures/S1-S2"
     
     for idx in range(len(psi)):
@@ -126,7 +182,7 @@ def main_NC():
     root = 'data/15082025/NCS2_S1naked'
     fn_sweep = [f'{root}/data_{p}.mat' for p in psi]
     OUTPUT_DIR = "figures/NC-NKD"
-    os.system(f"mkdir -p {OUTPUT_DIR}")  # ensure output directory exists
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
     
     for idx in range(len(psi)):
         ic(f"Processing {psi[idx]}...")
@@ -151,7 +207,7 @@ def main_NKD():
     root = 'data/15082025/S1naked_S2naked'
     fn_sweep = [f'{root}/data_{p}.mat' for p in psi]
     OUTPUT_DIR = "figures/S1-S2"
-    os.system(f"mkdir -p {OUTPUT_DIR}")  # ensure output directory exists
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
     
     for idx in range(len(psi)):
         ic(f"Processing {psi[idx]}...")
@@ -176,7 +232,7 @@ def real_data():
     root = 'data/14082025/flow/maxspeed'
     fn_sweep = [f'{root}/data_{p}.mat' for p in psi]
     OUTPUT_DIR = "figures/real"
-    os.system(f"mkdir -p {OUTPUT_DIR}")  # ensure output directory exists
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
     PH_path = "figures/PH-NKD"
     NC_path = "figures/NC-NKD"
 
@@ -188,20 +244,13 @@ def real_data():
 
         # Load data
         x_r, y_r = load_mat(fn_sweep[idx])
-        ic(x_r.shape, y_r.shape)
-        # plot raw data
-        # f, Pxx = compute_spec(25000.0, x_r)
-        # plot_spectrum(f, f*Pxx, f"{OUTPUT_DIR}/Pxrxr_{psi[idx]}_raw")
-        # f, Pyryr = compute_spec(25000.0, y_r)
-        # Pyryrs.append(f*Pyryr)
-        # plot_spectrum(f, f*Pxx, f*Pyy, f"{OUTPUT_DIR}/spectra/P_{psi[idx]}_raw")
         ###
-        # Correct NC
+        # Correct NC (invert NC→NKD mapping to bring NC into NKD domain)
         H_NC = np.load(f"{NC_path}/H_{psi[idx]}.npy")
         gamma2_NC = np.load(f"{NC_path}/gamma2_{psi[idx]}.npy")
         f_NC = np.load(f"{NC_path}/f_{psi[idx]}.npy")
         fs = 25000.0
-        x = wiener_inverse(x_r, fs, f_NC, H_NC, gamma2_NC)
+        x = wiener_inverse(y_r, fs, f_NC, H_NC, gamma2_NC)
         # Plot corrected NC
         f, Pxx = compute_spec(fs, x)
         # plot_spectrum(f, f*Pxx, f"{OUTPUT_DIR}/Pxx_{psi[idx]}_corr")
@@ -234,7 +283,7 @@ def real_data():
 
 
 if __name__ == "__main__":
-    # main_NC()
-    # main_NKD()
-    # main_PH()
+    main_NC()
+    main_NKD()
+    main_PH()
     real_data()
