@@ -149,10 +149,10 @@ def load_mat(path: str, key: str = "channelData"):
     return x_r, y_r
 
 
-def compute_spec(fs: float, x: np.ndarray, nperseg: int = 2**16):
+def compute_spec(fs: float, x: np.ndarray):
     """Welch PSD with sane defaults and shape guarding."""
     x = np.asarray(x, float)
-    nseg = int(min(nperseg, x.size))
+    nseg = int(min(NPERSEG, x.size))
     if nseg < 8:
         raise ValueError(f"Signal too short for PSD: n={x.size}")
     nov = nseg // 2
@@ -260,6 +260,10 @@ def real_data():
     PH_path = "figures/PH-NKD"
     NC_path = "figures/NC-NKD"
     NKD_path = "figures/S1-S2"
+
+    RAW_DIR = f"{OUTPUT_DIR}/raw"
+    os.makedirs(RAW_DIR, exist_ok=True)
+    
 
     delta, nu_s = inner_scales(Re_taus, u_taus, nu_atm)
     pressures = np.array([P_ATM] + [P_ATM + float(p[:-3]) * PSI_TO_PA for p in psi_labels[1:]], dtype=float)
