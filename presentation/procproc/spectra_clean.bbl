@@ -1,8 +1,0 @@
-\begin{thebibliography}{1}
-\expandafter\ifx\csname natexlab\endcsname\relax\def\natexlab#1{#1}\fi
-\def\au#1{#1} \def\ed#1{#1} \def\yr#1{#1}\def\at#1{#1}\def\jt#1{\textit{#1}} \def\bt#1{#1}\def\bvol#1{\textbf{#1}} \def\vol#1{#1} \def\pg#1{#1} \def\publ#1{#1}\def\arxiv#1{#1}\def\org#1{#1}\def\st#1{\textit{#1}}
-
-\bibitem[Tsuji {\em et~al.\/}(2007)Tsuji, Fransson, Alfredsson \& Johansson]{tsuji_pressure_2007}
-{\sc \au{Tsuji, Y.}, \au{Fransson, J. H.~M.}, \au{Alfredsson, P.~H.} \& \au{Johansson, A.~V.}} \yr{2007}  \at{Pressure statistics and their scaling in high-{Reynolds}-number turbulent boundary layers}.  \jt{J. Fluid Mech.}  \bvol{585},  \pg{1--40}.
-
-\end{thebibliography}

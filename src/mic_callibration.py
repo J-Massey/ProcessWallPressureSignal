@@ -261,7 +261,11 @@ def real_data():
     NC_path = "figures/NC-NKD"
     NKD_path = "figures/S1-S2"
 
-    freqs = []
+    delta, nu_s = inner_scales(Re_taus, u_taus, nu_atm)
+    pressures = np.array([P_ATM] + [P_ATM + float(p[:-3]) * PSI_TO_PA for p in psi_labels[1:]], dtype=float)
+    rhos = pressures / (R * T)
+
+    Times = []
     Pyys = []
     Pyryrs = []
     for idx in range(len(psi)):
@@ -292,9 +296,11 @@ def real_data():
         x = wiener_inverse(x_s2, fs, f_NKD, H_NKD, gamma2_NKD)
         
         # Plot corrected PH
-        f, Pxx = compute_spec(fs, x)
-        freqs.append(f)
-        Pyys.append(f*Pxx)
+        f, Pxx = compute_spec(fs, x_r)
+        f_plus = f * nu_s[idx] / (u_taus[idx] ** 2)
+        Pxx_plus = Pxx / ((u_taus[idx] ** 2 * rhos[idx]) ** 2) 
+        Times.append(1/f_plus)
+        Pyys.append(f*Pxx_plus)
         # plot_spectrum(f, f*Pyy, f"{OUTPUT_DIR}/Pyryr_{psi[idx]}_corr")
         ###
         # TF between NC and PH
@@ -305,10 +311,11 @@ def real_data():
         t = np.arange(len(y)) / fs
         # plot_corrected_trace_PH(t, x, y, y_rej, f"{OUTPUT_DIR}/y_{psi[idx]}", psi[idx])
         f, Pyy_rej = compute_spec(fs, y_rej)
-        Pyryrs.append(f*Pyy_rej)
-    Times = [1/f for f in freqs]
+        f_plus = f * nu_s[idx] / (u_taus[idx] ** 2)
+        Pyy_rej_plus = Pyy_rej / ((u_taus[idx] ** 2 * rhos[idx]) ** 2)
+        Pyryrs.append(f*Pyy_rej_plus)
 
-    plot_spectrum(Times, Pyys, Pyryrs, f"{OUTPUT_DIR}/spectra/Pyy.png")
+    plot_spectrum(Times, Pyys, Pyryrs, f"{OUTPUT_DIR}/spectra/Pyy_log.png")
 
 
 if __name__ == "__main__":
