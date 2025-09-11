@@ -1,6 +1,8 @@
 import numpy as np
-from scipy.signal import welch, csd, get_window
+from scipy.signal import welch, csd, get_window, savgol_filter
 import scipy.io as sio
+from matplotlib import pyplot as plt
+
 
 from icecream import ic
 import os
@@ -13,14 +15,16 @@ from plotting import (
     plot_corrected_trace_NKD,
     plot_corrected_trace_NC,
     plot_corrected_trace_PH,
+    plot_time_series,
 )
 
 ############################
 # Constants & defaults
 ############################
 FS = 25_000.0
-NPERSEG = 2**11
+NPERSEG = 2**10
 WINDOW = "hann"
+CALIB_BASE_DIR = "data/calibration"  # base directory to save calibration .npy files
 
 
 R = 287.0         # J/kg/K
@@ -75,13 +79,71 @@ def estimate_frf(
     return f, H, gamma2
 
 
+def _odd_leq(n: int) -> int:
+    """Return the largest odd integer <= n (and >= 3)."""
+    n = int(n)
+    if n < 3:
+        return 3
+    return n if (n % 2 == 1) else (n - 1)
+
+
+def smooth_complex_frf(
+    H: np.ndarray,
+    window_length: int = 51,
+    polyorder: int = 1,
+    method: str = "savgol",
+) -> np.ndarray:
+    """Optionally smooth a complex FRF by smoothing magnitude and unwrapped phase.
+
+    Parameters
+    - H: complex FRF array
+    - window_length: smoothing window (adjusted to be odd and <= len(H))
+    - polyorder: polynomial order for Savitzky–Golay
+    - method: currently only 'savgol' supported
+    """
+    H = np.asarray(H)
+    if H.ndim != 1:
+        H = H.ravel()
+    n = H.size
+    if n < 7:
+        return H  # too short to smooth meaningfully
+    w = min(_odd_leq(window_length), _odd_leq(n - (1 - (n % 2))))
+    w = max(3, w)
+    p = min(polyorder, max(1, w - 2))
+
+    mag = np.abs(H)
+    ph = np.unwrap(np.angle(H))
+
+    if method == "savgol":
+        mag_s = savgol_filter(mag, window_length=w, polyorder=p, mode="interp")
+        ph_s = savgol_filter(ph,  window_length=w, polyorder=p, mode="interp")
+    else:
+        # Fallback: simple moving average
+        k = w
+        wts = np.ones(k) / k
+        mag_s = np.convolve(mag, wts, mode="same")
+        ph_s = np.convolve(ph,  wts, mode="same")
+
+    return mag_s * np.exp(1j * ph_s)
+
+
+def _resolve_cal_dir(name: str) -> str:
+    """Prefer new `data/calibration/<name>` if present; otherwise fall back to `figures/<name>`.
+    This keeps backward compatibility with existing saved calibrations.
+    """
+    new_dir = os.path.join(CALIB_BASE_DIR, name)
+    if os.path.isdir(new_dir):
+        return new_dir
+    old_dir = os.path.join("figures", name)
+    return old_dir
+
+
 def wiener_inverse(
     y_r: np.ndarray,
     fs: float,
     f: np.ndarray,
     H: np.ndarray,
     gamma2: np.ndarray,
-    pad: int = 0,
     demean: bool = True,
     zero_dc: bool = True,
 ):
@@ -101,7 +163,7 @@ def wiener_inverse(
     if demean:
         y = y - y.mean()
     N = y.size
-    Nfft = N + int(pad)
+    Nfft = int(2 ** np.ceil(np.log2(N)))  # next power of 2
 
     # FFT of measurement
     Yr = np.fft.rfft(y, n=Nfft)
@@ -170,13 +232,15 @@ def compute_spec(fs: float, x: np.ndarray):
     return f, Pxx
 
 
-def main_PH():
+def main_PH(smooth: bool = False, window_length: int = 51, polyorder: int = 1):
     psi = ['atm', '10psi', '30psi', '50psi', '70psi', '100psi']
     root = 'data/15082025/P2S1_S2naked'
     fn_sweep = [f'{root}/data_{p}.mat' for p in psi]
-    OUTPUT_DIR = "figures/PH-NKD"
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    NKD_path = "figures/S1-S2"
+    FIG_DIR = "figures/PH-NKD"
+    CAL_DIR = os.path.join(CALIB_BASE_DIR, "PH-NKD")
+    os.makedirs(FIG_DIR, exist_ok=True)
+    os.makedirs(CAL_DIR, exist_ok=True)
+    NKD_path = _resolve_cal_dir("S1-S2")
     
     for idx in range(len(psi)):
         ic(f"Processing {psi[idx]}...")
@@ -190,23 +254,27 @@ def main_PH():
         x = wiener_inverse(x_r, fs, f_NKD, H_NKD, gamma2_NKD)
 
         f, H, gamma2 = estimate_frf(x, y_r, fs)
-        np.save(f"{OUTPUT_DIR}/H_{psi[idx]}.npy", H)
-        np.save(f"{OUTPUT_DIR}/gamma2_{psi[idx]}.npy", gamma2)
-        np.save(f"{OUTPUT_DIR}/f_{psi[idx]}.npy", f)
+        if smooth:
+            H = smooth_complex_frf(H, window_length=window_length, polyorder=polyorder)
+        np.save(f"{CAL_DIR}/H_{psi[idx]}.npy", H)
+        np.save(f"{CAL_DIR}/gamma2_{psi[idx]}.npy", gamma2)
+        np.save(f"{CAL_DIR}/f_{psi[idx]}.npy", f)
         ic(f.shape, H.shape, gamma2.shape)
-        plot_transfer_PH(f, H, f"{OUTPUT_DIR}/H_{psi[idx]}", psi[idx])
+        plot_transfer_PH(f, H, f"{FIG_DIR}/H_{psi[idx]}", psi[idx])
 
         y = wiener_inverse(y_r, fs, f, H, gamma2)
         t = np.arange(len(y)) / fs
-        plot_corrected_trace_PH(t, x_r, y_r, y, f"{OUTPUT_DIR}/y_{psi[idx]}", psi[idx])
+        plot_corrected_trace_PH(t, x_r, y_r, y, f"{FIG_DIR}/y_{psi[idx]}", psi[idx])
 
 
-def main_NC():
+def main_NC(smooth: bool = False, window_length: int = 51, polyorder: int = 1):
     psi = ['atm', '10psi', '30psi', '50psi', '70psi', '100psi']
     root = 'data/15082025/NCS2_S1naked'
     fn_sweep = [f'{root}/data_{p}.mat' for p in psi]
-    OUTPUT_DIR = "figures/NC-NKD"
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    FIG_DIR = "figures/NC-NKD"
+    CAL_DIR = os.path.join(CALIB_BASE_DIR, "NC-NKD")
+    os.makedirs(FIG_DIR, exist_ok=True)
+    os.makedirs(CAL_DIR, exist_ok=True)
     
     for idx in range(len(psi)):
         ic(f"Processing {psi[idx]}...")
@@ -216,22 +284,26 @@ def main_NC():
         fs = 25000.0 
         
         f, H, gamma2 = estimate_frf(x_r, y_r, fs)
-        np.save(f"{OUTPUT_DIR}/H_{psi[idx]}.npy", H)
-        np.save(f"{OUTPUT_DIR}/gamma2_{psi[idx]}.npy", gamma2)
-        np.save(f"{OUTPUT_DIR}/f_{psi[idx]}.npy", f)
+        if smooth:
+            H = smooth_complex_frf(H, window_length=window_length, polyorder=polyorder)
+        np.save(f"{CAL_DIR}/H_{psi[idx]}.npy", H)
+        np.save(f"{CAL_DIR}/gamma2_{psi[idx]}.npy", gamma2)
+        np.save(f"{CAL_DIR}/f_{psi[idx]}.npy", f)
         ic(f.shape, H.shape, gamma2.shape)
-        plot_transfer_NC(f, H, f"{OUTPUT_DIR}/H_{psi[idx]}", psi[idx])
+        plot_transfer_NC(f, H, f"{FIG_DIR}/H_{psi[idx]}", psi[idx])
 
         y = wiener_inverse(y_r, fs, f, H, gamma2)
         t = np.arange(len(y)) / fs
-        plot_corrected_trace_NC(t, x_r, y_r, y, f"{OUTPUT_DIR}/y_{psi[idx]}", psi[idx])
+        plot_corrected_trace_NC(t, x_r, y_r, y, f"{FIG_DIR}/y_{psi[idx]}", psi[idx])
 
-def main_NKD():
+def main_NKD(smooth: bool = False, window_length: int = 51, polyorder: int = 1):
     psi = ['atm', '10psi', '30psi', '50psi', '70psi', '100psi']
     root = 'data/15082025/S1naked_S2naked'
     fn_sweep = [f'{root}/data_{p}.mat' for p in psi]
-    OUTPUT_DIR = "figures/S1-S2"
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    FIG_DIR = "figures/S1-S2"
+    CAL_DIR = os.path.join(CALIB_BASE_DIR, "S1-S2")
+    os.makedirs(FIG_DIR, exist_ok=True)
+    os.makedirs(CAL_DIR, exist_ok=True)
     
     for idx in range(len(psi)):
         ic(f"Processing {psi[idx]}...")
@@ -240,15 +312,17 @@ def main_NKD():
         x_r, y_r = load_mat(fn_sweep[idx])
         fs = 25000.0 
         f, H, gamma2 = estimate_frf(x_r, y_r, fs)
-        np.save(f"{OUTPUT_DIR}/H_{psi[idx]}.npy", H)
-        np.save(f"{OUTPUT_DIR}/gamma2_{psi[idx]}.npy", gamma2)
-        np.save(f"{OUTPUT_DIR}/f_{psi[idx]}.npy", f)
+        if smooth:
+            H = smooth_complex_frf(H, window_length=window_length, polyorder=polyorder)
+        np.save(f"{CAL_DIR}/H_{psi[idx]}.npy", H)
+        np.save(f"{CAL_DIR}/gamma2_{psi[idx]}.npy", gamma2)
+        np.save(f"{CAL_DIR}/f_{psi[idx]}.npy", f)
         ic(f.shape, H.shape, gamma2.shape)
-        plot_transfer_NKD(f, H, f"{OUTPUT_DIR}/H_{psi[idx]}", psi[idx])
+        plot_transfer_NKD(f, H, f"{FIG_DIR}/H_{psi[idx]}", psi[idx])
 
         y = wiener_inverse(y_r, fs, f, H, gamma2)
         t = np.arange(len(y)) / fs
-        plot_corrected_trace_NKD(t, x_r, y_r, y, f"{OUTPUT_DIR}/y_{psi[idx]}", psi[idx])
+        plot_corrected_trace_NKD(t, x_r, y_r, y, f"{FIG_DIR}/y_{psi[idx]}", psi[idx])
 
 
 def real_data():
@@ -257,13 +331,13 @@ def real_data():
     fn_sweep = [f'{root}/data_{p}.mat' for p in psi]
     OUTPUT_DIR = "figures/real"
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    PH_path = "figures/PH-NKD"
-    NC_path = "figures/NC-NKD"
-    NKD_path = "figures/S1-S2"
+    PH_path = _resolve_cal_dir("PH-NKD")
+    NC_path = _resolve_cal_dir("NC-NKD")
+    NKD_path = _resolve_cal_dir("S1-S2")
 
     RAW_DIR = f"{OUTPUT_DIR}/raw"
     os.makedirs(RAW_DIR, exist_ok=True)
-    
+
 
     delta, nu_s = inner_scales(Re_taus, u_taus, nu_atm)
     pressures = np.array([P_ATM] + [P_ATM + float(p[:-3]) * PSI_TO_PA for p in psi_labels[1:]], dtype=float)
@@ -277,6 +351,9 @@ def real_data():
 
         # Load data
         x_r, y_r = load_mat(fn_sweep[idx]) # s1 mic is naked, so no need to correct NKD1 to NKD2
+        t = np.arange(len(y_r)) / FS
+        plot_time_series(t, y_r, f"{RAW_DIR}/y_r_{psi[idx]}")
+        plot_time_series(t, x_r, f"{RAW_DIR}/x_r_{psi[idx]}")
         ###
         # Correct NC (invert NC→NKD mapping to bring NC into NKD domain)
         H_NC = np.load(f"{NC_path}/H_{psi[idx]}.npy")
@@ -284,6 +361,8 @@ def real_data():
         f_NC = np.load(f"{NC_path}/f_{psi[idx]}.npy")
         fs = 25000.0
         y = wiener_inverse(y_r, fs, f_NC, H_NC, gamma2_NC)
+        # plot whole trace
+        plot_time_series(t, y, f"{OUTPUT_DIR}/y_{psi[idx]}")
         # Plot corrected NC
         # f, Pxx = compute_spec(fs, y)
         # plot_spectrum(f, f*Pxx, f"{OUTPUT_DIR}/Pxx_{psi[idx]}_corr")
@@ -293,11 +372,17 @@ def real_data():
         gamma2_PH = np.load(f"{PH_path}/gamma2_{psi[idx]}.npy")
         f_PH = np.load(f"{PH_path}/f_{psi[idx]}.npy")
         x_s2 = wiener_inverse(x_r, fs, f_PH, H_PH, gamma2_PH)
+        # plot whole trace
+        plot_time_series(t, x_s2, f"{OUTPUT_DIR}/x_s2_{psi[idx]}")
+        ###
         # This has now been inverted to the equivalend of the NKD-S2 mic, we need to map it to the response of the pristine S1 mic
         H_NKD = np.load(f"{NKD_path}/H_{psi[idx]}.npy")
         gamma2_NKD = np.load(f"{NKD_path}/gamma2_{psi[idx]}.npy")
         f_NKD = np.load(f"{NKD_path}/f_{psi[idx]}.npy")
         x = wiener_inverse(x_s2, fs, f_NKD, H_NKD, gamma2_NKD)
+        # plot whole trace
+        plot_time_series(t, x, f"{OUTPUT_DIR}/x_{psi[idx]}")
+        ###
         
         # Plot corrected PH
         f, Pxx = compute_spec(fs, x_r)
@@ -319,7 +404,16 @@ def real_data():
         Pyy_rej_plus = Pyy_rej / ((u_taus[idx] ** 2 * rhos[idx]) ** 2)
         Pyryrs.append(f*Pyy_rej_plus)
 
-    plot_spectrum(Times, Pyys, Pyryrs, f"{OUTPUT_DIR}/spectra/Pyy_log.png")
+    spectra_dir = os.path.join(OUTPUT_DIR, "spectra")
+    os.makedirs(spectra_dir, exist_ok=True)
+    ax1, ax2 = plot_spectrum(Times, Pyys, Pyryrs, f"{spectra_dir}/Pyy_log.png")
+    # Plot vertical lines at f = 1Hz, 25000Hz
+    for ax in [ax1, ax2]:
+        for idx in range(len(psi)):
+            ax.axvline(1 * u_taus[idx]**2 / nu_s[idx], color='k', ls='--', lw=0.5)
+            ax.axvline(1/25000.0 * u_taus[idx]**2 / nu_s[idx], color='k', ls='--', lw=0.5) 
+    plt.savefig(f"{spectra_dir}/Pyy_log.png")
+    plt.close()
 
 
 if __name__ == "__main__":

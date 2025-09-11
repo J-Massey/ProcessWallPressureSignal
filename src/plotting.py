@@ -47,6 +47,17 @@ def plot_raw_signals(p_w, p_fs, outfile):
     plt.savefig(outfile)
     plt.close()
 
+def plot_time_series(t, p_w, outfile):
+    """Plot raw wall and free-stream pressure signals."""
+    fig, ax = plt.subplots(figsize=(4, 2.5), dpi=600)
+    ax.plot(t, p_w)
+    ax.set_xlabel("Time [s]")
+    ax.set_ylabel("Pressure [Pa]")
+    # ax.legend()
+    plt.tight_layout()
+    plt.savefig(outfile)
+    plt.close()
+
 def plot_spectrum_and_modes(spec, modes, mode_l, outfile):
     """Plot Phi+ vs T+ with uncertainty and duct-mode lines."""
     fig, ax = plt.subplots(figsize=(5.6,3.), dpi=600)
@@ -99,7 +110,8 @@ def plot_spectrum(Ts, spec, spec2, outfile):
     ax1.set_ylabel(r"${f\Phi_{pp}}^+$")
     plt.tight_layout()
     plt.savefig(outfile)
-    plt.close()
+    return ax1, ax2
+    # plt.close()
 
 def plot_rawspectrum(Ts, spec, outfile):
     """Plot Phi+ vs T+ with uncertainty."""
