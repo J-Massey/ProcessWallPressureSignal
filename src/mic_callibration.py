@@ -232,7 +232,7 @@ def compute_spec(fs: float, x: np.ndarray):
     return f, Pxx
 
 
-def main_PH(smooth: bool = False, window_length: int = 51, polyorder: int = 1):
+def main_PH(smooth: bool = True, window_length: int = 51, polyorder: int = 1):
     psi = ['atm', '10psi', '30psi', '50psi', '70psi', '100psi']
     root = 'data/15082025/P2S1_S2naked'
     fn_sweep = [f'{root}/data_{p}.mat' for p in psi]
@@ -267,7 +267,7 @@ def main_PH(smooth: bool = False, window_length: int = 51, polyorder: int = 1):
         plot_corrected_trace_PH(t, x_r, y_r, y, f"{FIG_DIR}/y_{psi[idx]}", psi[idx])
 
 
-def main_NC(smooth: bool = False, window_length: int = 51, polyorder: int = 1):
+def main_NC(smooth: bool = True, window_length: int = 51, polyorder: int = 1):
     psi = ['atm', '10psi', '30psi', '50psi', '70psi', '100psi']
     root = 'data/15082025/NCS2_S1naked'
     fn_sweep = [f'{root}/data_{p}.mat' for p in psi]
@@ -296,7 +296,7 @@ def main_NC(smooth: bool = False, window_length: int = 51, polyorder: int = 1):
         t = np.arange(len(y)) / fs
         plot_corrected_trace_NC(t, x_r, y_r, y, f"{FIG_DIR}/y_{psi[idx]}", psi[idx])
 
-def main_NKD(smooth: bool = False, window_length: int = 51, polyorder: int = 1):
+def main_NKD(smooth: bool = True, window_length: int = 51, polyorder: int = 1):
     psi = ['atm', '10psi', '30psi', '50psi', '70psi', '100psi']
     root = 'data/15082025/S1naked_S2naked'
     fn_sweep = [f'{root}/data_{p}.mat' for p in psi]
@@ -363,9 +363,6 @@ def real_data():
         y = wiener_inverse(y_r, fs, f_NC, H_NC, gamma2_NC)
         # plot whole trace
         plot_time_series(t, y, f"{OUTPUT_DIR}/y_{psi[idx]}")
-        # Plot corrected NC
-        # f, Pxx = compute_spec(fs, y)
-        # plot_spectrum(f, f*Pxx, f"{OUTPUT_DIR}/Pxx_{psi[idx]}_corr")
         ###
         # Correct PH (invert PH→NKD mapping to bring PH into NKD domain) # NKD mic is S2 mic, so we need to correct NKD2 to NKD1 first
         H_PH = np.load(f"{PH_path}/H_{psi[idx]}.npy")
@@ -417,7 +414,7 @@ def real_data():
 
 
 if __name__ == "__main__":
-    # main_NC()
-    # main_NKD()
-    # main_PH()
+    main_NC()
+    main_NKD()
+    main_PH()
     real_data()
