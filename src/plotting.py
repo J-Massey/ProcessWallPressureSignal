@@ -93,14 +93,14 @@ def plot_spectrum_and_modes(spec, modes, mode_l, outfile):
 
 def plot_spectrum(Ts, spec, spec2, outfile):
     """Plot Phi+ vs T+ with uncertainty."""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(5.6, 3.), dpi=600, sharex=True, sharey=True)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(5.6, 3.), dpi=600)
     colors1 = sns.color_palette("tab10", n_colors=len(spec))
     colors2 = sns.color_palette("tab10", n_colors=len(spec2))
     for idx, T in enumerate(Ts):
         ax1.plot(T, spec[idx], ls='-', lw=0.5, color=colors1[idx])
         ax2.plot(T, spec2[idx], ls='-', lw=0.5, color=colors2[idx])
-    ax1.set_xscale("log")
-    ax2.set_yscale("log")
+    # ax1.set_xscale("log")
+    # ax2.set_yscale("log")
     ax1.set_title("Raw")
     ax2.set_title("Corrected")
     # ax1.set_xlim(1e-2, 1e0)
@@ -113,7 +113,7 @@ def plot_spectrum(Ts, spec, spec2, outfile):
     return ax1, ax2
     # plt.close()
 
-def plot_rawspectrum(Ts, spec, outfile):
+def plot_raw_spectrum(Ts, spec, outfile):
     """Plot Phi+ vs T+ with uncertainty."""
     fig, ax1 = plt.subplots(1, 1, figsize=(5.6, 3.), dpi=600, sharex=True, sharey=True)
     colors1 = sns.color_palette("tab10", n_colors=len(spec))
