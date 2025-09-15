@@ -50,7 +50,7 @@ def plot_raw_signals(p_w, p_fs, outfile):
 def plot_time_series(t, p_w, outfile):
     """Plot raw wall and free-stream pressure signals."""
     fig, ax = plt.subplots(figsize=(4, 2.5), dpi=600)
-    ax.plot(t, p_w)
+    ax.plot(t, p_w, lw=0.1)
     ax.set_xlabel("Time [s]")
     ax.set_ylabel("Pressure [Pa]")
     # ax.legend()

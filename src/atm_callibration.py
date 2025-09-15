@@ -21,7 +21,7 @@ from plotting import (
 ############################
 # Constants & defaults
 ############################
-FS = 25_000.0
+FS = 50_000.0
 NPERSEG = 2**10
 WINDOW = "hann"
 CALIB_BASE_DIR = "data/calibration"  # base directory to save calibration .npy files
@@ -246,6 +246,8 @@ def main_PH(smooth: bool = True, window_length: int = 51, polyorder: int = 1):
 
         # Load data
         x_r, y_r = load_mat(fn_sweep[idx], key='channelData_300_nose')
+        plot_time_series(np.arange(len(y_r)) / FS, y_r, f"{FIG_DIR}/y_r_{psi_labels[idx]}")
+        
 
         f, H, gamma2 = estimate_frf(x_r, y_r, FS)
         if smooth:
