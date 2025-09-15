@@ -1,8 +1,7 @@
 import numpy as np
-from scipy.signal import welch, csd, get_window, savgol_filter
+from scipy.signal import welch, csd, get_window
 import scipy.io as sio
 from matplotlib import pyplot as plt
-
 
 from icecream import ic
 import os
@@ -26,12 +25,14 @@ FS = 50_000.0
 NPERSEG = 2**11
 WINDOW = "hann"
 CALIB_BASE_DIR = "data/calibration"  # base directory to save calibration .npy files
-
+TRIM_CAL_SECS = 30  # seconds to trim from the start of calibration runs (set to 0 to disable)
 
 R = 287.0         # J/kg/K
 T = 293.0         # K (adjust if you have per-case temps)
 P_ATM = 101_325.0 # Pa
 PSI_TO_PA = 6_894.76
+
+# Labels for operating conditions; first entry is assumed 'atm'
 psi_labels = ['atm']
 Re_taus = np.array([1500], dtype=float)
 u_taus  = np.array([0.571], dtype=float)
@@ -51,23 +52,24 @@ def estimate_frf(
     x: np.ndarray,
     y: np.ndarray,
     fs: float,
-    window: str = "hann",
+    window: str = WINDOW,
     detrend: str = "constant",
 ):
     """
     Estimate H1 FRF and magnitude-squared coherence using Welch/CSD.
 
     Returns
-    - f [Hz]
-    - H(f) = S_yx / S_xx (complex, x→y)
-    - gamma2(f) in [0, 1]
+    -------
+    f : array_like [Hz]
+    H : array_like (complex) = S_yx / S_xx  (x → y)
+    gamma2 : array_like in [0, 1]
     """
     x = np.asarray(x, float)
     y = np.asarray(y, float)
     nseg = int(min(NPERSEG, x.size, y.size))
     if nseg < 8:
         raise ValueError(f"Signal too short for FRF: n={min(x.size, y.size)}")
-    nov = int(min(NPERSEG/2, nseg // 2))
+    nov = int(min(NPERSEG // 2, nseg // 2))
     w = get_window(window, nseg, fftbins=True)
 
     f, Sxx = welch(x, fs=fs, window=w, nperseg=nseg, noverlap=nov, detrend=detrend)
@@ -79,8 +81,10 @@ def estimate_frf(
     gamma2 = np.clip(gamma2.real, 0.0, 1.0)
     return f, H, gamma2
 
+
 def _resolve_cal_dir(name: str) -> str:
-    """Prefer new `data/calibration/<name>` if present; otherwise fall back to `figures/<name>`.
+    """
+    Prefer new `data/calibration/<name>` if present; otherwise fall back to `figures/<name>`.
     This keeps backward compatibility with existing saved calibrations.
     """
     new_dir = os.path.join(CALIB_BASE_DIR, name)
@@ -104,12 +108,23 @@ def wiener_inverse(
     coherence-weighted inverse filter: H_inv = gamma^2 * H* / |H|^2.
 
     Parameters
-    - y_r: measured time series (maps from source via H)
-    - fs:  sample rate [Hz]
-    - f,H,gamma2: FRF and coherence defined on frequency vector f
-    - pad: zero-padding in samples for FFT length
-    - demean: remove mean before FFT
-    - zero_dc: zero DC (and Nyquist if present) in inverse filter
+    ----------
+    y_r : array_like
+        Measured time series (maps from source via H).
+    fs : float
+        Sample rate [Hz].
+    f, H, gamma2 : arrays
+        FRF and coherence tabulated on frequency vector f (as from estimate_frf).
+        H must correspond to x→y (so this operation aims to recover x from y).
+    demean : bool
+        Remove mean before FFT.
+    zero_dc : bool
+        Zero DC (and Nyquist if present) in the inverse filter.
+
+    Returns
+    -------
+    x_hat : array_like
+        Reconstructed source-domain time series.
     """
     y = np.asarray(y_r, float)
     if demean:
@@ -124,12 +139,13 @@ def wiener_inverse(
     # Interpolate |H| and unwrapped phase to FFT grid
     mag = np.abs(H)
     phi = np.unwrap(np.angle(H))
-    mag_i = np.interp(fr, f, mag, left=mag[0], right=mag[-1])
+    # Safer OOB behaviour: taper magnitude to zero outside measured band
+    mag_i = np.interp(fr, f, mag, left=0.0, right=0.0)
     phi_i = np.interp(fr, f, phi, left=phi[0], right=phi[-1])
     Hi = mag_i * np.exp(1j * phi_i)
 
-    # Interpolate and clip coherence
-    g2_i = np.clip(np.interp(fr, f, gamma2, left=gamma2[0], right=gamma2[-1]), 0.0, 1.0)
+    # Interpolate and clip coherence; set OOB to 0 as well
+    g2_i = np.clip(np.interp(fr, f, gamma2, left=0.0, right=0.0), 0.0, 1.0)
 
     # Inverse filter
     eps = np.finfo(float).eps
@@ -139,7 +155,44 @@ def wiener_inverse(
         if Nfft % 2 == 0:  # real Nyquist bin exists
             Hinv[-1] = 0.0
 
-    y = np.fft.irfft(Yr * Hinv, n=Nfft)[:N]
+    x_hat = np.fft.irfft(Yr * Hinv, n=Nfft)[:N]
+    return x_hat
+
+
+def apply_frf(
+    x: np.ndarray,
+    fs: float,
+    f: np.ndarray,
+    H: np.ndarray,
+    demean: bool = True,
+    zero_dc: bool = True,
+):
+    """
+    Apply a measured FRF H (x→y) to a time series x to synthesise y.
+    This is the forward operation: Y = H · X in the frequency domain.
+    """
+    x = np.asarray(x, float)
+    if demean:
+        x = x - x.mean()
+
+    N = x.size
+    Nfft = int(2 ** np.ceil(np.log2(N)))
+    X = np.fft.rfft(x, n=Nfft)
+    fr = np.fft.rfftfreq(Nfft, d=1.0 / fs)
+
+    mag = np.abs(H)
+    phi = np.unwrap(np.angle(H))
+    # Safer OOB behaviour: taper magnitude to zero outside measured band
+    mag_i = np.interp(fr, f, mag, left=0.0, right=0.0)
+    phi_i = np.interp(fr, f, phi, left=phi[0], right=phi[-1])
+    Hi = mag_i * np.exp(1j * phi_i)
+
+    if zero_dc:
+        Hi[0] = 0.0
+        if Nfft % 2 == 0:
+            Hi[-1] = 0.0
+
+    y = np.fft.irfft(X * Hi, n=Nfft)[:N]
     return y
 
 
@@ -170,7 +223,7 @@ def compute_spec(fs: float, x: np.ndarray):
     if nseg < 8:
         raise ValueError(f"Signal too short for PSD: n={x.size}")
     nov = nseg // 2
-    w = get_window("hann", nseg, fftbins=True)
+    w = get_window(WINDOW, nseg, fftbins=True)
     f, Pxx = welch(
         x,
         fs=fs,
@@ -184,40 +237,58 @@ def compute_spec(fs: float, x: np.ndarray):
     return f, Pxx
 
 
+############################
+# Calibration: PH→NKD
+############################
 def main_PH():
     """
     Calibrate, save and check the PH→NKD transfer function.
+    x_ref: PH (input), y_meas: NKD (output)
     """
     root = 'data/11092025'
-    fn_sweep = [f'{root}/cali.mat' for p in psi_labels]
+    fn_sweep = [f'{root}/cali.mat' for _ in psi_labels]
     FIG_DIR = "figures/cali_09/PH-NKD"
     CAL_DIR = os.path.join(CALIB_BASE_DIR, "PH-NKD")
     os.makedirs(FIG_DIR, exist_ok=True)
     os.makedirs(CAL_DIR, exist_ok=True)
-    
+
     for idx in range(len(psi_labels)):
         ic(f"Processing {psi_labels[idx]}...")
 
-        # Load data
-        y_r, x_r = load_mat(fn_sweep[idx], key='channelData_300_plug')
-        plot_time_series(np.arange(len(y_r)) / FS, y_r, f"{FIG_DIR}/y_r_{psi_labels[idx]}")
-        
+        # Load data: expect first column = PH, second = NKD
+        ph, nkd = load_mat(fn_sweep[idx], key='channelData_300_plug')
 
-        f, H, gamma2 = estimate_frf(x_r, y_r, FS)
+        # Trim initial transient (consistent with NKD→NC calibration)
+        if TRIM_CAL_SECS > 0:
+            start = int(TRIM_CAL_SECS * FS)
+            ph, nkd = ph[start:], nkd[start:]
+
+        plot_time_series(np.arange(len(ph)) / FS, ph, f"{FIG_DIR}/ph_{psi_labels[idx]}")
+
+        # FRF PH→NKD
+        f, H, gamma2 = estimate_frf(ph, nkd, FS)
         np.save(f"{CAL_DIR}/H_{psi_labels[idx]}.npy", H)
         np.save(f"{CAL_DIR}/gamma2_{psi_labels[idx]}.npy", gamma2)
         np.save(f"{CAL_DIR}/f_{psi_labels[idx]}.npy", f)
         ic(f.shape, H.shape, gamma2.shape)
         plot_transfer_PH(f, H, f"{FIG_DIR}/H_{psi_labels[idx]}", psi_labels[idx])
 
-        y = wiener_inverse(y_r, FS, f, H, gamma2)
-        t = np.arange(len(y)) / FS
-        plot_corrected_trace_PH(t, x_r, y_r, y, f"{FIG_DIR}/y_{psi_labels[idx]}", psi_labels[idx])
+        # Sanity: reconstruct PH from NKD using inverse (should resemble PH)
+        ph_hat = wiener_inverse(nkd, FS, f, H, gamma2)
+        t = np.arange(len(ph_hat)) / FS
+        plot_corrected_trace_PH(t, ph, nkd, ph_hat, f"{FIG_DIR}/ph_recon_{psi_labels[idx]}", psi_labels[idx])
 
 
+############################
+# Calibration: NKD→NC
+############################
 def main_NC():
+    """
+    Calibrate NKD→NC transfer function.
+    x_ref: NKD (input), y_meas: NC (output)
+    """
     root = 'data/11092025'
-    fn_sweep = [f'{root}/cali.mat' for p in psi_labels]
+    fn_sweep = [f'{root}/cali.mat' for _ in psi_labels]
     FIG_DIR = "figures/cali_09/NKD-NC"
     CAL_DIR = os.path.join(CALIB_BASE_DIR, "NKD-NC")
     os.makedirs(FIG_DIR, exist_ok=True)
@@ -226,36 +297,42 @@ def main_NC():
     for idx in range(len(psi_labels)):
         ic(f"Processing {psi_labels[idx]}...")
 
-        # Load data
-        x_r, y_r = load_mat(fn_sweep[idx], key='channelData_300_nose')
-        # 
-        plot_time_series(np.arange(len(x_r)) / FS, x_r, f"{FIG_DIR}/x_r_{psi_labels[idx]}")
-        # trim first 30s to avoid initial transients
-        x_r = x_r[int(30*FS):]
-        y_r = y_r[int(30*FS):]
-        f, H, gamma2 = estimate_frf(x_r, y_r, FS)
+        # Load data: expect first column = NKD, second = NC
+        nkd, nc = load_mat(fn_sweep[idx], key='channelData_300_nose')
+        plot_time_series(np.arange(len(nkd)) / FS, nkd, f"{FIG_DIR}/nkd_{psi_labels[idx]}")
+
+        # Trim first TRIM_CAL_SECS to avoid initial transients
+        if TRIM_CAL_SECS > 0:
+            start = int(TRIM_CAL_SECS * FS)
+            nkd, nc = nkd[start:], nc[start:]
+
+        # FRF NKD→NC
+        f, H, gamma2 = estimate_frf(nkd, nc, FS)
         np.save(f"{CAL_DIR}/H_{psi_labels[idx]}.npy", H)
         np.save(f"{CAL_DIR}/gamma2_{psi_labels[idx]}.npy", gamma2)
         np.save(f"{CAL_DIR}/f_{psi_labels[idx]}.npy", f)
         ic(f.shape, H.shape, gamma2.shape)
         plot_transfer_NC(f, H, f"{FIG_DIR}/H_{psi_labels[idx]}", psi_labels[idx])
 
-        y = wiener_inverse(y_r, FS, f, H, gamma2)
-        t = np.arange(len(y)) / FS
-        plot_corrected_trace_NC(t, x_r, y_r, y, f"{FIG_DIR}/x_{psi_labels[idx]}", psi_labels[idx])
+        # Sanity: reconstruct NKD from NC via inverse
+        nkd_hat = wiener_inverse(nc, FS, f, H, gamma2)
+        t = np.arange(len(nkd_hat)) / FS
+        plot_corrected_trace_NC(t, nkd, nc, nkd_hat, f"{FIG_DIR}/nkd_recon_{psi_labels[idx]}", psi_labels[idx])
 
 
+############################
+# Apply to flow data
+############################
 def real_data():
     root = 'data/11092025'
-    fn_sweep = [f'{root}/data.mat' for p in psi_labels]
+    fn_sweep = [f'{root}/data.mat' for _ in psi_labels]
     OUTPUT_DIR = "figures/cali_09/flow"
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    PH_path = _resolve_cal_dir("PH-NKD")
-    NC_path = _resolve_cal_dir("NC-NKD")
+    PH_path = _resolve_cal_dir("PH-NKD")   # PH→NKD
+    NC_path = _resolve_cal_dir("NKD-NC")   # NKD→NC   (correct orientation)
 
     RAW_DIR = f"{OUTPUT_DIR}/raw"
     os.makedirs(RAW_DIR, exist_ok=True)
-
 
     delta, nu_s = inner_scales(Re_taus, u_taus, nu_atm)
     pressures = np.array([P_ATM] + [P_ATM + float(p[:-3]) * PSI_TO_PA for p in psi_labels[1:]], dtype=float)
@@ -263,70 +340,64 @@ def real_data():
 
     Times = []
     Pyys = []
-    Pyryrs = []
+
     for idx in range(len(psi_labels)):
         ic(f"Processing {psi_labels[idx]}...")
 
-        # Load data
-        x_r, y_r = load_mat(fn_sweep[idx], key='channelData_300') # NC (x_r), PH (y_r)
-        f, Pyryr = compute_spec(FS, y_r)
-        Pyryr_plus = Pyryr / ((u_taus[idx] ** 2 * rhos[idx]) ** 2)
-        t = np.arange(len(y_r)) / FS
-        # plot_time_series(t, x_r, f"{RAW_DIR}/x_r_{psi_labels[idx]}")
-        # plot_time_series(t, y_r, f"{RAW_DIR}/y_r_{psi_labels[idx]}")
-        ###
-        # Correct NC (invert NC→NKD mapping to bring NC into NKD domain)
+        # Load data: NC (first col), PH (second col)
+        nc, ph = load_mat(fn_sweep[idx], key='channelData_300')  # NC, PH
+
+        # --- Raw PH spectrum (for comparison)
+        f, Pphph = compute_spec(FS, ph)
+        f_plus = f * nu_s[idx] / (u_taus[idx] ** 2)
+        Pphph_plus = Pphph / ((u_taus[idx] ** 2 * rhos[idx]) ** 2)
+        mask = f_plus > 0
+        plot_raw_spectrum(1.0 / f_plus[mask], (f_plus[mask] * Pphph_plus[mask]),
+                          f"{OUTPUT_DIR}/Pphph_{psi_labels[idx]}_raw")
+
+        t = np.arange(len(ph)) / FS
+
+        # --- Correct NC: invert NKD→NC to get NKD from NC
         H_NC = np.load(f"{NC_path}/H_{psi_labels[idx]}.npy")
         gamma2_NC = np.load(f"{NC_path}/gamma2_{psi_labels[idx]}.npy")
         f_NC = np.load(f"{NC_path}/f_{psi_labels[idx]}.npy")
+        nkd_from_nc = wiener_inverse(nc, FS, f_NC, H_NC, gamma2_NC)
+        # plot_time_series(t, nkd_from_nc, f"{OUTPUT_DIR}/nkd_from_nc_{psi_labels[idx]}")
 
-        x = wiener_inverse(x_r, FS, f_NC, H_NC, gamma2_NC)
-        # plot whole trace
-        # plot_time_series(t, x, f"{OUTPUT_DIR}/x_{psi_labels[idx]}")
-        ###
-        # Correct PH (invert PH→NKD mapping to bring PH into NKD domain) # NKD mic is S2 mic, so we need to correct NKD2 to NKD1 first
+        # --- Correct PH: apply PH→NKD forward to get NKD from PH
         H_PH = np.load(f"{PH_path}/H_{psi_labels[idx]}.npy")
-        gamma2_PH = np.load(f"{PH_path}/gamma2_{psi_labels[idx]}.npy")
         f_PH = np.load(f"{PH_path}/f_{psi_labels[idx]}.npy")
-        y = wiener_inverse(y_r, FS, f_PH, H_PH, gamma2_PH)
-        # plot whole trace
-        # plot_time_series(t, y, f"{OUTPUT_DIR}/y_{psi_labels[idx]}")
-        
-        # Plot corrected PH
-        f, Pyy = compute_spec(FS, y)
+        nkd_from_ph = apply_frf(ph, FS, f_PH, H_PH)
+        # plot_time_series(t, nkd_from_ph, f"{OUTPUT_DIR}/nkd_from_ph_{psi_labels[idx]}")
+
+        # --- Spectrum of corrected PH (NKD domain)
+        f, Pyy = compute_spec(FS, nkd_from_ph)
         f_plus = f * nu_s[idx] / (u_taus[idx] ** 2)
-        Pyy_plus = Pyy / ((u_taus[idx] ** 2 * rhos[idx]) ** 2) 
-        ic(Pyy_plus.max())
-        Times.append(1/f_plus)
-        Pyys.append(f*Pyy_plus)
-        plot_raw_spectrum(1/f_plus, Pyy_plus, f"{OUTPUT_DIR}/Pyy_{psi_labels[idx]}_corr")
-        ###
-        # TF between NC and PH
-        # f, H, gamma2 = estimate_frf(x, y, FS)
-        # plot_transfer_PH(f, H, f"{OUTPUT_DIR}/H_{psi[idx]}", psi[idx])
+        Pyy_plus = Pyy / ((u_taus[idx] ** 2 * rhos[idx]) ** 2)
+        mask = f_plus > 0
+        Times.append(1.0 / f_plus[mask])
+        Pyys.append(f_plus[mask] * Pyy_plus[mask])
+        plot_raw_spectrum(1.0 / f_plus[mask], (f_plus[mask] * Pyy_plus[mask]),
+                          f"{OUTPUT_DIR}/Pyy_{psi_labels[idx]}_corr")
 
-    #     y_rej = wiener_inverse(y, fs, f, H, gamma2)
-    #     t = np.arange(len(y)) / fs
-    #     # plot_corrected_trace_PH(t, x, y, y_rej, f"{OUTPUT_DIR}/y_{psi[idx]}", psi[idx])
-    #     f, Pyy_rej = compute_spec(fs, y_rej)
-    #     f_plus = f * nu_s[idx] / (u_taus[idx] ** 2)
-    #     Pyy_rej_plus = Pyy_rej / ((u_taus[idx] ** 2 * rhos[idx]) ** 2)
-    #     Pyryrs.append(f*Pyy_rej_plus)
+        # --- Coherent rejection: remove component of nkd_from_ph coherent with nkd_from_nc
+        # FRF x→y with x=nkd_from_nc, y=nkd_from_ph (both NKD domain)
+        f_xy, H_xy, gamma2_xy = estimate_frf(nkd_from_nc, nkd_from_ph, FS)
+        y_hat = apply_frf(nkd_from_nc, FS, f_xy, H_xy)   # predict coherent part of PH stream
+        y_resid = nkd_from_ph - y_hat                    # coherent rejection residual
 
-    # spectra_dir = os.path.join(OUTPUT_DIR, "spectra")
-    # os.makedirs(spectra_dir, exist_ok=True)
-    # ax1, ax2 = plot_spectrum(Times, Pyys, Pyryrs, f"{spectra_dir}/Pyy_log.png")
-    # # Plot vertical lines at f = 1Hz, 25000Hz
-    # for ax in [ax1, ax2]:
-    #     for idx in range(len(psi)):
-    #         ax.axvline(1 * u_taus[idx]**2 / nu_s[idx], color='k', ls='--', lw=0.5)
-    #         ax.axvline(1/25000.0 * u_taus[idx]**2 / nu_s[idx], color='k', ls='--', lw=0.5) 
-    # plt.savefig(f"{spectra_dir}/Pyy_log.png")
-    # plt.close()
+        f, Pyy_rej = compute_spec(FS, y_resid)
+        f_plus = f * nu_s[idx] / (u_taus[idx] ** 2)
+        Pyy_rej_plus = Pyy_rej / ((u_taus[idx] ** 2 * rhos[idx]) ** 2)
+        mask = f_plus > 0
+        plot_raw_spectrum(1.0 / f_plus[mask], (f_plus[mask] * Pyy_rej_plus[mask]),
+                          f"{OUTPUT_DIR}/Pyy_{psi_labels[idx]}_rej")
 
 
 if __name__ == "__main__":
-    # main_PH()
-    # main_NC()
-    # main_NKD()
+    # Run calibrations if needed to (re)generate FRFs:
+    main_PH()
+    main_NC()
+
+    # Apply to the real flow data:
     real_data()

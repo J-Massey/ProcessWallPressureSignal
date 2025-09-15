@@ -115,16 +115,15 @@ def plot_spectrum(Ts, spec, spec2, outfile):
 
 def plot_raw_spectrum(Ts, spec, outfile):
     """Plot Phi+ vs T+ with uncertainty."""
-    fig, ax1 = plt.subplots(1, 1, figsize=(5.6, 3.), dpi=600, sharex=True, sharey=True)
+    fig, ax1 = plt.subplots(1, 1, figsize=(3.2, 2), dpi=600, sharex=True, sharey=True)
     colors1 = sns.color_palette("tab10", n_colors=len(spec))
-    for idx, T in enumerate(Ts):
-        ax1.plot(T, spec[idx], ls='-', lw=0.5, color=colors1[idx])
+    ax1.plot(Ts, spec, ls='-', lw=0.5, color=colors1[0])
     ax1.set_xscale("log")
     # ax1.set_yscale("log")
     # ax1.set_xlim(1e-4, 1e-1)
     # ax1.set_ylim(0, 2)
     ax1.set_xlabel("$T^+$")
-    ax1.set_ylabel(r"$f\Phi_{pp}$")
+    ax1.set_ylabel(r"${f\Phi_{pp}}^+$")
     plt.tight_layout()
     plt.savefig(outfile)
     plt.close()
