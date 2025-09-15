@@ -91,40 +91,47 @@ def smooth_complex_frf(
     H: np.ndarray,
     window_length: int = 51,
     polyorder: int = 1,
-    method: str = "savgol",
+    method: str = "welch_like",
+    window: str = "hann",
 ) -> np.ndarray:
-    """Optionally smooth a complex FRF by smoothing magnitude and unwrapped phase.
+    """Smooth a complex FRF by complex bin-averaging (Welch-like in spirit).
+
+    Replaces Savitzky–Golay magnitude/phase smoothing with a direct
+    complex-valued moving average across frequency bins, which better
+    mimics variance reduction from Welch-style averaging.
 
     Parameters
-    - H: complex FRF array
-    - window_length: smoothing window (adjusted to be odd and <= len(H))
-    - polyorder: polynomial order for Savitzky–Golay
-    - method: currently only 'savgol' supported
+    - H: complex FRF array (1D)
+    - window_length: number of frequency bins to average (odd, >=3)
+    - polyorder: deprecated (kept for backward compatibility)
+    - method: keep default 'welch_like'; any other value falls back to rectangular
+    - window: weighting window across bins ('hann'|'rect')
     """
     H = np.asarray(H)
     if H.ndim != 1:
         H = H.ravel()
     n = H.size
-    if n < 7:
-        return H  # too short to smooth meaningfully
+    if n < 3:
+        return H
+
+    # Ensure a reasonable, odd window size within bounds
     w = min(_odd_leq(window_length), _odd_leq(n - (1 - (n % 2))))
     w = max(3, w)
-    p = min(polyorder, max(1, w - 2))
 
-    mag = np.abs(H)
-    ph = np.unwrap(np.angle(H))
+    if method != "welch_like":
+        window = "rect"
 
-    if method == "savgol":
-        mag_s = savgol_filter(mag, window_length=w, polyorder=p, mode="interp")
-        ph_s = savgol_filter(ph,  window_length=w, polyorder=p, mode="interp")
+    if window == "hann" and w > 1:
+        wts = np.hanning(w)
     else:
-        # Fallback: simple moving average
-        k = w
-        wts = np.ones(k) / k
-        mag_s = np.convolve(mag, wts, mode="same")
-        ph_s = np.convolve(ph,  wts, mode="same")
+        # rectangular window
+        wts = np.ones(w)
+    wts = wts / np.sum(wts)
 
-    return mag_s * np.exp(1j * ph_s)
+    # Convolve real and imaginary parts separately to keep complex consistency
+    real_s = np.convolve(H.real, wts, mode="same")
+    imag_s = np.convolve(H.imag, wts, mode="same")
+    return real_s + 1j * imag_s
 
 
 def _resolve_cal_dir(name: str) -> str:
