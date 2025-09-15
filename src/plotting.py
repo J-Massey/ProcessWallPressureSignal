@@ -303,7 +303,7 @@ def plot_corrected_trace_PH(t, x_r, y_r, y, outfile, pres: str, tspan=0.032):
     ax_raw.set_ylabel(r'$p$')
     corr_coeff = np.corrcoef(x_r[m], y_r[m])[0,1]
     ax_raw.set_title(f"Raw Signals (Corr: {corr_coeff:.3f}) {pres}")
-    ax_raw.legend(["Nkd-S2", "PH-S1"])
+    # ax_raw.legend(["Nkd-S2", "PH-S1"])
     ax_corr.plot(t[m], x_r[m], lw=0.5)
     ax_corr.plot(t[m], y[m], lw=0.5)
     ax_corr.set_ylabel(r'$p$')
