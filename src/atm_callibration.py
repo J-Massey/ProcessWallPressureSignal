@@ -22,21 +22,48 @@ from plotting import (
 # Constants & defaults
 ############################
 FS = 50_000.0
-NPERSEG = 2**11
+NPERSEG = 2**10
 WINDOW = "hann"
 CALIB_BASE_DIR = "data/calibration"  # base directory to save calibration .npy files
-TRIM_CAL_SECS = 30  # seconds to trim from the start of calibration runs (set to 0 to disable)
+TRIM_CAL_SECS = 30  # seconds trimmed from the start of calibration runs (0 to disable)
 
 R = 287.0         # J/kg/K
-T = 293.0         # K (adjust if you have per-case temps)
+T = 298.0         # K (adjust if you have per-case temps)
 P_ATM = 101_325.0 # Pa
 PSI_TO_PA = 6_894.76
 
 # Labels for operating conditions; first entry is assumed 'atm'
 psi_labels = ['atm']
 Re_taus = np.array([1500], dtype=float)
-u_taus  = np.array([0.571], dtype=float)
-nu_atm  = 1.5e-5  # m^2/s
+u_taus  = np.array([0.481], dtype=float)
+nu_atm  = 1.52e-5  # m^2/s
+
+# -------------------------------------------------------------------------
+# >>> Units for loaded time-series (per MATLAB key, per column) <<<
+# Many labs log pressures in kPa. If yours are already in Pa, change 'kPa'→'Pa'.
+# If you have raw volts, set to 'V' and provide sensitivities below.
+# Keys:
+#   - channelData_300_plug : col1=NKD, col2=PH  (calibration sweep)
+#   - channelData_300_nose : col1=NKD, col2=NC  (calibration sweep)
+#   - channelData_300      : col1=NC,  col2=PH  (real flow data)
+DEFAULT_UNITS = {
+    'channelData_300_plug': ('Pa', 'Pa'),  # NKD, PH
+    'channelData_300_nose': ('Pa', 'Pa'),  # NKD, NC
+    'channelData_300':      ('Pa', 'Pa'),  # NC,  PH
+}
+
+# If using volts, specify sensitivities (V/Pa) and preamp gains here, e.g.:
+SENSITIVITIES_V_PER_PA = {  # leave empty if not using 'V'
+    # 'NKD': 0.05,  # 50 mV/Pa example
+    # 'PH':  0.05,
+    # 'NC':  0.05,
+}
+PREAMP_GAIN = {  # linear gain; leave 1.0 if unknown
+    'NKD': 1.0,
+    'PH':  1.0,
+    'NC':  1.0,
+}
+# -------------------------------------------------------------------------
 
 
 def inner_scales(Re_taus, u_taus, nu_atm):
@@ -92,6 +119,85 @@ def _resolve_cal_dir(name: str) -> str:
         return new_dir
     old_dir = os.path.join("figures", name)
     return old_dir
+
+
+def convert_to_pa(x: np.ndarray, units: str, *, channel_name: str = "unknown") -> np.ndarray:
+    """
+    Convert a pressure time series to Pa.
+    Supported units: 'Pa', 'kPa', 'mbar', 'V'.
+    For 'V', you must provide a sensitivity (V/Pa) and optional preamp gain via dicts above.
+    """
+    u = units.lower()
+    if u == 'pa':
+        return x.astype(float)
+    elif u == 'kpa':
+        return (x.astype(float) * 1e3)
+    elif u == 'mbar':
+        return (x.astype(float) * 100.0)  # 1 mbar = 100 Pa
+    elif u in ('v', 'volt', 'volts'):
+        if channel_name not in SENSITIVITIES_V_PER_PA or SENSITIVITIES_V_PER_PA[channel_name] is None:
+            raise ValueError(
+                f"Sensitivity (V/Pa) for channel '{channel_name}' not provided; cannot convert V→Pa."
+            )
+        sens = float(SENSITIVITIES_V_PER_PA[channel_name])  # V/Pa
+        gain = float(PREAMP_GAIN.get(channel_name, 1.0))
+        # Pa = V / (gain * (V/Pa))
+        return x.astype(float) / (gain * sens)
+    else:
+        raise ValueError(f"Unsupported units '{units}' for channel '{channel_name}'")
+
+
+def load_mat(path: str, key: str = "channelData"):
+    """Load an Nx2 array from a MATLAB .mat file under `key` robustly (no unit conversion)."""
+    mat = sio.loadmat(path, squeeze_me=True)
+    if key not in mat:
+        raise KeyError(f"Key '{key}' not found in {path}. Available: {list(mat.keys())}")
+    data = np.asarray(mat[key])
+    if data.ndim != 2:
+        raise ValueError(f"Expected 2D array under '{key}', got shape {data.shape} in {path}")
+    # Handle either (N,2) or (2,N)
+    if data.shape[1] == 2:
+        x_r = data[:, 0].astype(float)
+        y_r = data[:, 1].astype(float)
+    elif data.shape[0] == 2:
+        x_r = data[0, :].astype(float)
+        y_r = data[1, :].astype(float)
+    else:
+        raise ValueError(f"Unsupported shape for '{key}': {data.shape} in {path}")
+    return x_r, y_r
+
+
+def load_mat_to_pa(path: str, key: str, ch1_name: str, ch2_name: str):
+    """
+    Load two channels and convert each to Pa using DEFAULT_UNITS[key].
+    ch1_name/ch2_name are used only if units are 'V' (to look up sensitivity/gain).
+    """
+    x_r, y_r = load_mat(path, key=key)
+    units_pair = DEFAULT_UNITS.get(key, ('Pa', 'Pa'))
+    x_pa = convert_to_pa(x_r, units_pair[0], channel_name=ch1_name)
+    y_pa = convert_to_pa(y_r, units_pair[1], channel_name=ch2_name)
+    return x_pa, y_pa
+
+
+def compute_spec(fs: float, x: np.ndarray):
+    """Welch PSD with sane defaults and shape guarding. Returns (f [Hz], Pxx [Pa^2/Hz])."""
+    x = np.asarray(x, float)
+    nseg = int(min(NPERSEG, x.size))
+    if nseg < 8:
+        raise ValueError(f"Signal too short for PSD: n={x.size}")
+    nov = nseg // 2
+    w = get_window(WINDOW, nseg, fftbins=True)
+    f, Pxx = welch(
+        x,
+        fs=fs,
+        window=w,
+        nperseg=nseg,
+        noverlap=nov,
+        detrend="constant",
+        scaling="density",
+        return_onesided=True,
+    )
+    return f, Pxx
 
 
 def wiener_inverse(
@@ -196,45 +302,33 @@ def apply_frf(
     return y
 
 
-def load_mat(path: str, key: str = "channelData"):
-    """Load an Nx2 array from a MATLAB .mat file under `key` robustly."""
-    mat = sio.loadmat(path, squeeze_me=True)
-    if key not in mat:
-        raise KeyError(f"Key '{key}' not found in {path}. Available: {list(mat.keys())}")
-    data = np.asarray(mat[key])
-    if data.ndim != 2:
-        raise ValueError(f"Expected 2D array under '{key}', got shape {data.shape} in {path}")
-    # Handle either (N,2) or (2,N)
-    if data.shape[1] == 2:
-        x_r = data[:, 0].astype(float)
-        y_r = data[:, 1].astype(float)
-    elif data.shape[0] == 2:
-        x_r = data[0, :].astype(float)
-        y_r = data[1, :].astype(float)
-    else:
-        raise ValueError(f"Unsupported shape for '{key}': {data.shape} in {path}")
-    return x_r, y_r
+# --------- Inner scaling helpers (units & Jacobian are correct) ---------
+def f_plus_from_f(f: np.ndarray, u_tau: float, nu: float) -> np.ndarray:
+    """f⁺ = f * nu / u_tau²."""
+    return f * (nu / (u_tau**2))
 
 
-def compute_spec(fs: float, x: np.ndarray):
-    """Welch PSD with sane defaults and shape guarding."""
-    x = np.asarray(x, float)
-    nseg = int(min(NPERSEG, x.size))
-    if nseg < 8:
-        raise ValueError(f"Signal too short for PSD: n={x.size}")
-    nov = nseg // 2
-    w = get_window(WINDOW, nseg, fftbins=True)
-    f, Pxx = welch(
-        x,
-        fs=fs,
-        window=w,
-        nperseg=nseg,
-        noverlap=nov,
-        detrend="constant",
-        scaling="density",
-        return_onesided=True,
-    )
-    return f, Pxx
+def phi_pp_plus_per_fplus(Pyy: np.ndarray, rho: float, u_tau: float, nu: float) -> np.ndarray:
+    """
+    Dimensionless PSD per unit f⁺:
+    Φ_pp⁺(f⁺) = Φ_pp(f) / (ρ² u_τ² ν)
+    (Jacobain df/df⁺ = u_τ²/ν has been applied.)
+    """
+    return Pyy / ((rho**2) * (u_tau**2) * nu)
+
+
+def premultiplied_phi_pp_plus(f: np.ndarray, Pyy: np.ndarray, rho: float, u_tau: float, nu: float):
+    """
+    Return (1/f⁺, f⁺ Φ_pp⁺(f⁺)) with the zero bin safely excluded.
+    Using the identity: f⁺ Φ_pp⁺ = f * Φ_pp / (ρ² u_τ⁴), but computed via f⁺·Φ_pp⁺ for clarity.
+    """
+    f = np.asarray(f, float)
+    Pyy = np.asarray(Pyy, float)
+    f_plus = f_plus_from_f(f, u_tau, nu)
+    phi_plus = phi_pp_plus_per_fplus(Pyy, rho, u_tau, nu)   # per unit f⁺
+    y = f_plus * phi_plus                                   # premultiplied
+    mask = f_plus > 0
+    return 1.0 / f_plus[mask], y[mask]
 
 
 ############################
@@ -243,7 +337,8 @@ def compute_spec(fs: float, x: np.ndarray):
 def main_PH():
     """
     Calibrate, save and check the PH→NKD transfer function.
-    x_ref: PH (input), y_meas: NKD (output)
+    NOTE: In channelData_300_plug, col1 = NKD (output), col2 = PH (input).
+    We compute H as PH→NKD using (x=PH, y=NKD). All signals are converted to Pa.
     """
     root = 'data/11092025'
     fn_sweep = [f'{root}/cali.mat' for _ in psi_labels]
@@ -255,17 +350,18 @@ def main_PH():
     for idx in range(len(psi_labels)):
         ic(f"Processing {psi_labels[idx]}...")
 
-        # Load data: expect first column = PH, second = NKD
-        ph, nkd = load_mat(fn_sweep[idx], key='channelData_300_plug')
+        # Load data (to Pa): col1 = NKD, col2 = PH
+        nkd, ph = load_mat_to_pa(fn_sweep[idx], key='channelData_300_plug', ch1_name='NKD', ch2_name='PH')
 
         # Trim initial transient (consistent with NKD→NC calibration)
         if TRIM_CAL_SECS > 0:
             start = int(TRIM_CAL_SECS * FS)
-            ph, nkd = ph[start:], nkd[start:]
+            nkd, ph = nkd[start:], ph[start:]
 
+        # Optional quick-look at PH input
         plot_time_series(np.arange(len(ph)) / FS, ph, f"{FIG_DIR}/ph_{psi_labels[idx]}")
 
-        # FRF PH→NKD
+        # FRF PH→NKD (x=PH, y=NKD)
         f, H, gamma2 = estimate_frf(ph, nkd, FS)
         np.save(f"{CAL_DIR}/H_{psi_labels[idx]}.npy", H)
         np.save(f"{CAL_DIR}/gamma2_{psi_labels[idx]}.npy", gamma2)
@@ -273,7 +369,7 @@ def main_PH():
         ic(f.shape, H.shape, gamma2.shape)
         plot_transfer_PH(f, H, f"{FIG_DIR}/H_{psi_labels[idx]}", psi_labels[idx])
 
-        # Sanity: reconstruct PH from NKD using inverse (should resemble PH)
+        # Sanity: reconstruct PH from NKD using the inverse (should resemble PH)
         ph_hat = wiener_inverse(nkd, FS, f, H, gamma2)
         t = np.arange(len(ph_hat)) / FS
         plot_corrected_trace_PH(t, ph, nkd, ph_hat, f"{FIG_DIR}/ph_recon_{psi_labels[idx]}", psi_labels[idx])
@@ -285,7 +381,7 @@ def main_PH():
 def main_NC():
     """
     Calibrate NKD→NC transfer function.
-    x_ref: NKD (input), y_meas: NC (output)
+    In channelData_300_nose, col1 = NKD (input), col2 = NC (output).
     """
     root = 'data/11092025'
     fn_sweep = [f'{root}/cali.mat' for _ in psi_labels]
@@ -297,8 +393,8 @@ def main_NC():
     for idx in range(len(psi_labels)):
         ic(f"Processing {psi_labels[idx]}...")
 
-        # Load data: expect first column = NKD, second = NC
-        nkd, nc = load_mat(fn_sweep[idx], key='channelData_300_nose')
+        # Load data (to Pa): col1 = NKD, col2 = NC
+        nkd, nc = load_mat_to_pa(fn_sweep[idx], key='channelData_300_nose', ch1_name='NKD', ch2_name='NC')
         plot_time_series(np.arange(len(nkd)) / FS, nkd, f"{FIG_DIR}/nkd_{psi_labels[idx]}")
 
         # Trim first TRIM_CAL_SECS to avoid initial transients
@@ -329,7 +425,7 @@ def real_data():
     OUTPUT_DIR = "figures/cali_09/flow"
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     PH_path = _resolve_cal_dir("PH-NKD")   # PH→NKD
-    NC_path = _resolve_cal_dir("NKD-NC")   # NKD→NC   (correct orientation)
+    NC_path = _resolve_cal_dir("NKD-NC")   # NKD→NC
 
     RAW_DIR = f"{OUTPUT_DIR}/raw"
     os.makedirs(RAW_DIR, exist_ok=True)
@@ -344,16 +440,13 @@ def real_data():
     for idx in range(len(psi_labels)):
         ic(f"Processing {psi_labels[idx]}...")
 
-        # Load data: NC (first col), PH (second col)
-        nc, ph = load_mat(fn_sweep[idx], key='channelData_300')  # NC, PH
+        # Load real data (to Pa): channelData_300 -> col1=NC, col2=PH
+        nc, ph = load_mat_to_pa(fn_sweep[idx], key='channelData_300', ch1_name='NC', ch2_name='PH')
 
-        # --- Raw PH spectrum (for comparison)
-        f, Pphph = compute_spec(FS, ph)
-        f_plus = f * nu_s[idx] / (u_taus[idx] ** 2)
-        Pphph_plus = Pphph / ((u_taus[idx] ** 2 * rhos[idx]) ** 2)
-        mask = f_plus > 0
-        plot_raw_spectrum(1.0 / f_plus[mask], (f_plus[mask] * Pphph_plus[mask]),
-                          f"{OUTPUT_DIR}/Pphph_{psi_labels[idx]}_raw")
+        # --- Raw PH spectrum (for comparison) in inner-scaled premultiplied form
+        f, Pphph = compute_spec(FS, ph)  # Pa^2/Hz
+        x_inv_fplus, y_pm = premultiplied_phi_pp_plus(f, Pphph, rhos[idx], u_taus[idx], nu_s[idx])
+        plot_raw_spectrum(x_inv_fplus, y_pm, f"{OUTPUT_DIR}/Pphph_{psi_labels[idx]}_raw")
 
         t = np.arange(len(ph)) / FS
 
@@ -370,15 +463,12 @@ def real_data():
         nkd_from_ph = apply_frf(ph, FS, f_PH, H_PH)
         # plot_time_series(t, nkd_from_ph, f"{OUTPUT_DIR}/nkd_from_ph_{psi_labels[idx]}")
 
-        # --- Spectrum of corrected PH (NKD domain)
+        # --- Spectrum of corrected PH (NKD domain), inner-scaled premultiplied
         f, Pyy = compute_spec(FS, nkd_from_ph)
-        f_plus = f * nu_s[idx] / (u_taus[idx] ** 2)
-        Pyy_plus = Pyy / ((u_taus[idx] ** 2 * rhos[idx]) ** 2)
-        mask = f_plus > 0
-        Times.append(1.0 / f_plus[mask])
-        Pyys.append(f_plus[mask] * Pyy_plus[mask])
-        plot_raw_spectrum(1.0 / f_plus[mask], (f_plus[mask] * Pyy_plus[mask]),
-                          f"{OUTPUT_DIR}/Pyy_{psi_labels[idx]}_corr")
+        x_inv_fplus, y_pm = premultiplied_phi_pp_plus(f, Pyy, rhos[idx], u_taus[idx], nu_s[idx])
+        Times.append(x_inv_fplus)
+        Pyys.append(y_pm)
+        plot_raw_spectrum(x_inv_fplus, y_pm, f"{OUTPUT_DIR}/Pyy_{psi_labels[idx]}_corr")
 
         # --- Coherent rejection: remove component of nkd_from_ph coherent with nkd_from_nc
         # FRF x→y with x=nkd_from_nc, y=nkd_from_ph (both NKD domain)
@@ -387,11 +477,8 @@ def real_data():
         y_resid = nkd_from_ph - y_hat                    # coherent rejection residual
 
         f, Pyy_rej = compute_spec(FS, y_resid)
-        f_plus = f * nu_s[idx] / (u_taus[idx] ** 2)
-        Pyy_rej_plus = Pyy_rej / ((u_taus[idx] ** 2 * rhos[idx]) ** 2)
-        mask = f_plus > 0
-        plot_raw_spectrum(1.0 / f_plus[mask], (f_plus[mask] * Pyy_rej_plus[mask]),
-                          f"{OUTPUT_DIR}/Pyy_{psi_labels[idx]}_rej")
+        x_inv_fplus, y_pm_rej = premultiplied_phi_pp_plus(f, Pyy_rej, rhos[idx], u_taus[idx], nu_s[idx])
+        plot_raw_spectrum(x_inv_fplus, y_pm_rej, f"{OUTPUT_DIR}/Pyy_{psi_labels[idx]}_rej")
 
 
 if __name__ == "__main__":
