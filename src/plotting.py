@@ -122,8 +122,26 @@ def plot_raw_spectrum(Ts, spec, outfile):
     # ax1.set_yscale("log")
     # ax1.set_xlim(1e-4, 1e-1)
     # ax1.set_ylim(0, 2)
-    ax1.set_xlabel("$T^+$")
-    ax1.set_ylabel(r"${f\Phi_{pp}}^+$")
+    ax1.set_xlabel("$f(Hz)$")
+    ax1.set_ylabel(r"${f\Phi_{pp}}$")
+    plt.tight_layout()
+    plt.savefig(outfile)
+    plt.close()
+
+def plot_spectrum_pipeline(Tss, specs, outfile):
+    """Input list of threee Ts and specs, plot all three on one figure."""
+    fig, ax1 = plt.subplots(1, 1, figsize=(4, 2.7), dpi=600, sharex=True, sharey=True)
+    colors1 = sns.color_palette("tab10", n_colors=len(specs))
+    labels = ["Raw Wall", "TF corrected", "FS noise subtracted"]
+    for idx in range(len(specs)):
+        ax1.plot(Tss[idx], specs[idx], ls='-', lw=0.5, color=colors1[idx], label=labels[idx])
+    ax1.set_xscale("log")
+    # ax1.set_yscale("log")
+    # ax1.set_xlim(1e-4, 1e-1)
+    # ax1.set_ylim(0, 2)
+    ax1.legend()
+    ax1.set_xlabel("$f(Hz)$")
+    ax1.set_ylabel(r"${f\Phi_{pp}}$")
     plt.tight_layout()
     plt.savefig(outfile)
     plt.close()
