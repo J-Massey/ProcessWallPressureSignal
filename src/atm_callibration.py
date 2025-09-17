@@ -16,6 +16,7 @@ from plotting import (
     plot_corrected_trace_NC,
     plot_corrected_trace_PH,
     plot_time_series,
+    plot_spectrum_pipeline,
 )
 
 ############################
@@ -35,7 +36,7 @@ PSI_TO_PA = 6_894.76
 # Labels for operating conditions; first entry is assumed 'atm'
 psi_labels = ['atm']
 Re_taus = np.array([1500], dtype=float)
-u_taus  = np.array([0.481], dtype=float)
+u_taus  = np.array([0.481/2], dtype=float)
 nu_atm  = 1.52e-5  # m^2/s
 
 # -------------------------------------------------------------------------
@@ -103,7 +104,7 @@ def estimate_frf(
     _, Syy = welch(y, fs=fs, window=w, nperseg=nseg, noverlap=nov, detrend=detrend)
     _, Sxy = csd(x, y, fs=fs, window=w, nperseg=nseg, noverlap=nov, detrend=detrend)  # x→y
 
-    H = Sxy / Sxx
+    H = np.conj(Sxy) / Sxx
     gamma2 = (np.abs(Sxy) ** 2) / (Sxx * Syy)
     gamma2 = np.clip(gamma2.real, 0.0, 1.0)
     return f, H, gamma2
@@ -362,7 +363,7 @@ def main_PH():
         plot_time_series(np.arange(len(ph)) / FS, ph, f"{FIG_DIR}/ph_{psi_labels[idx]}")
 
         # FRF PH→NKD (x=PH, y=NKD)
-        f, H, gamma2 = estimate_frf(ph, nkd, FS)
+        f, H, gamma2 = estimate_frf(nkd, ph, FS)
         np.save(f"{CAL_DIR}/H_{psi_labels[idx]}.npy", H)
         np.save(f"{CAL_DIR}/gamma2_{psi_labels[idx]}.npy", gamma2)
         np.save(f"{CAL_DIR}/f_{psi_labels[idx]}.npy", f)
@@ -407,7 +408,6 @@ def main_NC():
         np.save(f"{CAL_DIR}/H_{psi_labels[idx]}.npy", H)
         np.save(f"{CAL_DIR}/gamma2_{psi_labels[idx]}.npy", gamma2)
         np.save(f"{CAL_DIR}/f_{psi_labels[idx]}.npy", f)
-        ic(f.shape, H.shape, gamma2.shape)
         plot_transfer_NC(f, H, f"{FIG_DIR}/H_{psi_labels[idx]}", psi_labels[idx])
 
         # Sanity: reconstruct NKD from NC via inverse
@@ -442,13 +442,13 @@ def real_data():
 
         # Load real data (to Pa): channelData_300 -> col1=NC, col2=PH
         nc, ph = load_mat_to_pa(fn_sweep[idx], key='channelData_300', ch1_name='NC', ch2_name='PH')
+        t = np.arange(len(ph)) / FS
 
         # --- Raw PH spectrum (for comparison) in inner-scaled premultiplied form
-        f, Pphph = compute_spec(FS, ph)  # Pa^2/Hz
-        x_inv_fplus, y_pm = premultiplied_phi_pp_plus(f, Pphph, rhos[idx], u_taus[idx], nu_s[idx])
-        plot_raw_spectrum(x_inv_fplus, y_pm, f"{OUTPUT_DIR}/Pphph_{psi_labels[idx]}_raw")
+        f_raw, Pyy_raw = compute_spec(FS, ph)  # Pa^2/Hz
+        # x_inv_fplus, y_pm = premultiplied_phi_pp_plus(f_raw, Pyy_raw, rhos[idx], u_taus[idx], nu_s[idx])
+        # plot_raw_spectrum(f_raw, Pyy_raw, f"{OUTPUT_DIR}/Pphph_{psi_labels[idx]}_raw")
 
-        t = np.arange(len(ph)) / FS
 
         # --- Correct NC: invert NKD→NC to get NKD from NC
         H_NC = np.load(f"{NC_path}/H_{psi_labels[idx]}.npy")
@@ -464,11 +464,11 @@ def real_data():
         # plot_time_series(t, nkd_from_ph, f"{OUTPUT_DIR}/nkd_from_ph_{psi_labels[idx]}")
 
         # --- Spectrum of corrected PH (NKD domain), inner-scaled premultiplied
-        f, Pyy = compute_spec(FS, nkd_from_ph)
-        x_inv_fplus, y_pm = premultiplied_phi_pp_plus(f, Pyy, rhos[idx], u_taus[idx], nu_s[idx])
-        Times.append(x_inv_fplus)
-        Pyys.append(y_pm)
-        plot_raw_spectrum(x_inv_fplus, y_pm, f"{OUTPUT_DIR}/Pyy_{psi_labels[idx]}_corr")
+        f_corr, Pyy_corr = compute_spec(FS, nkd_from_ph)
+        # x_inv_fplus, y_pm = premultiplied_phi_pp_plus(f_corr, Pyy_corr, rhos[idx], u_taus[idx], nu_s[idx])
+        # Times.append(x_inv_fplus)
+        # Pyys.append(y_pm)
+        # plot_raw_spectrum(f_corr, f_corr*Pyy_corr, f"{OUTPUT_DIR}/Pyy_{psi_labels[idx]}_corr")
 
         # --- Coherent rejection: remove component of nkd_from_ph coherent with nkd_from_nc
         # FRF x→y with x=nkd_from_nc, y=nkd_from_ph (both NKD domain)
@@ -476,9 +476,11 @@ def real_data():
         y_hat = apply_frf(nkd_from_nc, FS, f_xy, H_xy)   # predict coherent part of PH stream
         y_resid = nkd_from_ph - y_hat                    # coherent rejection residual
 
-        f, Pyy_rej = compute_spec(FS, y_resid)
-        x_inv_fplus, y_pm_rej = premultiplied_phi_pp_plus(f, Pyy_rej, rhos[idx], u_taus[idx], nu_s[idx])
-        plot_raw_spectrum(x_inv_fplus, y_pm_rej, f"{OUTPUT_DIR}/Pyy_{psi_labels[idx]}_rej")
+        f_rej, Pyy_rej = compute_spec(FS, y_resid)
+        # x_inv_fplus, y_pm_rej = premultiplied_phi_pp_plus(f_rej, Pyy_rej, rhos[idx], u_taus[idx], nu_s[idx])
+        plot_raw_spectrum(f_rej, f_rej*Pyy_rej, f"{OUTPUT_DIR}/Pyy_{psi_labels[idx]}_rej")
+        plot_spectrum_pipeline([f_raw, f_corr, f_rej], [f_raw*Pyy_raw, f_corr*Pyy_corr, 
+                                                        f_rej*Pyy_rej], f"{OUTPUT_DIR}/Pyy_comparison_{psi_labels[idx]}")
 
 
 if __name__ == "__main__":
