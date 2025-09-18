@@ -189,12 +189,10 @@ def load_mat_to_pa(path: str, key: str, ch1_name: str, ch2_name: str):
     return x_pa, y_pa
 
 
-def compute_spec(fs: float, x: np.ndarray):
+def compute_spec(fs: float, x: np.ndarray, npsg : int = NPERSEG):
     """Welch PSD with sane defaults and shape guarding. Returns (f [Hz], Pxx [Pa^2/Hz])."""
     x = np.asarray(x, float)
-    nseg = int(min(NPERSEG, x.size))
-    if nseg < 8:
-        raise ValueError(f"Signal too short for PSD: n={x.size}")
+    nseg = int(min(npsg, x.size))
     nov = nseg // 2
     w = get_window(WINDOW, nseg, fftbins=True)
     f, Pxx = welch(
@@ -540,6 +538,39 @@ def main_NC():
         plot_corrected_trace_NC(t, nkd, nc, nkd_hat, f"{FIG_DIR}/nkd_recon_{psi_labels[idx]}", psi_labels[idx])
 
 
+
+def pre_mult_raw_sig():
+    root = 'data/11092025'
+    fn_sweep = [f'{root}/data.mat' for _ in psi_labels]
+    OUTPUT_DIR = "figures/cali_09/flow"
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    PH_path = _resolve_cal_dir("PH-NKD")   # PH→NKD (intended)
+    NC_path = _resolve_cal_dir("NKD-NC")   # NKD→NC
+
+    RAW_DIR = f"{OUTPUT_DIR}/raw"
+    os.makedirs(RAW_DIR, exist_ok=True)
+
+    delta, nu_s = inner_scales(Re_taus, u_taus, nu_atm)
+    pressures = np.array([P_ATM] + [P_ATM + float(p[:-3]) * PSI_TO_PA for p in psi_labels[1:]], dtype=float)
+    rhos = pressures / (R * T)
+
+    for idx in range(len(psi_labels)):
+        ic(f"Processing {psi_labels[idx]}...")
+
+        # Load real data (to Pa): channelData_300 -> col1=NC, col2=PH
+        nc, ph = load_pair_pa(fn_sweep[idx], 'channelData_300')
+        t = np.arange(len(ph)) / FS
+        plot_time_series(t, ph, f"{RAW_DIR}/ph_{psi_labels[idx]}")
+        plot_time_series(t, nc, f"{RAW_DIR}/nc_{psi_labels[idx]}")
+
+
+        for npsgs in [2**12, 2**14, 2**15]:
+            ic("yeh")
+            f_raw, Pyy_raw = compute_spec(FS, ph, npsg=npsgs)
+            plot_raw_spectrum(f_raw, f_raw * Pyy_raw, f"{RAW_DIR}/Pyy_ph_{psi_labels[idx]}_npsg{npsgs}")
+            f_raw, Pyy_raw = compute_spec(FS, nc, npsg=npsgs)
+            plot_raw_spectrum(f_raw, f_raw * Pyy_raw, f"{RAW_DIR}/Pyy_nc_{psi_labels[idx]}_npsg{npsgs}")
+
 ############################
 # Apply to flow data
 ############################
@@ -564,17 +595,14 @@ def real_data():
         # Load real data (to Pa): channelData_300 -> col1=NC, col2=PH
         nc, ph = load_pair_pa(fn_sweep[idx], 'channelData_300')
         t = np.arange(len(ph)) / FS
-        plot_time_series(t, ph, f"{RAW_DIR}/ph_{psi_labels[idx]}")
-        plot_time_series(t, nc, f"{RAW_DIR}/nc_{psi_labels[idx]}")
 
-        # --- Raw PH spectrum (for comparison)
-        f_raw, Pyy_raw = compute_spec(FS, ph)
 
         # --- Correct NC: invert NKD→NC to get NKD from NC
         H_NC = np.load(f"{NC_path}/H_{psi_labels[idx]}.npy")
         gamma2_NC = np.load(f"{NC_path}/gamma2_{psi_labels[idx]}.npy")
         f_NC = np.load(f"{NC_path}/f_{psi_labels[idx]}.npy")
         nkd_from_nc = wiener_inverse(nc, FS, f_NC, H_NC, gamma2_NC)
+        plot_time_series(t, nkd_from_nc, f"{RAW_DIR}/nkd_recon_from_nc_{psi_labels[idx]}")
 
         # --- Correct PH: forward PH→NKD with stabilisation (prevents HF roll-off or |H|<1 in coherent band)
         H_PH = np.load(f"{PH_path}/H_{psi_labels[idx]}.npy")
@@ -599,11 +627,11 @@ def real_data():
 
         # --- Plots
         plot_raw_spectrum(f_rej, f_rej * Pyy_rej, f"{OUTPUT_DIR}/Pyy_{psi_labels[idx]}_rej")
-        plot_spectrum_pipeline(
-            [f_raw,    f_corr,     f_rej],
-            [f_raw*Pyy_raw, f_corr*Pyy_corr, f_rej*Pyy_rej],
-            f"{OUTPUT_DIR}/Pyy_comparison_{psi_labels[idx]}"
-        )
+        # plot_spectrum_pipeline(
+        #     [f_raw,    f_corr,     f_rej],
+        #     [f_raw*Pyy_raw, f_corr*Pyy_corr, f_rej*Pyy_rej],
+        #     f"{OUTPUT_DIR}/Pyy_comparison_{psi_labels[idx]}"
+        # )
 
 
 if __name__ == "__main__":
