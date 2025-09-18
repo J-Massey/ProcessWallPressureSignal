@@ -233,7 +233,7 @@ def plot_transfer_PH(f, H, outfile, pres: str):
     ax_mag.set_title(r'$H_{\mathrm{PH-NKD}}$ at ' + pres)
     ax_mag.loglog(f, 1+mag, lw=1)
     ax_mag.set_ylabel(r'$|H_{\mathrm{PH-NKD}}(f)|$')
-    ax_mag.set_ylim(0.1, 10)
+    ax_mag.set_ylim(0.1, 100)
     ax_ph.semilogx(f, ph, lw=1)
     ax_ph.set_ylabel(r'$\angle H_{\mathrm{PH-NKD}}(f)\,[\mathrm{rad}]$')
     ax_ph.set_xlabel(r'$f\ \mathrm{[Hz]}$')

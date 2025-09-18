@@ -23,7 +23,7 @@ from plotting import (
 # Constants & defaults
 ############################
 FS = 50_000.0
-NPERSEG = 2**15
+NPERSEG = 2**14
 WINDOW = "hann"
 CALIB_BASE_DIR = "data/calibration"  # base directory to save calibration .npy files
 TRIM_CAL_SECS = 30  # seconds trimmed from the start of calibration runs (0 to disable)
@@ -90,6 +90,7 @@ def estimate_frf(
     fs: float,
     window: str = WINDOW,
     detrend: str = "constant",
+    npsg: int = NPERSEG,
 ):
     """
     Estimate H1 FRF and magnitude-squared coherence using Welch/CSD.
@@ -102,10 +103,10 @@ def estimate_frf(
     """
     x = np.asarray(x, float)
     y = np.asarray(y, float)
-    nseg = int(min(NPERSEG, x.size, y.size))
+    nseg = int(min(npsg, x.size, y.size))
     if nseg < 8:
         raise ValueError(f"Signal too short for FRF: n={min(x.size, y.size)}")
-    nov = int(min(NPERSEG // 2, nseg // 2))
+    nov = int(min(npsg // 2, nseg // 2))
     w = get_window(window, nseg, fftbins=True)
 
     f, Sxx = welch(x, fs=fs, window=w, nperseg=nseg, noverlap=nov, detrend=detrend)
@@ -309,6 +310,42 @@ def apply_frf(
     y = np.fft.irfft(X * Hi, n=Nfft)[:N]
     return y
 
+def apply_frf_ph_corr(
+    x: np.ndarray,
+    fs: float,
+    f: np.ndarray,
+    H: np.ndarray,
+    demean: bool = True,
+    zero_dc: bool = True,
+):
+    """
+    Apply a measured FRF H (x→y) to a time series x to synthesise y.
+    This is the forward operation: Y = H · X in the frequency domain.
+    """
+    x = np.asarray(x, float)
+    if demean:
+        x = x - x.mean()
+
+    N = x.size
+    Nfft = int(2 ** np.ceil(np.log2(N)))
+    X = np.fft.rfft(x, n=Nfft)
+    fr = np.fft.rfftfreq(Nfft, d=1.0 / fs)
+
+    mag = np.abs(H)
+    phi = np.unwrap(np.angle(H))
+    # Safer OOB behaviour: taper magnitude to zero outside measured band
+    mag_i = np.interp(fr, f, mag, left=0.0, right=0.0)
+    phi_i = np.interp(fr, f, phi, left=phi[0], right=phi[-1])
+    Hi = mag_i * np.exp(1j * phi_i)
+
+    if zero_dc:
+        Hi[0] = 0.0
+        if Nfft % 2 == 0:
+            Hi[-1] = 0.0
+
+    y = np.fft.irfft(X * Hi, n=Nfft)[:N]
+    return y
+
 
 # --------- Inner scaling helpers (units & Jacobian are correct) ---------
 def f_plus_from_f(f: np.ndarray, u_tau: float, nu: float) -> np.ndarray:
@@ -450,7 +487,7 @@ def coherent_cancel(ref: np.ndarray,
 ############################
 # Calibration: PH→NKD
 ############################
-def main_PH():
+def main_PH(npsg = 2**10):
     """
     Calibrate, save and check the PH→NKD transfer function.
     NOTE: In channelData_300_plug, col1 = PH (input, pinhole), col2 = NKD (output, naked).
@@ -478,11 +515,11 @@ def main_PH():
         plot_time_series(np.arange(len(ph)) / FS, ph, f"{FIG_DIR}/ph_{psi_labels[idx]}")
 
         # FRF PH→NKD (x=PH, y=NKD)
-        f, H, gamma2 = estimate_frf(ph, nkd, FS)
+        f, H, gamma2 = estimate_frf(ph, nkd, FS, npsg=npsg)
         np.save(f"{CAL_DIR}/H_{psi_labels[idx]}.npy", H)
         np.save(f"{CAL_DIR}/gamma2_{psi_labels[idx]}.npy", gamma2)
         np.save(f"{CAL_DIR}/f_{psi_labels[idx]}.npy", f)
-        ic(f.shape, H.shape, gamma2.shape)
+        
         plot_transfer_PH(f, H, f"{FIG_DIR}/H_{psi_labels[idx]}", psi_labels[idx])
 
         # Sanity: expect |H|>1 where pinhole attenuates and coherence is decent
@@ -603,23 +640,31 @@ def real_data():
         f_NC = np.load(f"{NC_path}/f_{psi_labels[idx]}.npy")
         nkd_from_nc = wiener_inverse(nc, FS, f_NC, H_NC, gamma2_NC)
         plot_time_series(t, nkd_from_nc, f"{RAW_DIR}/nkd_recon_from_nc_{psi_labels[idx]}")
+        f_raw, Pyy_raw = compute_spec(FS, nc)
+        plot_raw_spectrum(f_raw, f_raw * Pyy_raw, f"{RAW_DIR}/Pyy_nc_raw_{psi_labels[idx]}")
+        f_raw, Pyy_raw = compute_spec(FS, nkd_from_nc)
+        plot_raw_spectrum(f_raw, f_raw * Pyy_raw, f"{RAW_DIR}/Pyy_nkd_from_nc_{psi_labels[idx]}")
+
 
         # --- Correct PH: forward PH→NKD with stabilisation (prevents HF roll-off or |H|<1 in coherent band)
         H_PH = np.load(f"{PH_path}/H_{psi_labels[idx]}.npy")
         gamma2_PH = np.load(f"{PH_path}/gamma2_{psi_labels[idx]}.npy")
         f_PH = np.load(f"{PH_path}/f_{psi_labels[idx]}.npy")
 
-        H_PH_stab = stabilise_forward_frf(f_PH, H_PH, gamma2_PH, FS,
-                                          g2_thresh=0.6,
-                                          smooth_bins=9,
-                                          enforce_min_gain=True,
-                                          monotone_hf_envelope=True,
-                                          clip_gain_max=50.0)
+        # H_PH_stab = stabilise_forward_frf(f_PH, H_PH, gamma2_PH, FS,
+        #                                   g2_thresh=0.6,
+        #                                   smooth_bins=9,
+        #                                   enforce_min_gain=True,
+        #                                   monotone_hf_envelope=True,
+        #                                   clip_gain_max=50.0)
 
-        nkd_from_ph = apply_frf(ph, FS, f_PH, H_PH_stab)
+        nkd_from_ph = apply_frf(ph, FS, f_PH, H_PH)
+        plot_time_series(t, nkd_from_ph, f"{RAW_DIR}/nkd_recon_from_ph_{psi_labels[idx]}")
+        f_raw, Pyy_raw = compute_spec(FS, ph)
+        plot_raw_spectrum(f_raw, f_raw * Pyy_raw, f"{RAW_DIR}/Pyy_ph_raw_{psi_labels[idx]}")
+        f_raw, Pyy_raw = compute_spec(FS, nkd_from_ph)
+        plot_raw_spectrum(f_raw, f_raw * Pyy_raw, f"{RAW_DIR}/Pyy_nkd_from_ph_{psi_labels[idx]}")
 
-        # --- Spectrum of corrected PH (NKD domain)
-        f_corr, Pyy_corr = compute_spec(FS, nkd_from_ph)
 
         # --- Coherent FS-noise rejection (γ²-weighted, ref = nkd_from_nc → tgt = nkd_from_ph)
         resid, pred, (f_xy, H_eff, g2_xy), (f_rej, Pyy_rej), (f_tgt, Pyy_tgt), Eratio = \
@@ -635,9 +680,9 @@ def real_data():
 
 
 if __name__ == "__main__":
-    # Run calibrations if needed to (re)generate FRFs:
-    # main_PH()
+    # Run calibrations at npsg =2**10 to smooth the TFs.
+    main_PH()
     # main_NC()
 
     # Apply to the real flow data:
-    real_data()
+    # real_data()
