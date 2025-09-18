@@ -40,15 +40,16 @@ u_taus  = np.array([0.481/2], dtype=float)
 nu_atm  = 1.52e-5  # m^2/s
 
 # -------------------------------------------------------------------------
-# >>> Units for loaded time-series (per MATLAB key, per column) <<<
-# Many labs log pressures in kPa. If yours are already in Pa, change 'kPa'→'Pa'.
-# If you have raw volts, set to 'V' and provide sensitivities below.
-# Keys:
-#   - channelData_300_plug : col1=NKD, col2=PH  (calibration sweep)
-#   - channelData_300_nose : col1=NKD, col2=NC  (calibration sweep)
-#   - channelData_300      : col1=NC,  col2=PH  (real flow data)
+# >>> Units & column layout for loaded time-series (per MATLAB key) <<<
+# If your files are already in Pa, keep 'Pa'. If you have raw volts, set to 'V'
+# and specify sensitivities below.
+#
+# Keys (column meaning per dataset):
+#   - channelData_300_plug : col1=PH (pinhole), col2=NKD (naked)     [calibration sweep]
+#   - channelData_300_nose : col1=NKD,            col2=NC            [calibration sweep]
+#   - channelData_300      : col1=NC,             col2=PH            [real flow data]
 DEFAULT_UNITS = {
-    'channelData_300_plug': ('Pa', 'Pa'),  # NKD, PH
+    'channelData_300_plug': ('Pa', 'Pa'),  # PH, NKD
     'channelData_300_nose': ('Pa', 'Pa'),  # NKD, NC
     'channelData_300':      ('Pa', 'Pa'),  # NC,  PH
 }
@@ -65,6 +66,17 @@ PREAMP_GAIN = {  # linear gain; leave 1.0 if unknown
     'NC':  1.0,
 }
 # -------------------------------------------------------------------------
+# One source of truth for column mapping (used everywhere)
+DATA_LAYOUT = {
+    'channelData_300_plug': ('PH', 'NKD'),  # col1, col2  [pinhole, naked]
+    'channelData_300_nose': ('NKD', 'NC'),  # col1, col2
+    'channelData_300':      ('NC',  'PH'),  # col1, col2  [real flow data]
+}
+
+def load_pair_pa(path: str, key: str):
+    ch1, ch2 = DATA_LAYOUT[key]
+    x, y = load_mat_to_pa(path, key=key, ch1_name=ch1, ch2_name=ch2)
+    return x, y
 
 
 def inner_scales(Re_taus, u_taus, nu_atm):
@@ -102,9 +114,10 @@ def estimate_frf(
 
     f, Sxx = welch(x, fs=fs, window=w, nperseg=nseg, noverlap=nov, detrend=detrend)
     _, Syy = welch(y, fs=fs, window=w, nperseg=nseg, noverlap=nov, detrend=detrend)
+    # SciPy convention: csd(x, y) = E{ X * conj(Y) }
     _, Sxy = csd(x, y, fs=fs, window=w, nperseg=nseg, noverlap=nov, detrend=detrend)  # x→y
 
-    H = np.conj(Sxy) / Sxx
+    H = np.conj(Sxy) / Sxx                 # H1 = Syx / Sxx = conj(Sxy)/Sxx
     gamma2 = (np.abs(Sxy) ** 2) / (Sxx * Syy)
     gamma2 = np.clip(gamma2.real, 0.0, 1.0)
     return f, H, gamma2
@@ -332,13 +345,106 @@ def premultiplied_phi_pp_plus(f: np.ndarray, Pyy: np.ndarray, rho: float, u_tau:
     return 1.0 / f_plus[mask], y[mask]
 
 
+# --------- Analysis helpers (robustness checks & FS-noise cancellation) ---------
+def coherent_band_mask(f: np.ndarray, gamma2: np.ndarray, fs: float,
+                       fmin: float = 50.0, fmax_frac: float = 0.4, g2_thresh: float = 0.6):
+    """Return boolean mask for a sensible coherent band."""
+    return (f >= fmin) & (f <= fmax_frac * fs) & (gamma2 >= g2_thresh)
+
+
+def band_energy_from_psd(f: np.ndarray, Pxx: np.ndarray, mask: np.ndarray):
+    """Integrate PSD over masked band to get band-limited variance [Pa^2]."""
+    if not np.any(mask):
+        return 0.0
+    return float(np.trapz(Pxx[mask], f[mask]))
+
+
+def select_ph_correction(nkd_from_nc: np.ndarray,
+                         ph: np.ndarray,
+                         FS: float,
+                         f_PH: np.ndarray,
+                         H_PH: np.ndarray,
+                         gamma2_PH: np.ndarray):
+    """
+    Try both: forward PH→NKD (apply_frf) and inverse (wiener_inverse) in case the saved FRF
+    was produced with the wrong orientation. Choose the one that makes the inter-NKD FRF
+    (ref=nkd_from_nc → tgt=nkd_from_ph) closest to unity within the coherent band.
+    """
+    # Candidates
+    cand_forward = apply_frf(ph, FS, f_PH, H_PH)                      # assumes H is PH→NKD
+    cand_inverse = wiener_inverse(ph, FS, f_PH, H_PH, gamma2_PH)      # robust if H is NKD→PH
+
+    candidates = [('forward', cand_forward), ('inverse', cand_inverse)]
+    scores = []
+
+    for tag, cand in candidates:
+        # FRF ref→tgt using H1
+        f_xy, H_xy, g2_xy = estimate_frf(nkd_from_nc, cand, FS)
+        mask = coherent_band_mask(f_xy, g2_xy, FS)
+        if not np.any(mask):
+            score = np.inf
+            coh_med = 0.0
+        else:
+            mag = np.abs(H_xy[mask])
+            phs = np.angle(H_xy[mask])
+            # Deviations from unity magnitude and zero phase
+            dev_mag = np.median(np.abs(mag - 1.0))
+            dev_phs = np.median(np.abs(phs)) / np.pi  # normalise to ~[0,1]
+            coh_med = float(np.median(g2_xy[mask]))
+            score = dev_mag + 0.5 * dev_phs - 0.1 * coh_med  # lower is better
+        scores.append((score, coh_med, tag, cand))
+
+    # Choose the candidate with the smallest score
+    scores.sort(key=lambda x: x[0])
+    best_score, best_coh, best_tag, best_cand = scores[0]
+    ic({'PH_correction_choice': best_tag, 'score': best_score, 'coh_med': best_coh})
+    return best_tag, best_cand
+
+
+def coherent_cancel(ref: np.ndarray,
+                    tgt: np.ndarray,
+                    fs: float,
+                    fmin: float = 50.0,
+                    fmax_frac: float = 0.4,
+                    g2_thresh: float = 0.6):
+    """
+    γ²-weighted coherent subtraction of the part of `tgt` that is linearly predictable from `ref`.
+    Returns residual, predicted, and diagnostics.
+    """
+    # Demean explicitly to avoid DC leakage; estimate_frf also detrends each segment.
+    ref0 = ref - np.mean(ref)
+    tgt0 = tgt - np.mean(tgt)
+
+    f_xy, H_xy, g2_xy = estimate_frf(ref0, tgt0, fs)
+    # Keep only the coherent part in the subtraction model
+    H_eff = H_xy * np.clip(g2_xy, 0.0, 1.0)
+
+    pred = apply_frf(ref0, fs, f_xy, H_eff)
+    resid = tgt0 - pred
+
+    # Diagnostics: band-limited energy ratio
+    f_tgt, Pyy_tgt = compute_spec(fs, tgt0)
+    f_res, Pyy_res = compute_spec(fs, resid)
+    # Interpolate target/residual PSDs to the FRF grid for a consistent mask
+    Pyy_tgt_i = np.interp(f_xy, f_tgt, Pyy_tgt, left=0.0, right=0.0)
+    Pyy_res_i = np.interp(f_xy, f_res, Pyy_res, left=0.0, right=0.0)
+
+    band = coherent_band_mask(f_xy, g2_xy, fs, fmin=fmin, fmax_frac=fmax_frac, g2_thresh=g2_thresh)
+    E_tgt = band_energy_from_psd(f_xy, Pyy_tgt_i, band)
+    E_res = band_energy_from_psd(f_xy, Pyy_res_i, band)
+    ratio = (E_res / E_tgt) if E_tgt > 0 else np.nan
+    ic({'FS_cancel_band_Eratio_res_over_tgt': ratio})
+
+    return resid, pred, (f_xy, H_eff, g2_xy), (f_res, Pyy_res), (f_tgt, Pyy_tgt), ratio
+
+
 ############################
 # Calibration: PH→NKD
 ############################
 def main_PH():
     """
     Calibrate, save and check the PH→NKD transfer function.
-    NOTE: In channelData_300_plug, col1 = NKD (output), col2 = PH (input).
+    NOTE: In channelData_300_plug, col1 = PH (input, pinhole), col2 = NKD (output, naked).
     We compute H as PH→NKD using (x=PH, y=NKD). All signals are converted to Pa.
     """
     root = 'data/11092025'
@@ -351,24 +457,31 @@ def main_PH():
     for idx in range(len(psi_labels)):
         ic(f"Processing {psi_labels[idx]}...")
 
-        # Load data (to Pa): col1 = NKD, col2 = PH
-        nkd, ph = load_mat_to_pa(fn_sweep[idx], key='channelData_300_plug', ch1_name='NKD', ch2_name='PH')
+        # Load data (to Pa): col1 = PH, col2 = NKD
+        ph, nkd = load_pair_pa(fn_sweep[idx], 'channelData_300_plug')
 
         # Trim initial transient (consistent with NKD→NC calibration)
         if TRIM_CAL_SECS > 0:
             start = int(TRIM_CAL_SECS * FS)
-            nkd, ph = nkd[start:], ph[start:]
+            ph = ph[start:]
+            nkd = nkd[start:]
 
         # Optional quick-look at PH input
         plot_time_series(np.arange(len(ph)) / FS, ph, f"{FIG_DIR}/ph_{psi_labels[idx]}")
 
         # FRF PH→NKD (x=PH, y=NKD)
-        f, H, gamma2 = estimate_frf(nkd, ph, FS)
+        f, H, gamma2 = estimate_frf(ph, nkd, FS)
         np.save(f"{CAL_DIR}/H_{psi_labels[idx]}.npy", H)
         np.save(f"{CAL_DIR}/gamma2_{psi_labels[idx]}.npy", gamma2)
         np.save(f"{CAL_DIR}/f_{psi_labels[idx]}.npy", f)
         ic(f.shape, H.shape, gamma2.shape)
         plot_transfer_PH(f, H, f"{FIG_DIR}/H_{psi_labels[idx]}", psi_labels[idx])
+
+        # Sanity: expect |H|>1 where pinhole attenuates and coherence is decent
+        mask = coherent_band_mask(f, gamma2, FS)
+        if np.any(mask):
+            mag_med = float(np.median(np.abs(H[mask])))
+            ic({'PH_to_NKD_median_|H|_in_band': mag_med})
 
         # Sanity: reconstruct PH from NKD using the inverse (should resemble PH)
         ph_hat = wiener_inverse(nkd, FS, f, H, gamma2)
@@ -395,13 +508,14 @@ def main_NC():
         ic(f"Processing {psi_labels[idx]}...")
 
         # Load data (to Pa): col1 = NKD, col2 = NC
-        nkd, nc = load_mat_to_pa(fn_sweep[idx], key='channelData_300_nose', ch1_name='NKD', ch2_name='NC')
+        nkd, nc = load_pair_pa(fn_sweep[idx], 'channelData_300_nose')
         plot_time_series(np.arange(len(nkd)) / FS, nkd, f"{FIG_DIR}/nkd_{psi_labels[idx]}")
 
         # Trim first TRIM_CAL_SECS to avoid initial transients
         if TRIM_CAL_SECS > 0:
             start = int(TRIM_CAL_SECS * FS)
-            nkd, nc = nkd[start:], nc[start:]
+            nkd = nkd[start:]
+            nc = nc[start:]
 
         # FRF NKD→NC
         f, H, gamma2 = estimate_frf(nkd, nc, FS)
@@ -424,7 +538,7 @@ def real_data():
     fn_sweep = [f'{root}/data.mat' for _ in psi_labels]
     OUTPUT_DIR = "figures/cali_09/flow"
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    PH_path = _resolve_cal_dir("PH-NKD")   # PH→NKD
+    PH_path = _resolve_cal_dir("PH-NKD")   # PH→NKD (intended)
     NC_path = _resolve_cal_dir("NKD-NC")   # NKD→NC
 
     RAW_DIR = f"{OUTPUT_DIR}/raw"
@@ -434,59 +548,54 @@ def real_data():
     pressures = np.array([P_ATM] + [P_ATM + float(p[:-3]) * PSI_TO_PA for p in psi_labels[1:]], dtype=float)
     rhos = pressures / (R * T)
 
-    Times = []
-    Pyys = []
-
     for idx in range(len(psi_labels)):
         ic(f"Processing {psi_labels[idx]}...")
 
         # Load real data (to Pa): channelData_300 -> col1=NC, col2=PH
-        nc, ph = load_mat_to_pa(fn_sweep[idx], key='channelData_300', ch1_name='NC', ch2_name='PH')
+        nc, ph = load_pair_pa(fn_sweep[idx], 'channelData_300')
         t = np.arange(len(ph)) / FS
 
-        # --- Raw PH spectrum (for comparison) in inner-scaled premultiplied form
-        f_raw, Pyy_raw = compute_spec(FS, ph)  # Pa^2/Hz
-        # x_inv_fplus, y_pm = premultiplied_phi_pp_plus(f_raw, Pyy_raw, rhos[idx], u_taus[idx], nu_s[idx])
-        # plot_raw_spectrum(f_raw, Pyy_raw, f"{OUTPUT_DIR}/Pphph_{psi_labels[idx]}_raw")
-
+        # --- Raw PH spectrum (for comparison)
+        f_raw, Pyy_raw = compute_spec(FS, ph)
 
         # --- Correct NC: invert NKD→NC to get NKD from NC
         H_NC = np.load(f"{NC_path}/H_{psi_labels[idx]}.npy")
         gamma2_NC = np.load(f"{NC_path}/gamma2_{psi_labels[idx]}.npy")
         f_NC = np.load(f"{NC_path}/f_{psi_labels[idx]}.npy")
         nkd_from_nc = wiener_inverse(nc, FS, f_NC, H_NC, gamma2_NC)
-        # plot_time_series(t, nkd_from_nc, f"{OUTPUT_DIR}/nkd_from_nc_{psi_labels[idx]}")
 
-        # --- Correct PH: apply PH→NKD forward to get NKD from PH
+        # --- Correct PH: prefer forward PH→NKD, but auto-fallback to inverse if saved H is mis-oriented
         H_PH = np.load(f"{PH_path}/H_{psi_labels[idx]}.npy")
+        gamma2_PH = np.load(f"{PH_path}/gamma2_{psi_labels[idx]}.npy")
         f_PH = np.load(f"{PH_path}/f_{psi_labels[idx]}.npy")
-        nkd_from_ph = apply_frf(ph, FS, f_PH, H_PH)
-        # plot_time_series(t, nkd_from_ph, f"{OUTPUT_DIR}/nkd_from_ph_{psi_labels[idx]}")
 
-        # --- Spectrum of corrected PH (NKD domain), inner-scaled premultiplied
+        choice, nkd_from_ph = select_ph_correction(nkd_from_nc, ph, FS, f_PH, H_PH, gamma2_PH)
+        ic({'PH_correction_used': choice})
+
+        # --- Spectrum of corrected PH (NKD domain)
         f_corr, Pyy_corr = compute_spec(FS, nkd_from_ph)
-        # x_inv_fplus, y_pm = premultiplied_phi_pp_plus(f_corr, Pyy_corr, rhos[idx], u_taus[idx], nu_s[idx])
-        # Times.append(x_inv_fplus)
-        # Pyys.append(y_pm)
-        # plot_raw_spectrum(f_corr, f_corr*Pyy_corr, f"{OUTPUT_DIR}/Pyy_{psi_labels[idx]}_corr")
 
-        # --- Coherent rejection: remove component of nkd_from_ph coherent with nkd_from_nc
-        # FRF x→y with x=nkd_from_nc, y=nkd_from_ph (both NKD domain)
-        f_xy, H_xy, gamma2_xy = estimate_frf(nkd_from_nc, nkd_from_ph, FS)
-        y_hat = apply_frf(nkd_from_nc, FS, f_xy, H_xy)   # predict coherent part of PH stream
-        y_resid = nkd_from_ph - y_hat                    # coherent rejection residual
+        # --- Coherent FS-noise rejection (γ²-weighted, ref = nkd_from_nc → tgt = nkd_from_ph)
+        resid, pred, (f_xy, H_eff, g2_xy), (f_rej, Pyy_rej), (f_tgt, Pyy_tgt), Eratio = \
+            coherent_cancel(nkd_from_nc, nkd_from_ph, FS)
 
-        f_rej, Pyy_rej = compute_spec(FS, y_resid)
-        # x_inv_fplus, y_pm_rej = premultiplied_phi_pp_plus(f_rej, Pyy_rej, rhos[idx], u_taus[idx], nu_s[idx])
-        plot_raw_spectrum(f_rej, f_rej*Pyy_rej, f"{OUTPUT_DIR}/Pyy_{psi_labels[idx]}_rej")
-        plot_spectrum_pipeline([f_raw, f_corr, f_rej], [f_raw*Pyy_raw, f_corr*Pyy_corr, 
-                                                        f_rej*Pyy_rej], f"{OUTPUT_DIR}/Pyy_comparison_{psi_labels[idx]}")
+        # --- Plots
+        plot_raw_spectrum(f_rej, f_rej * Pyy_rej, f"{OUTPUT_DIR}/Pyy_{psi_labels[idx]}_rej")
+        plot_spectrum_pipeline(
+            [f_raw,    f_corr,     f_rej],
+            [f_raw*Pyy_raw, f_corr*Pyy_corr, f_rej*Pyy_rej],
+            f"{OUTPUT_DIR}/Pyy_comparison_{psi_labels[idx]}"
+        )
+
+        # Optional: print quick numeric checks
+        # Expect band-limited residual energy < target energy (Eratio < 1) in coherent band
+        ic({'FS_cancel_pass': bool(np.isfinite(Eratio) and (Eratio < 1.0))})
 
 
 if __name__ == "__main__":
     # Run calibrations if needed to (re)generate FRFs:
-    main_PH()
-    main_NC()
+    # main_PH()
+    # main_NC()
 
     # Apply to the real flow data:
     real_data()
