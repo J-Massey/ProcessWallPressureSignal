@@ -23,7 +23,7 @@ from plotting import (
 # Constants & defaults
 ############################
 FS = 50_000.0
-NPERSEG = 2**10
+NPERSEG = 2**15
 WINDOW = "hann"
 CALIB_BASE_DIR = "data/calibration"  # base directory to save calibration .npy files
 TRIM_CAL_SECS = 30  # seconds trimmed from the start of calibration runs (0 to disable)
@@ -36,7 +36,7 @@ PSI_TO_PA = 6_894.76
 # Labels for operating conditions; first entry is assumed 'atm'
 psi_labels = ['atm']
 Re_taus = np.array([1500], dtype=float)
-u_taus  = np.array([0.481/2], dtype=float)
+u_taus  = np.array([0.481], dtype=float)
 nu_atm  = 1.52e-5  # m^2/s
 
 # -------------------------------------------------------------------------
@@ -65,7 +65,7 @@ PREAMP_GAIN = {  # linear gain; leave 1.0 if unknown
 # -------------------------------------------------------------------------
 DATA_LAYOUT = {
     'channelData_300_plug': ('PH', 'NKD'),  # col1, col2
-    'channelData_300_nose': ('NKD', 'NC'),
+    'channelData_300_nose': ('NC', 'NKD'),
     'channelData_300':      ('NC',  'PH'),
 }
 
@@ -460,7 +460,7 @@ def main_PH():
     """
     root = 'data/11092025'
     fn_sweep = [f'{root}/cali.mat' for _ in psi_labels]
-    FIG_DIR = "figures/cali_09/PH-NKD"
+    FIG_DIR = "figures/cali_09"
     CAL_DIR = os.path.join(CALIB_BASE_DIR, "PH-NKD")
     os.makedirs(FIG_DIR, exist_ok=True)
     os.makedirs(CAL_DIR, exist_ok=True)
@@ -564,6 +564,8 @@ def real_data():
         # Load real data (to Pa): channelData_300 -> col1=NC, col2=PH
         nc, ph = load_pair_pa(fn_sweep[idx], 'channelData_300')
         t = np.arange(len(ph)) / FS
+        plot_time_series(t, ph, f"{RAW_DIR}/ph_{psi_labels[idx]}")
+        plot_time_series(t, nc, f"{RAW_DIR}/nc_{psi_labels[idx]}")
 
         # --- Raw PH spectrum (for comparison)
         f_raw, Pyy_raw = compute_spec(FS, ph)
@@ -603,20 +605,11 @@ def real_data():
             f"{OUTPUT_DIR}/Pyy_comparison_{psi_labels[idx]}"
         )
 
-        # --- Quick numeric checks (HF band tendency)
-        # Compare corrected vs raw PH energy in the upper coherent band to ensure "goes the right way".
-        hf_mask = (f_PH > 0.2*FS) & (f_PH <= 0.4*FS) & (gamma2_PH >= 0.6)
-        if np.any(hf_mask):
-            hf_gain_med = float(np.median(np.abs(H_PH_stab[hf_mask])))
-            ic({'HF_median_|H_PH->NKD|': hf_gain_med, 'expect_>=': 1.0})
-
-        ic({'FS_cancel_pass': bool(np.isfinite(Eratio) and (Eratio < 1.0))})
-
 
 if __name__ == "__main__":
     # Run calibrations if needed to (re)generate FRFs:
-    main_PH()
-    main_NC()
+    # main_PH()
+    # main_NC()
 
     # Apply to the real flow data:
     real_data()

@@ -53,6 +53,7 @@ def plot_time_series(t, p_w, outfile):
     ax.plot(t, p_w, lw=0.1)
     ax.set_xlabel("Time [s]")
     ax.set_ylabel("Pressure [Pa]")
+    ax.set_ylim(-.2, .2)
     # ax.legend()
     plt.tight_layout()
     plt.savefig(outfile)
