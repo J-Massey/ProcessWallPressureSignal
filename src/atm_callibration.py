@@ -208,6 +208,45 @@ def compute_spec(fs: float, x: np.ndarray, npsg : int = NPERSEG):
     )
     return f, Pxx
 
+def wiener_forward(x, fs, f, H, gamma2, nfft_pow=0, demean=True, zero_dc=True):
+    """
+    Forward FRF application: given x (PH) and H_{PH->NKD}, synthesize ŷ ≈ NKD.
+    Uses coherence-weighted magnitude (sqrt(gamma2)) and safe OOB taper.
+    """
+    import numpy as np
+
+    x = np.asarray(x, float)
+    if demean:
+        x = x - x.mean()
+
+    N = x.size
+    Nfft = int(2 ** np.ceil(np.log2(N))) if nfft_pow == 0 else 2**nfft_pow
+    X = np.fft.rfft(x, n=Nfft)
+    fr = np.fft.rfftfreq(Nfft, d=1.0/fs)
+
+    mag = np.abs(H)
+    phi = np.unwrap(np.angle(H))
+
+    # Interp H and coherence to FFT grid
+    mag_i = np.interp(fr, f, mag, left=0.0, right=0.0)
+    phi_i = np.interp(fr, f, phi, left=0.0, right=0.0)
+    H_i = mag_i * np.exp(1j * phi_i)
+
+    # Coherence weighting (shrink toward zero where unreliable)
+    g2_i = np.clip(np.interp(fr, f, gamma2, left=0.0, right=0.0), 0.0, 1.0)
+    W = np.sqrt(g2_i)
+
+    # Apply forward FRF with weighting
+    Y = W * H_i * X
+
+    # Optional zero DC
+    if zero_dc and Y.size > 0:
+        Y[0] = 0.0
+
+    y_hat = np.fft.irfft(Y, n=Nfft)[:N]
+    return y_hat
+
+
 
 def wiener_inverse(
     y_r: np.ndarray,
@@ -448,7 +487,7 @@ def band_energy_from_psd(f: np.ndarray, Pxx: np.ndarray, mask: np.ndarray):
     """Integrate PSD over masked band to get band-limited variance [Pa^2]."""
     if not np.any(mask):
         return 0.0
-    return float(np.trapz(Pxx[mask], f[mask]))
+    return float(np.trapezoid(Pxx[mask], f[mask]))
 
 def coherent_cancel(ref: np.ndarray,
                     tgt: np.ndarray,
@@ -495,7 +534,7 @@ def main_PH(npsg = 2**10):
     """
     root = 'data/11092025'
     fn_sweep = [f'{root}/cali.mat' for _ in psi_labels]
-    FIG_DIR = "figures/cali_09"
+    FIG_DIR = "figures/cali_09/PH-NKD"
     CAL_DIR = os.path.join(CALIB_BASE_DIR, "PH-NKD")
     os.makedirs(FIG_DIR, exist_ok=True)
     os.makedirs(CAL_DIR, exist_ok=True)
@@ -512,15 +551,15 @@ def main_PH(npsg = 2**10):
             ph = ph[start:]
             nkd = nkd[start:]
 
-        plot_time_series(np.arange(len(ph)) / FS, ph, f"{FIG_DIR}/ph_{psi_labels[idx]}")
+        plot_time_series(np.arange(len(ph)) / FS, ph, f"{FIG_DIR}/ph_{psi_labels[idx]}_npsg{npsg}")
 
         # FRF PH→NKD (x=PH, y=NKD)
         f, H, gamma2 = estimate_frf(ph, nkd, FS, npsg=npsg)
         np.save(f"{CAL_DIR}/H_{psi_labels[idx]}.npy", H)
         np.save(f"{CAL_DIR}/gamma2_{psi_labels[idx]}.npy", gamma2)
         np.save(f"{CAL_DIR}/f_{psi_labels[idx]}.npy", f)
-        
-        plot_transfer_PH(f, H, f"{FIG_DIR}/H_{psi_labels[idx]}", psi_labels[idx])
+
+        plot_transfer_PH(f, H, f"{FIG_DIR}/H_{psi_labels[idx]}_npsg{npsg}", psi_labels[idx])
 
         # Sanity: expect |H|>1 where pinhole attenuates and coherence is decent
         mask = coherent_band_mask(f, gamma2, FS)
@@ -529,9 +568,9 @@ def main_PH(npsg = 2**10):
             ic({'PH_to_NKD_median_|H|_in_band': mag_med})
 
         # Sanity: reconstruct PH from NKD using the inverse (should resemble PH)
-        ph_hat = wiener_inverse(nkd, FS, f, H, gamma2)
+        ph_hat = wiener_forward(ph, FS, f, H, gamma2)
         t = np.arange(len(ph_hat)) / FS
-        plot_corrected_trace_PH(t, ph, nkd, ph_hat, f"{FIG_DIR}/ph_recon_{psi_labels[idx]}", psi_labels[idx])
+        plot_corrected_trace_PH(t, nkd, ph, ph_hat, f"{FIG_DIR}/ph_recon_{psi_labels[idx]}_npsg{npsg}", psi_labels[idx])
 
 
 ############################
@@ -681,7 +720,7 @@ def real_data():
 
 if __name__ == "__main__":
     # Run calibrations at npsg =2**10 to smooth the TFs.
-    main_PH()
+    [main_PH(npsg) for npsg in [2**20, 2**14, 2**12, 2**10, 2**8]]
     # main_NC()
 
     # Apply to the real flow data:
