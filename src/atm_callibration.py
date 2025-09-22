@@ -116,7 +116,7 @@ def estimate_frf(
 
     H = np.conj(Sxy) / Sxx                 # H1 = Syx / Sxx = conj(Sxy)/Sxx
     gamma2 = (np.abs(Sxy) ** 2) / (Sxx * Syy)
-    gamma2 = np.clip(gamma2.real, 0.0, 1.0)
+    gamma2 = np.clip(gamma2.real, 0.0, 2.0)
     return f, H, gamma2
 
 
@@ -561,12 +561,6 @@ def main_PH(npsg = 2**10):
 
         plot_transfer_PH(f, H, f"{FIG_DIR}/H_{psi_labels[idx]}_npsg{npsg}", psi_labels[idx])
 
-        # Sanity: expect |H|>1 where pinhole attenuates and coherence is decent
-        mask = coherent_band_mask(f, gamma2, FS)
-        if np.any(mask):
-            mag_med = float(np.median(np.abs(H[mask])))
-            ic({'PH_to_NKD_median_|H|_in_band': mag_med})
-
         # Sanity: reconstruct PH from NKD using the inverse (should resemble PH)
         ph_hat = wiener_forward(ph, FS, f, H, gamma2)
         t = np.arange(len(ph_hat)) / FS
@@ -720,7 +714,7 @@ def real_data():
 
 if __name__ == "__main__":
     # Run calibrations at npsg =2**10 to smooth the TFs.
-    [main_PH(npsg) for npsg in [2**20, 2**14, 2**12, 2**10, 2**8]]
+    [main_PH(npsg) for npsg in [2**14, 2**12, 2**10, 2**8]]
     # main_NC()
 
     # Apply to the real flow data:

@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023) (preloaded format=pdflatex 2025.9.8)  22 SEP 2025 08:41
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023) (preloaded format=pdflatex 2025.9.8)  22 SEP 2025 09:29
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -1077,6 +1077,39 @@ Package pdftex.def Info: ../../figures/./../figures/cali_09/flow/raw/Pyy_nkd_fro
  [5
 
  <../../figures/./../figures/cali_09/flow/raw/nkd_recon_from_ph_atm.png> <../../figures/./../figures/cali_09/flow/raw/Pyy_ph_raw_atm.png> <../../figures/./../figures/cali_09/flow/raw/Pyy_nkd_from_ph_atm.png>]
+<../../figures/./../figures/cali_09/PH-NKD/H_atm_npsg16384.png, id=82, 418.08195pt x 201.27196pt>
+File: ../../figures/./../figures/cali_09/PH-NKD/H_atm_npsg16384.png Graphic file (type png)
+<use ../../figures/./../figures/cali_09/PH-NKD/H_atm_npsg16384.png>
+Package pdftex.def Info: ../../figures/./../figures/cali_09/PH-NKD/H_atm_npsg16384.png  used on input line 155.
+(pdftex.def)             Requested size: 131.45314pt x 63.28122pt.
+<../../figures/./../figures/cali_09/PH-NKD/H_atm_npsg4096.png, id=83, 418.08195pt x 201.27196pt>
+File: ../../figures/./../figures/cali_09/PH-NKD/H_atm_npsg4096.png Graphic file (type png)
+<use ../../figures/./../figures/cali_09/PH-NKD/H_atm_npsg4096.png>
+Package pdftex.def Info: ../../figures/./../figures/cali_09/PH-NKD/H_atm_npsg4096.png  used on input line 155.
+(pdftex.def)             Requested size: 131.45314pt x 63.28122pt.
+<../../figures/./../figures/cali_09/PH-NKD/H_atm_npsg256.png, id=84, 418.08195pt x 201.27196pt>
+File: ../../figures/./../figures/cali_09/PH-NKD/H_atm_npsg256.png Graphic file (type png)
+<use ../../figures/./../figures/cali_09/PH-NKD/H_atm_npsg256.png>
+Package pdftex.def Info: ../../figures/./../figures/cali_09/PH-NKD/H_atm_npsg256.png  used on input line 155.
+(pdftex.def)             Requested size: 131.45314pt x 63.28122pt.
+<../../figures/./../figures/cali_09/PH-NKD/ph_recon_atm_npsg16384.png, id=85, 418.08195pt x 201.27196pt>
+File: ../../figures/./../figures/cali_09/PH-NKD/ph_recon_atm_npsg16384.png Graphic file (type png)
+<use ../../figures/./../figures/cali_09/PH-NKD/ph_recon_atm_npsg16384.png>
+Package pdftex.def Info: ../../figures/./../figures/cali_09/PH-NKD/ph_recon_atm_npsg16384.png  used on input line 155.
+(pdftex.def)             Requested size: 131.45314pt x 63.28122pt.
+<../../figures/./../figures/cali_09/PH-NKD/ph_recon_atm_npsg4096.png, id=86, 418.08195pt x 201.27196pt>
+File: ../../figures/./../figures/cali_09/PH-NKD/ph_recon_atm_npsg4096.png Graphic file (type png)
+<use ../../figures/./../figures/cali_09/PH-NKD/ph_recon_atm_npsg4096.png>
+Package pdftex.def Info: ../../figures/./../figures/cali_09/PH-NKD/ph_recon_atm_npsg4096.png  used on input line 155.
+(pdftex.def)             Requested size: 131.45314pt x 63.28122pt.
+<../../figures/./../figures/cali_09/PH-NKD/ph_recon_atm_npsg256.png, id=87, 418.08195pt x 201.27196pt>
+File: ../../figures/./../figures/cali_09/PH-NKD/ph_recon_atm_npsg256.png Graphic file (type png)
+<use ../../figures/./../figures/cali_09/PH-NKD/ph_recon_atm_npsg256.png>
+Package pdftex.def Info: ../../figures/./../figures/cali_09/PH-NKD/ph_recon_atm_npsg256.png  used on input line 155.
+(pdftex.def)             Requested size: 131.45314pt x 63.28122pt.
+ [6
+
+ <../../figures/./../figures/cali_09/PH-NKD/H_atm_npsg16384.png> <../../figures/./../figures/cali_09/PH-NKD/H_atm_npsg4096.png> <../../figures/./../figures/cali_09/PH-NKD/H_atm_npsg256.png> <../../figures/./../figures/cali_09/PH-NKD/ph_recon_atm_npsg16384.png> <../../figures/./../figures/cali_09/PH-NKD/ph_recon_atm_npsg4096.png> <../../figures/./../figures/cali_09/PH-NKD/ph_recon_atm_npsg256.png>]
 \tf@nav=\write6
 \openout6 = `spectra_clean.nav'.
 
@@ -1091,18 +1124,18 @@ Package rerunfilecheck Info: File `spectra_clean.out' has not changed.
 (rerunfilecheck)             Checksum: D41D8CD98F00B204E9800998ECF8427E;0.
  ) 
 Here is how much of TeX's memory you used:
- 32108 strings out of 476041
- 689532 string characters out of 5793175
+ 32168 strings out of 476041
+ 692856 string characters out of 5793175
  1857388 words of memory out of 6000000
- 51940 multiletter control sequences out of 15000+600000
- 534298 words of font info for 99 fonts, out of 8000000 for 9000
+ 51990 multiletter control sequences out of 15000+600000
+ 534555 words of font info for 100 fonts, out of 8000000 for 9000
  1137 hyphenation exceptions out of 8191
  128i,16n,122p,518b,891s stack positions out of 10000i,1000n,20000p,200000b,200000s
-</usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss12.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssbx10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssi12.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt8.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/palatino/uplr8a.pfb>
-Output written on spectra_clean.pdf (5 pages, 1165402 bytes).
+</usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss12.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssbx10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssi12.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt8.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/palatino/uplr8a.pfb>
+Output written on spectra_clean.pdf (6 pages, 3736561 bytes).
 PDF statistics:
- 121 PDF objects out of 1000 (max. 8388607)
- 62 compressed objects within 1 object stream
- 11 named destinations out of 1000 (max. 500000)
- 117 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 145 PDF objects out of 1000 (max. 8388607)
+ 71 compressed objects within 1 object stream
+ 13 named destinations out of 1000 (max. 500000)
+ 147 words of extra memory for PDF output out of 10000 (max. 10000000)
 
