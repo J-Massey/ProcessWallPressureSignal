@@ -1,0 +1,23 @@
+\begin{thebibliography}{6}
+\expandafter\ifx\csname natexlab\endcsname\relax\def\natexlab#1{#1}\fi
+\def\au#1{#1} \def\ed#1{#1} \def\yr#1{#1}\def\at#1{#1}\def\jt#1{\textit{#1}} \def\bt#1{#1}\def\bvol#1{\textbf{#1}} \def\vol#1{#1} \def\pg#1{#1} \def\publ#1{#1}\def\arxiv#1{#1}\def\org#1{#1}\def\st#1{\textit{#1}}
+
+\bibitem[Corcos(1964)]{corcos_structure_1964}
+{\sc \au{Corcos, G.~M.}} \yr{1964}  \at{The structure of the turbulent pressure field in boundary-layer flows}.  \jt{J. Fluid Mech.}  \bvol{18}~(03),  \pg{353}.
+
+\bibitem[Eitel-Amor {\em et~al.\/}(2014)Eitel-Amor, Örlü \& Schlatter]{eitel-amor_simulation_2014}
+{\sc \au{Eitel-Amor, Georg}, \au{Örlü, Ramis} \& \au{Schlatter, Philipp}} \yr{2014}  \at{Simulation and validation of a spatially evolving turbulent boundary layer up to}.  \jt{International Journal of Heat and Fluid Flow}  \bvol{47},  \pg{57--69}.
+
+\bibitem[Fritsch {\em et~al.\/}(2020)Fritsch, Vishwanathan, Duetsch-Patel, Gargiulo, Lowe \& Devenport]{fritsch_pressure_2020}
+{\sc \au{Fritsch, Danny}, \au{Vishwanathan, Vidya}, \au{Duetsch-Patel, Julie}, \au{Gargiulo, Aldo}, \au{Lowe, Kevin~T.} \& \au{Devenport, William~J.}} \yr{2020} The {Pressure} {Signature} of {High} {Reynolds} {Number} {Smooth} {Wall} {Turbulent} {Boundary} {Layers} in {Pressure} {Gradient} {Family}.  \bt{In {\em {AIAA} {AVIATION} 2020 {FORUM}\/}}.  \publ{VIRTUAL EVENT: American Institute of Aeronautics and Astronautics}.
+
+\bibitem[Fritsch {\em et~al.\/}(2022)Fritsch, Vishwanathan, Todd~Lowe \& Devenport]{fritsch_fluctuating_2022}
+{\sc \au{Fritsch, Daniel~J.}, \au{Vishwanathan, Vidya}, \au{Todd~Lowe, K.} \& \au{Devenport, William~J.}} \yr{2022}  \at{Fluctuating {Pressure} {Beneath} {Smooth} {Wall} {Boundary} {Layers} in {Nonequilibrium} {Pressure} {Gradients}}.  \jt{AIAA Journal}  \bvol{60}~(8),  \pg{4725--4743}.
+
+\bibitem[Massey {\em et~al.\/}(2025)Massey, Smits \& McKeon]{massey_eddy_2025}
+{\sc \au{Massey, Jonathan M.~O.}, \au{Smits, Alexander~J.} \& \au{McKeon, Beverley~J.}} \yr{2025} Eddy population based model for the wall-pressure spectrum at high {Reynolds} number. ArXiv:2507.23098 [physics].
+
+\bibitem[Willmarth \& Wooldridge(1962)]{willmarth_measurements_1962}
+{\sc \au{Willmarth, W.~W.} \& \au{Wooldridge, C.~E.}} \yr{1962}  \at{Measurements of the fluctuating pressure at the wall beneath a thick turbulent boundary layer}.  \jt{J. Fluid Mech.}  \bvol{14}~(2),  \pg{187--210}.
+
+\end{thebibliography}
