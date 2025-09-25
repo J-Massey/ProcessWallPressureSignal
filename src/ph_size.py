@@ -8,5 +8,9 @@ nu_utau = np.array([29.00,
 delta = np.array([0.030])
 U_cl = 14
 
-l = 200 * nu_utau
-ic(l*1000)  # mm
+l = 100 * nu_utau
+
+res = np.array([1500, 5000, 8200])
+delta = 0.035
+nu_utau = (1/(res/delta))*1e6
+ic(nu_utau)
