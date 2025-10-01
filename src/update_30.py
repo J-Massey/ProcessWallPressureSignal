@@ -349,7 +349,7 @@ def apply_frf(
     mag = np.abs(H)
     phi = np.unwrap(np.angle(H))
     # Safer OOB behaviour: taper magnitude to zero outside measured band
-    mag_i = np.interp(fr, f, mag, left=0.0, right=0.0)
+    mag_i = np.interp(fr, f, mag, left=1.0, right=0.0)
     phi_i = np.interp(fr, f, phi, left=phi[0], right=phi[-1])
     Hi = mag_i * np.exp(1j * phi_i)
 
@@ -1016,7 +1016,7 @@ def main_30_50psi_PH_callibration():
         nkd = nkd[start:]
 
     # FRF PH→NKD (x=PH, y=NKD)
-    f, H, gamma2 = estimate_frf(ph, nkd, FS, npsg=NPERSEG)
+    f, H, gamma2 = estimate_frf(ph, nkd, FS, npsg=2**9)
     np.save(f"{CAL_DIR}/H_atm.npy", H)
     np.save(f"{CAL_DIR}/gamma2_atm.npy", gamma2)
     np.save(f"{CAL_DIR}/f_atm.npy", f)
@@ -1080,17 +1080,17 @@ def main_30_50psi_NC_callibration():
         nkd = nkd[start:]
 
     # FRF PH→NKD (x=PH, y=NKD)
-    f, H, gamma2 = estimate_frf(nc, nkd, FS, npsg=NPERSEG)
+    f, H, gamma2 = estimate_frf(nc, nkd, FS, npsg=2**9)
     np.save(f"{CAL_DIR}/H_atm.npy", H)
     np.save(f"{CAL_DIR}/gamma2_atm.npy", gamma2)
     np.save(f"{CAL_DIR}/f_atm.npy", f)
 
-    plot_transfer_PH(f, H, f"{OUTPUT_DIR}/H_atm_npsg{NPERSEG}", "50psi")
+    plot_transfer_NC(f, H, f"{OUTPUT_DIR}/H_atm_npsg{NPERSEG}", "50psi")
 
     # Sanity: reconstruct PH from NKD using the inverse (should resemble PH)
     ph_hat = wiener_forward(nc, FS, f, H, gamma2)
     t = np.arange(len(ph_hat)) / FS
-    plot_corrected_trace_PH(t, nkd, nc, ph_hat, f"{OUTPUT_DIR}/nc_recon_atm_npsg{NPERSEG}", "50psi")
+    plot_corrected_trace_NC(t, nkd, nc, ph_hat, f"{OUTPUT_DIR}/nc_recon_atm_npsg{NPERSEG}", "50psi")
 
     # TF correct PH
     root = 'data/30092025'
@@ -1197,6 +1197,6 @@ if __name__ == "__main__":
     # main_30_atm_NC_callibration()
     # main_30_atm_remove_facility_noise()
     # main30_50psi()
-    # main_30_50psi_PH_callibration()
-    # main_30_50psi_NC_callibration()
-    main_30_50psi_remove_facility_noise()
+    main_30_50psi_PH_callibration()
+    main_30_50psi_NC_callibration()
+    # main_30_50psi_remove_facility_noise()

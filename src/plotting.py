@@ -292,42 +292,42 @@ def plot_corrected_trace(t, ref, trt, trt_corr, outfile, tspan=0.032):
     plt.savefig(outfile)
     plt.close()
 
-def plot_corrected_trace_NC(t, x_r, y_r, y, outfile, pres: str, tspan=0.032):
+def plot_corrected_trace_NC(t, x_r, y_r, y, outfile, pres: str, tspan=0.05):
     tspan = (t[0]+2, t[0]+2+tspan)
     m = (t>=tspan[0]) & (t<=tspan[1])
     fig, (ax_raw, ax_corr) = plt.subplots(2, 1, sharex=True, figsize=(6, 3), dpi=600)
     ax_raw.plot(t[m], x_r[m], lw=0.5)
     ax_raw.plot(t[m], y_r[m], lw=0.5)
     ax_raw.set_ylabel(r'$p$')
-    corr_coeff = np.corrcoef(x_r[m], y_r[m])[0,1]
-    ax_raw.set_title(f"Raw Signals (Corr: {corr_coeff:.3f}) {pres}")
-    ax_raw.legend(["NC", "NKD"])
+    corr_coeff = np.corrcoef(x_r, y_r)[0,1]
+    ax_raw.set_title(f"Raw Signals {pres}")
+    ax_raw.legend(["NKD", "NC"])
     ax_corr.plot(t[m], x_r[m], lw=0.5)
     ax_corr.plot(t[m], y[m], lw=0.5)
     ax_corr.set_ylabel(r'$p$')
     ax_corr.set_xlabel(r'$t$ [s]')
-    corr_coeff = np.corrcoef(x_r[m], y[m])[0,1]
-    ax_corr.set_title(f"Corrected Signals (Corr: {corr_coeff:.3f}) {pres}")
+    corr_coeff = np.corrcoef(x_r, y)[0,1]
+    ax_corr.set_title(f"Corrected Signals {pres}")
     fig.tight_layout()
     plt.savefig(outfile)
     plt.close()
 
-def plot_corrected_trace_PH(t, x_r, y_r, y, outfile, pres: str, tspan=0.032):
+def plot_corrected_trace_PH(t, x_r, y_r, y, outfile, pres: str, tspan=0.05):
     tspan = (t[0]+2, t[0]+2+tspan)
     m = (t>=tspan[0]) & (t<=tspan[1])
     fig, (ax_raw, ax_corr) = plt.subplots(2, 1, sharex=True, figsize=(6, 3), dpi=600)
     ax_raw.plot(t[m], x_r[m], lw=0.5)
     ax_raw.plot(t[m], y_r[m], lw=0.5)
     ax_raw.set_ylabel(r'$p$')
-    corr_coeff = np.corrcoef(x_r[m], y_r[m])[0,1]
-    ax_raw.set_title(f"Raw Signals (Corr: {corr_coeff:.3f}) {pres}")
+    corr_coeff = np.corrcoef(y_r, x_r)[0,1]
+    ax_raw.set_title(f"Raw Signals {pres}")
     ax_raw.legend(["NKD", "PH"])
     ax_corr.plot(t[m], x_r[m], lw=0.5)
     ax_corr.plot(t[m], y[m], lw=0.5)
     ax_corr.set_ylabel(r'$p$')
     ax_corr.set_xlabel(r'$t$ [s]')
-    corr_coeff = np.corrcoef(x_r[m], y[m])[0,1]
-    ax_corr.set_title(f"Corrected Signals (Corr: {corr_coeff:.3f}) {pres}")
+    corr_coeff = np.corrcoef(x_r, y)[0,1]
+    ax_corr.set_title(f"Corrected Signals {pres}")
     fig.tight_layout()
     plt.savefig(outfile)
     plt.close()

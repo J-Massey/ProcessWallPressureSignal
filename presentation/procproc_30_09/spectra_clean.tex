@@ -57,7 +57,7 @@
 
 
 %--- Title info
-\title{Pressure signal processing}
+\title{Pressure measurements}
 \author{JMO Massey$^{\dag}$, F Cabrera-Booman, T Jaroslawski, JC Klewicki, BJ McKeon}
 \institute{Center for Turbulence Research \\ Stanford University}
 % \thanks{This work was supported by DARPA under the CHAOS program}
@@ -73,344 +73,65 @@
     {\scriptsize \centering Thanks to DARPA for funding this work.\par}
 \end{frame}
 
-\begin{frame}
-  \frametitle{POA}
-  \begin{enumerate}
-    \item Raw TS
-    \item Raw spectra
-    \item PH calibration
-    \item TF corrected TS
-    \item TF corrected spectra
-    \item Notched electrical facility noise
-    \item Notched FS and PH spectra
-    \item Coherence correction
-    \item Cleaned spectra
-  \end{enumerate}
-\end{frame}
-
-\begin{frame}
-  \frametitle{Going from raw data to clean spectra}
-  \begin{columns}[c] % vertically centered
-    \column{0.42\textwidth}
-    %   \includegraphics[width=\linewidth]{leftfig}
-        Raw measurements from pinhole (PH) mic.
-    
-    \column{0.10\textwidth}
-      \centering
-      \scalebox{3}{$\Longrightarrow$}
-    \column{0.42\textwidth}
-    %   \includegraphics[width=\linewidth]{rightfig}
-        Cleaned pressure spectra.
-    
-  \end{columns}
-\end{frame}
-
-\begin{frame}
-    \begin{figure}
-    \centering
-    \begin{tikzpicture}[scale=0.7, transform shape, node distance=6mm and 18mm,
-                    every node/.style={font=\small}]
-        \centering
-    % Start
-        \node (start) [terminator] {Flow};
-
-        % Two separate measurement boxes
-        \node (refraw)   [meas, below left = 6mm and 14mm of start, anchor=north east]
-            {Free Stream, $x_r$};
-            
-        \node (tretraw) [meas, below right = 6mm and 14mm of start, anchor=north west]
-            {Wall Pressure, $y_r$};
-
-        \node (Href) [proc, below=of refraw]
-            {$ (\gamma^2,\mathcal{H})_{\mathrm{NC-NKD}} $ from callib.};
-
-        \node (ref) [decision, below=of Href]
-            {Corr, $x$};
-
-
-        \node (Htret)  [proc, below=of tretraw]
-            {$ (\gamma^2,\mathcal{H})_{\mathrm{PH-NKD^*}} $ from callib.};
-
-        \node (tret)  [decision, below=of Htret]
-            {Corr, $y$};
-
-        \node (Hcomb)  [proc, below=57mm of start]
-            {$ (\gamma^2,\mathcal{H})_{\mathrm{FS-W}} $ (alg~\ref{alg:H})};
-
-        \node (corr)  [proc, below=of Hcomb]
-            {Inverse Wiener (alg~\ref{alg:inv})};
-
-        \node (post)  [decision, below=of corr]
-            {Clean WPFs};
-
-        \draw [line] (start) -- (refraw);
-        \draw [line] (refraw) -- (Href);
-        \draw [line] (Href) -- (ref);
-        \draw [line] (start) -- (tretraw);
-        \draw [line] (tretraw) -- (Htret);
-        \draw [line] (Htret) -- (tret);
-        \draw [line] (tret) -- (Hcomb);
-        \draw [line] (ref) -- (Hcomb);
-        \draw [line] (Hcomb) -- (corr);
-        \draw [line] (corr) -- (post);
-
-    \end{tikzpicture}
-    \caption{Complete pressure processing pipeline for measurement of the WPFs through a pinhole microphone.}
-    \end{figure}
-\end{frame}
-
-\begin{frame}
-    \frametitle{Microphone calibration: Naked (NKD)}
-    \begin{columns}[c] % vertically centered
-        \column{0.55\textwidth}
-            \centering
-            \begin{tikzpicture}[scale=0.7, transform shape,
-                node distance=6mm and 18mm, every node/.style={font=\small}]
-                \node (start) [terminator] {White Noise Source};
-
-                % Two separate measurement boxes
-                \node (ref)   [meas, below left = 6mm and 14mm of start, anchor=north east]
-                    {NKD S1, $x$};
-                \node (treat) [meas, below right = 6mm and 14mm of start, anchor=north west]
-                    {NKD S2, $y_r$};
-
-                \node (H)  [proc, below=18mm of start]
-                    {Compute $(\gamma^2,\mathcal{H})$ (alg~\ref{alg:H})};
-
-                \node (wien)  [proc, below=of H]
-                    {Inverse Wiener (alg~\ref{alg:inv})};
-
-                \node (corr)  [decision, below right = 6mm and 14mm of wien]
-                    {Corrected signal, $y \approxeq x$};
-
-                \draw [line] (start) -- (ref);
-                \draw [line] (start) -- (treat);
-                \draw [line] (ref) -- (H);
-                \draw [line] (treat) -- (H);
-                \draw [line] (H) -- (wien);
-                \draw [line] (wien) -- (corr);
-                \draw [line] (treat) -- (corr);
-
-            \end{tikzpicture}
-        \column{0.4\textwidth}
-            \includegraphics[width=0.8\linewidth]{S1-S2/H_atm.png}
-            % \includegraphics[width=0.8\linewidth]{S1-S2/H_30psi.png}
-            \includegraphics[width=0.8\linewidth]{S1-S2/H_50psi.png}
-            % \includegraphics[width=0.8\linewidth]{S1-S2/H_70psi.png}
-            \includegraphics[width=0.8\linewidth]{S1-S2/H_100psi.png}
-    \end{columns}
-\end{frame}
-
-\begin{frame}
-    \frametitle{Microphone calibration: Naked (NKD)}
-    \begin{columns}[c] % vertically centered
-        \column{0.55\textwidth}
-            \centering
-            \begin{tikzpicture}[scale=0.7, transform shape,
-                node distance=6mm and 18mm, every node/.style={font=\small}]
-                \node (start) [terminator] {White Noise Source};
-
-                % Two separate measurement boxes
-                \node (ref)   [meas, below left = 6mm and 14mm of start, anchor=north east]
-                    {NKD S1, $x$};
-                \node (treat) [meas, below right = 6mm and 14mm of start, anchor=north west]
-                    {NKD S2, $y_r$};
-
-                \node (H)  [proc, below=18mm of start]
-                    {Compute $(\gamma^2,\mathcal{H})$ (alg~\ref{alg:H})};
-
-                \node (wien)  [proc, below=of H]
-                    {Inverse Wiener (alg~\ref{alg:inv})};
-
-                \node (corr)  [decision, below right = 6mm and 14mm of wien]
-                    {Corrected signal, $y \approxeq x$};
-
-                \draw [line] (start) -- (ref);
-                \draw [line] (start) -- (treat);
-                \draw [line] (ref) -- (H);
-                \draw [line] (treat) -- (H);
-                \draw [line] (H) -- (wien);
-                \draw [line] (wien) -- (corr);
-                \draw [line] (treat) -- (corr);
-
-            \end{tikzpicture}
-        \column{0.4\textwidth}
-            \includegraphics[width=0.8\linewidth]{S1-S2/y_atm.png}
-            % \includegraphics[width=0.8\linewidth]{S1-S2/y_30psi.png}
-            \includegraphics[width=0.8\linewidth]{S1-S2/y_50psi.png}
-            % \includegraphics[width=0.8\linewidth]{S1-S2/y_70psi.png}
-            \includegraphics[width=0.8\linewidth]{S1-S2/y_100psi.png}
-    \end{columns}
-\end{frame}
-
-\begin{frame}
-    \frametitle{Microphone calibration: Nose Cone (NC)}
-    \begin{columns}[c] % vertically centered
-        \column{0.55\textwidth}
-            \centering
-            \begin{tikzpicture}[scale=0.7, transform shape,
-                node distance=6mm and 18mm, every node/.style={font=\small}]
-                \node (start) [terminator] {White Noise Source};
-
-                % Two separate measurement boxes
-                \node (ref)   [meas, below left = 6mm and 14mm of start, anchor=north east]
-                    {NKD S1, $x$};
-                \node (treat) [meas, below right = 6mm and 14mm of start, anchor=north west]
-                    {NC S2, $y_r$};
-
-                \node (H)  [proc, below=18mm of start]
-                    {Compute $(\gamma^2,\mathcal{H})$ (alg~\ref{alg:H})};
-
-                \node (wien)  [proc, below=of H]
-                    {Inverse Wiener (alg~\ref{alg:inv})};
-
-                \node (corr)  [decision, below right = 6mm and 14mm of wien]
-                    {Corrected signal, $y \approxeq x$};
-
-                \draw [line] (start) -- (ref);
-                \draw [line] (start) -- (treat);
-                \draw [line] (ref) -- (H);
-                \draw [line] (treat) -- (H);
-                \draw [line] (H) -- (wien);
-                \draw [line] (wien) -- (corr);
-                \draw [line] (treat) -- (corr);
-
-            \end{tikzpicture}
-        \column{0.4\textwidth}
-            \includegraphics[width=0.8\linewidth]{NC-NKD/H_atm.png}
-            % \includegraphics[width=0.8\linewidth]{NC-NKD/H_30psi.png}
-            \includegraphics[width=0.8\linewidth]{NC-NKD/H_50psi.png}
-            % \includegraphics[width=0.8\linewidth]{NC-NKD/H_70psi.png}
-            \includegraphics[width=0.8\linewidth]{NC-NKD/H_100psi.png}
-    \end{columns}
-\end{frame}
-
-\begin{frame}
-    \frametitle{Microphone calibration: Pinhole (PH)}
-    \begin{columns}[c] % vertically centered
-        \column{0.55\textwidth}
-            \centering
-            \begin{tikzpicture}[scale=0.7, transform shape,
-                node distance=6mm and 18mm, every node/.style={font=\small}]
-                \node (start) [terminator] {White Noise Source};
-
-                % Two separate measurement boxes
-                \node (refraw)   [meas, below left = 6mm and 14mm of start, anchor=north east]
-                    {NKD S2, $x_r$};
-
-                \node (S1S2) [proc, below=of refraw]
-                    {Apply $\mathcal{H}_{\mathrm{S1-S2}}$, $x$};
-
-                \node (ref) [decision, below=of S1S2]
-                    {Corr, $x$};
-
-                \node (treat) [meas, below right = 8mm and 14mm of start, anchor=north west]
-                    {Treated S1, $y_r$};
-
-                \node (H)  [proc, below left = 28mm and -4mm of start, anchor=north west]
-                    {Compute $(\gamma^2,\mathcal{H})$ (alg~\ref{alg:H})};
-
-
-                \node (wien)  [proc, below=of H]
-                    {Inverse Wiener (alg~\ref{alg:inv})};
-
-                \node (corr)  [decision, below right = 6mm and 14mm of wien]
-                    {Corrected signal, $y \approxeq x$};
-
-                \draw [line] (start) -- (refraw);
-                \draw [line] (start) -- (treat);
-                \draw [line] (refraw) -- (S1S2);
-                \draw [line] (S1S2) -- (ref);
-                \draw [line] (ref) -- (H);
-                \draw [line] (treat) -- (H);
-                \draw [line] (H) -- (wien);
-                \draw [line] (wien) -- (corr);
-                \draw [line] (treat) -- (corr);
-
-            \end{tikzpicture}
-        \column{0.4\textwidth}
-            \includegraphics[width=0.8\linewidth]{PH-NKD/H_atm.png}
-            % \includegraphics[width=0.8\linewidth]{PH-NKD/H_30psi.png}
-            \includegraphics[width=0.8\linewidth]{PH-NKD/H_50psi.png}
-            % \includegraphics[width=0.8\linewidth]{PH-NKD/H_70psi.png}
-            \includegraphics[width=0.8\linewidth]{PH-NKD/H_100psi.png}
-    \end{columns}
-\end{frame}
-
-\begin{frame}
-    \frametitle{Corrected signals}
-    \begin{columns}[c]
-        \column{0.3\textwidth}
-        \centering
-            Corrected NC trace
-            \includegraphics[width=\linewidth]{NC-NKD/y_atm.png}
-            % \includegraphics[width=\linewidth]{NC-NKD/y_30psi.png}
-            \includegraphics[width=\linewidth]{NC-NKD/y_50psi.png}
-            % \includegraphics[width=\linewidth]{NC-NKD/y_70psi.png}
-            \includegraphics[width=\linewidth]{NC-NKD/y_100psi.png}
-        \column{0.3\textwidth}
-        \centering
-            Corrected PH trace
-            \includegraphics[width=\linewidth]{PH-NKD/y_atm.png}
-            % \includegraphics[width=\linewidth]{PH-NKD/y_30psi.png}
-            \includegraphics[width=\linewidth]{PH-NKD/y_50psi.png}
-            % \includegraphics[width=\linewidth]{PH-NKD/y_70psi.png}
-            \includegraphics[width=\linewidth]{PH-NKD/y_100psi.png}
-    \end{columns}
-\end{frame}
-
-\begin{frame}
-    \frametitle{Raw vs corrected}
-    \centering
-    Corrected NC trace
-    \includegraphics[width=\linewidth]{real/spectra/Pyy_log.png}
-            
-\end{frame}
-
-\begin{frame}
-  \frametitle{Calibration algos}
-\begin{columns}[c]
-\column{0.48\textwidth}
-    \begin{algorithm}[H] % <-- H prevents floating inside columns
-        \footnotesize
-        \caption{$H$ Transfer-Function Estimation}\label{alg:H}
-        \begin{algorithmic}[1]
-            \Require $x[n]$ (ref), $y[n]$ (treated), $f_s$, Welch $(N_{\mathrm{seg}},N_{\mathrm{ov}},w)$
-            \Ensure $f[k]$, $H[k]$, $\gamma^2[k]$
-            \State Compute $S_{xx}[k],S_{yy}[k]$ (Welch)
-            \State Compute $S_{xy}[k]$ (same settings)
-            \State $H[k]\gets S_{xy}[k]/S_{xx}[k]$
-            \State $\gamma^2[k]\gets |S_{xy}[k]|^2/(S_{xx}[k]S_{yy}[k])$
-            \State \Return $(f[k],H[k],\gamma^2[k])$
-        \end{algorithmic}
-    \end{algorithm}
-    \column{0.48\textwidth}
-        \begin{algorithm}[H]
-            \footnotesize
-            \caption{Coherence-weighted Wiener inverse}\label{alg:inv}
-            \begin{algorithmic}[1]
-                \Require $y_r$, $f_s$, grid $f$, $H(f)$, $\gamma^2(f)$
-                \Ensure $y$
-                \State $y_r \leftarrow y_r - \mathrm{mean}(y_r)$
-                \State $\hat{y}_r\gets\mathcal{F}(y_r,N_{\mathrm{fft}})$
-                \State $m\gets|H|$, $\ \phi\gets\mathrm{unwrap}(\angle H)$
-                \State Interp $m,\phi,\gamma^2$ to FFT grid $\Rightarrow m_i,\phi_i,\gamma_i^2$
-                \State $H_i\gets m_i\,e^{j\phi_i}$;\ \ $\varepsilon\gets$ machine epsilon
-                \State $H_{\!inv}\gets \gamma_i^2\,H_i^{\!*}/\max(m_i^2,\varepsilon)$
-                \State $H_{\!inv}[0]\gets 0$ \quad(\& Nyquist if present)
-                \State $y\gets \Re\!\left\{\mathcal{F}^{-1}\!\big(\hat{y}_r\cdot H_{\!inv}\big)[0{:}N]\right\}$
-                \State \Return $y$
-            \end{algorithmic}
-        \end{algorithm}
-
-  \end{columns}
-\end{frame}
-
-
-% \begin{frame}[noframenumbering,allowframebreaks]
-%     \frametitle{References}
-%     \bibliographystyle{jfm}
-%     \bibliography{refs}
+% \begin{frame}
+%   \frametitle{POA}
+%   \begin{enumerate}
+%     \item Test matrix- callibrate mics, collect data, process and clean
+%     \item Raw 50 psi data
+%     \item spectra in fs vs 
+%   \end{enumerate}
 % \end{frame}
+
+\begin{frame}
+    \frametitle{Test matrix}
+    Data completed thus far:
+    \begin{table}[]
+        \centering
+        \begin{tabular}{lccccc}
+        \toprule
+        Pressure (psi) & 0 & 30 &  50 & 70&100 \\
+        \midrule
+        $Re_\tau$ & 1,500  &3,500& 5,000 &6,500& 8,000 \\
+        \bottomrule
+        \end{tabular}
+    \end{table}
+
+    % \begin{itemize}
+    %     \item Fix $U_e=14[\mathrm{m/s}]$
+    %     \item $\delta\approx 0.035[\mathrm{mm}]$
+    % \end{itemize}
+    Two point in progress:
+    \begin{table}[]
+        \centering
+        \begin{tabular}{lccccc}
+        \toprule
+        Pressure (psi) & 0  &  50 & 100 \\
+        \midrule
+        $Re_\tau$ & 1,500 & 5,000 & 8,000 \\
+        \bottomrule
+        \end{tabular}
+    \end{table}
+\end{frame}
+
+\begin{frame}
+    \frametitle{NC calibration}
+    \centering
+    \includegraphics[width=0.5\textwidth]{cali_30/50psi/NC-NKD/H_atm_npsg4096.png}
+    \includegraphics[width=0.5\textwidth]{cali_30/50psi/NC-NKD/nc_recon_atm_npsg4096.png}
+\end{frame}
+
+\begin{frame}
+    \frametitle{PH calibration}
+    \centering
+    \includegraphics[width=0.5\textwidth]{cali_30/50psi/PH-NKD/H_atm_npsg4096.png}
+    \includegraphics[width=0.5\textwidth]{cali_30/50psi/PH-NKD/ph_recon_atm_npsg4096.png}
+\end{frame}
+
+\begin{frame}
+    \frametitle{Raw data: 50 psi}
+    \centering
+    \includegraphics[width=0.75\textwidth]{cali_30/50psi/raw_signals_atm.pdf}
+    % \includegraphics[width=0.5\textwidth]{cali_30/50psi/raw_spectra_atm.pdf}
+\end{frame}
 
 \end{document}
