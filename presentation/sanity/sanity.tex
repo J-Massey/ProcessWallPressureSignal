@@ -124,11 +124,11 @@
 \end{frame}
 
 \begin{frame}
-  \frametitle{Does the noise add up?}
-  \centering
-  \includegraphics[width=0.8\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_nkd_fn_plus_nn.pdf}
-
-    Yes, it does! Does this mean we can subtract the facility noise from all of the calibration cases?
+    \frametitle{Do the TFs look reasonably similar?}
+        \centering
+        \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/H_50psi_nn.png}
+        \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/H_50psi_fn.png}
+        \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/H_50psi_an.png}
 \end{frame}
 
 \begin{frame}
@@ -149,22 +149,22 @@
 \end{frame}
 
 \begin{frame}
-    \frametitle{TF reconstructed signal w. spectra w. HP \& LP filter}
-    Filter at 0.1Hz and 2kHz corresponding to LP cutoff of $T^+=10$ at 50psi
+    \frametitle{Do the TFs look reasonably similar after filtering?}
         \centering
-        \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_nn_filt.pdf}
-        \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_fn_filt.pdf}
-        \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_an_filt.pdf}
+        \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/H_50psi_nn_filt.png}
+        \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/H_50psi_fn_filt.png}
+        \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/H_50psi_an_filt.png}
 \end{frame}
-
 
 \begin{frame}
-  \frametitle{Raw Spectra with HP filter: no difference in the calibration signal}
-    \centering
-    \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_hpf_nonoise.pdf}
-    \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_hpf_noise.pdf}
-    \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_hpf_noiseWN.pdf}
+    \frametitle{TF reconstructed spectra with HP \& LP filter}
+        \centering
+        \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_nn_recon_filt.pdf}
+        \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_fn_recon_filt.pdf}
+        \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_an_filt_recon.pdf}
 \end{frame}
+
+
 
 
 

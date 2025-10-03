@@ -618,7 +618,7 @@ np.save(f"{CAL_DIR}/H_nn.npy", H_nn)
 np.save(f"{CAL_DIR}/gamma2_nn.npy", gamma2_nn)
 np.save(f"{CAL_DIR}/f_nn.npy", f)
 
-plot_transfer_PH(f, H_nn, f"{OUTPUT_DIR}/H_50psi", "50psi")
+plot_transfer_PH(f, H_nn, f"{OUTPUT_DIR}/H_50psi_nn", "50psi")
 
 # Sanity: reconstruct PH from NKD using the inverse (should resemble PH)
 ph_hat_nn = wiener_forward(ph_nn, FS, f, H_nn, gamma2_nn)
@@ -655,6 +655,41 @@ ax.set_xlabel("$f$ [Hz]")
 ax.set_ylabel(r"$f \phi_{pp}$")
 ax.legend()
 fig.savefig(f"{OUTPUT_DIR}/calib_spectra_50psi_nn_filt.pdf", dpi=400)
+
+# Trim initial transients
+if TRIM_CAL_SECS > 0:
+    start = int(TRIM_CAL_SECS * FS)
+    ph_nn_filt = ph_nn_filt[start:]
+    nkd_nn_filt = nkd_nn_filt[start:]
+
+# FRF PH→NKD (x=PH, y=NKD)
+f, H_nn_filt, gamma2_nn_filt = estimate_frf(ph_nn_filt, nkd_nn_filt, FS, npsg=2**9)
+np.save(f"{CAL_DIR}/H_nn_filt.npy", H_nn_filt)
+np.save(f"{CAL_DIR}/gamma2_nn_filt.npy", gamma2_nn_filt)
+np.save(f"{CAL_DIR}/f_nn_filt.npy", f)
+
+plot_transfer_PH(f, H_nn_filt, f"{OUTPUT_DIR}/H_50psi_nn_filt", "50psi")
+
+# Sanity: reconstruct PH from NKD using the inverse (should resemble PH)
+ph_hat_nn_filt = wiener_forward(ph_nn_filt, FS, f, H_nn_filt, gamma2_nn_filt)
+t = np.arange(len(ph_hat_nn_filt)) / FS
+plot_corrected_trace_PH(t, nkd_nn_filt, ph_nn_filt, ph_hat_nn_filt, f"{OUTPUT_DIR}/ph_recon_50psi_nn_filt", "50psi")
+
+# plot spectra of nkd, ph, and ph_hat
+f, Pyy_nkd_nn_filt = compute_spec(FS, nkd_nn_filt)
+f, Pyy_ph_nn_filt = compute_spec(FS, ph_nn_filt)
+f, Pyy_ph_hat_nn_filt = compute_spec(FS, ph_hat_nn_filt)
+fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True)
+ax.loglog(f, f * Pyy_nkd_nn_filt, label='NKD')
+ax.loglog(f, f * Pyy_ph_nn_filt, label='PH')
+ax.loglog(f, f * Pyy_ph_hat_nn_filt, label='PH hat')
+plot_white(ax)
+ax.set_xlabel("$f$ [Hz]")
+ax.set_ylabel(r"$f \phi_{pp}$")
+ax.legend()
+fig.savefig(f"{OUTPUT_DIR}/calib_spectra_50psi_nn_filt_recon.pdf", dpi=400)
+
+
 
 
 root = 'data/30092025'
@@ -699,7 +734,7 @@ np.save(f"{CAL_DIR}/H_fn.npy", H_fn)
 np.save(f"{CAL_DIR}/gamma2_fn.npy", gamma2_fn)
 np.save(f"{CAL_DIR}/f_fn.npy", f)
 
-plot_transfer_PH(f, H_fn, f"{OUTPUT_DIR}/H_50psi", "50psi")
+plot_transfer_PH(f, H_fn, f"{OUTPUT_DIR}/H_50psi_fn", "50psi")
 
 # Sanity: reconstruct PH from NKD using the inverse (should resemble PH)
 ph_hat_fn = wiener_forward(ph_fn, FS, f, H_fn, gamma2_fn)
@@ -736,6 +771,43 @@ ax.set_xlabel("$f$ [Hz]")
 ax.set_ylabel(r"$f \phi_{pp}$")
 ax.legend()
 fig.savefig(f"{OUTPUT_DIR}/calib_spectra_50psi_fn_filt.pdf", dpi=400)
+
+# Trim initial transients
+if TRIM_CAL_SECS > 0:
+    start = int(TRIM_CAL_SECS * FS)
+    ph_fn_filt = ph_fn_filt[start:]
+    nkd_fn_filt = nkd_fn_filt[start:]
+
+# FRF PH→NKD (x=PH, y=NKD)
+f, H_fn_filt, gamma2_fn_filt = estimate_frf(ph_fn_filt, nkd_fn_filt, FS, npsg=2**9)
+np.save(f"{CAL_DIR}/H_fn_filt.npy", H_fn_filt)
+np.save(f"{CAL_DIR}/gamma2_fn_filt.npy", gamma2_fn_filt)
+np.save(f"{CAL_DIR}/f_fn_filt.npy", f)
+
+plot_transfer_PH(f, H_fn_filt, f"{OUTPUT_DIR}/H_50psi_fn_filt", "50psi")
+
+# Sanity: reconstruct PH from NKD using the inverse (should resemble PH)
+ph_hat_fn_filt = wiener_forward(ph_fn_filt, FS, f, H_fn_filt, gamma2_fn_filt)
+t = np.arange(len(ph_hat_fn_filt)) / FS
+plot_corrected_trace_PH(t, nkd_fn_filt, ph_fn_filt, ph_hat_fn_filt, f"{OUTPUT_DIR}/ph_recon_50psi_fn_filt", "50psi")
+
+# plot spectra of nkd, ph, and ph_hat
+f, Pyy_nkd_fn_filt = compute_spec(FS, nkd_fn_filt)
+f, Pyy_ph_fn_filt = compute_spec(FS, ph_fn_filt)
+f, Pyy_ph_hat_fn_filt = compute_spec(FS, ph_hat_fn_filt)
+fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True)
+ax.loglog(f, f * Pyy_nkd_fn_filt, label='NKD')
+ax.loglog(f, f * Pyy_ph_fn_filt, label='PH')
+ax.loglog(f, f * Pyy_ph_hat_fn_filt, label='PH hat')
+plot_white(ax)
+ax.set_xlabel("$f$ [Hz]")
+ax.set_ylabel(r"$f \phi_{pp}$")
+ax.legend()
+fig.savefig(f"{OUTPUT_DIR}/calib_spectra_50psi_fn_filt_recon.pdf", dpi=400)
+
+
+
+
 
 root = 'data/30092025'
 fn = f'{root}/50psi/nkd-ph_facilitynoise.mat'
@@ -849,7 +921,19 @@ ph_hat_an_filt = wiener_forward(ph_an_filt, FS, f, H_an_filt, gamma2_an_filt)
 t = np.arange(len(ph_hat_an_filt)) / FS
 plot_corrected_trace_PH(t, nkd_an_filt, ph_an_filt, ph_hat_an_filt, f"{OUTPUT_DIR}/ph_recon_50psi_an_filt", "50psi")
 
-
+# plot spectra of nkd, ph, and ph_hat
+f, Pyy_nkd_an_filt = compute_spec(FS, nkd_an_filt)
+f, Pyy_ph_an_filt = compute_spec(FS, ph_an_filt)
+f, Pyy_ph_hat_an_filt = compute_spec(FS, ph_hat_an_filt)
+fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True)
+ax.loglog(f, f * Pyy_nkd_an_filt, label='NKD')
+ax.loglog(f, f * Pyy_ph_an_filt, label='PH')
+ax.loglog(f, f * Pyy_ph_hat_an_filt, label='PH hat')
+plot_white(ax)
+ax.set_xlabel("$f$ [Hz]")
+ax.set_ylabel(r"$f \phi_{pp}$")
+ax.legend()
+fig.savefig(f"{OUTPUT_DIR}/calib_spectra_50psi_an_filt_recon.pdf", dpi=400)
 
 # Does Pyy_nkd_an=Pyy_nkd_fn + Pyy_nkd_nn?
 fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True)
