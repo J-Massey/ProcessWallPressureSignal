@@ -57,7 +57,7 @@
 
 
 %--- Title info
-\title{Pressure measurements}
+\title{Pressure checks}
 \author{JMO Massey$^{\dag}$, F Cabrera-Booman, T Jaroslawski, JC Klewicki, BJ McKeon}
 \institute{Center for Turbulence Research \\ Stanford University}
 % \thanks{This work was supported by DARPA under the CHAOS program}
@@ -73,27 +73,27 @@
     {\scriptsize \centering Thanks to DARPA for funding this work.\par}
 \end{frame}
 
-\begin{frame}
-  \frametitle{POA}
-  \begin{enumerate}
-    \item Focus on 50psi ph calibration signals
-    \item Show the raw signals
-    \begin{itemize}
-        \item Show loglog for 3 cases.
-        \item No noise, w. background noise, white noise ?
-    \end{itemize}
-    \item Show the spectra
-    \item Show with HP filtering
-    \item Apply transfer function and show the TF
-    \item Determine whether a LP filter can be applied at $f=2kHz$
-    \begin{itemize}
-        \item $T^+\equiv T u_\tau^2/\nu$
-        \item at 50psi $Re_\tau\approx 5000$ $u_\tau\approx 0.51$, $\nu\approx 1.43$
-        \item $T^+=20 \to f=948Hz$
-    \end{itemize}
-    \item 
-  \end{enumerate}
-\end{frame}
+% \begin{frame}
+%   \frametitle{POA}
+%   \begin{enumerate}
+%     \item Focus on 50psi ph calibration signals
+%     \item Show the raw signals
+%     \begin{itemize}
+%         \item Show loglog for 3 cases.
+%         \item No noise, w. background noise, white noise ?
+%     \end{itemize}
+%     \item Show the spectra
+%     \item Show with HP filtering
+%     \item Apply transfer function and show the TF
+%     \item Determine whether a LP filter can be applied at $f=2kHz$
+%     \begin{itemize}
+%         \item $T^+\equiv T u_\tau^2/\nu$
+%         \item at 50psi $Re_\tau\approx 5000$ $u_\tau\approx 0.51$, $\nu\approx 1.43$
+%         \item $T^+=20 \to f=948Hz$
+%     \end{itemize}
+%     \item 
+%   \end{enumerate}
+% \end{frame}
 
 \begin{frame}
   \frametitle{Raw signals}
@@ -103,6 +103,7 @@
     \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_ts_signals_50psi_noise.pdf}
     \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_ts_signals_50psi_noiseWN.pdf}
   \end{figure}
+  \centering
   \textbf{Top left:} white noise, \textbf{top right:} \emph{only} facility noise, \textbf{bottom:} white noise + facility noise
 \end{frame}
 
