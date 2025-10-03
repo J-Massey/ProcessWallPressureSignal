@@ -118,17 +118,24 @@
 \end{frame}
 
 \begin{frame}
-  \frametitle{Does the noise add up?}
+  \frametitle{The calibration noise adds up}
     \centering
     \includegraphics[width=0.8\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_nkd_fn_plus_nn.pdf}
 \end{frame}
 
 \begin{frame}
-    \frametitle{Do the TFs look reasonably similar?}
+    \frametitle{White noise is needed to highlight required TF}
         \centering
         \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/H_50psi_nn.png}
         \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/H_50psi_fn.png}
         \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/H_50psi_an.png}
+\end{frame}
+
+\begin{frame}
+    \frametitle{TF function between identical signals is 1}
+        \centering
+        \includegraphics[width=0.8\textwidth]{sanity/50psi/PH-NKD/H_50psi_same.png}
+        
 \end{frame}
 
 \begin{frame}
@@ -159,13 +166,31 @@
 \begin{frame}
     \frametitle{TF reconstructed spectra with HP \& LP filter}
         \centering
-        \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_nn_recon_filt.pdf}
-        \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_fn_recon_filt.pdf}
+        \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_nn_filt_recon.pdf}
+        \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_fn_filt_recon.pdf}
         \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_an_filt_recon.pdf}
+
+    There's no benefit of filtering the signals before calculating the TF
+\end{frame}
+% Check 
+
+\begin{frame}
+    \frametitle{In-situ measurements at 50psi}
+        \centering
+        \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_ts_signals_50psi_nf.pdf}
+        \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_ts_signals_50psi_f.pdf}
 \end{frame}
 
+\begin{frame}
+    \frametitle{In-situ spectra at 50psi}
+        \centering
+        \includegraphics[width=0.8\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_f.pdf}
+\end{frame}
 
-
-
+\begin{frame}
+    \frametitle{TF corrected spectra, no difference}
+        \centering
+        \includegraphics[width=0.8\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_flow_recon.pdf}
+\end{frame}
 
 \end{document}

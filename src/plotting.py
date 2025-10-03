@@ -231,10 +231,10 @@ def plot_transfer_PH(f, H, outfile, pres: str):
     mag = np.abs(H); ph = np.unwrap(np.angle(H))
     fig, (ax_mag, ax_ph) = plt.subplots(2, 1, sharex=True, figsize=(6, 3), dpi=600)
     ax_mag.set_title(r'$H_{\mathrm{PH-NKD}}$ at ' + pres)
-    ax_mag.loglog(f, mag, lw=1)
+    ax_mag.loglog(f, mag, lw=1, color='k')
     ax_mag.set_ylabel(r'$|H_{\mathrm{PH-NKD}}(f)|$')
     ax_mag.set_ylim(0.1, 100)
-    ax_ph.semilogx(f, ph, lw=1)
+    ax_ph.semilogx(f, ph, lw=1, color='k')
     ax_ph.set_ylabel(r'$\angle H_{\mathrm{PH-NKD}}(f)\,[\mathrm{rad}]$')
     ax_ph.set_xlabel(r'$f\ \mathrm{[Hz]}$')
     ax_ph.set_ylim(-50, 0)
@@ -315,15 +315,17 @@ def plot_corrected_trace_NC(t, x_r, y_r, y, outfile, pres: str, tspan=0.05):
 def plot_corrected_trace_PH(t, x_r, y_r, y, outfile, pres: str, tspan=0.05):
     tspan = (t[0]+2, t[0]+2+tspan)
     m = (t>=tspan[0]) & (t<=tspan[1])
+    ph_colour = '#ff7f0e'  # matplotlib default orange
+    nkd_colour = '#2ca02c'  # matplotlib default green
     fig, (ax_raw, ax_corr) = plt.subplots(2, 1, sharex=True, figsize=(6, 3), dpi=600)
-    ax_raw.plot(t[m], x_r[m], lw=0.5)
-    ax_raw.plot(t[m], y_r[m], lw=0.5)
+    ax_raw.plot(t[m], x_r[m], lw=0.5, color=nkd_colour)
+    ax_raw.plot(t[m], y_r[m], lw=0.5, color=ph_colour)
     ax_raw.set_ylabel(r'$p$')
     corr_coeff = np.corrcoef(y_r, x_r)[0,1]
     ax_raw.set_title(f"Raw Signals {pres}")
     ax_raw.legend(["NKD", "PH"])
-    ax_corr.plot(t[m], x_r[m], lw=0.5)
-    ax_corr.plot(t[m], y[m], lw=0.5)
+    ax_corr.plot(t[m], x_r[m], lw=0.5, color=nkd_colour)
+    ax_corr.plot(t[m], y[m], lw=0.5, color=ph_colour)
     ax_corr.set_ylabel(r'$p$')
     ax_corr.set_xlabel(r'$t$ [s]')
     corr_coeff = np.corrcoef(x_r, y)[0,1]
