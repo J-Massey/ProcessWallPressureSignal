@@ -246,7 +246,7 @@ def plot_transfer_NC(f, H, outfile, pres: str):
     mag = np.abs(H); ph = np.unwrap(np.angle(H))
     fig, (ax_mag, ax_ph) = plt.subplots(2, 1, sharex=True, figsize=(6, 3), dpi=600)
     ax_mag.set_title(r'$H_{\mathrm{NC-NKD}}$ at ' + pres)
-    ax_mag.loglog(f, 1+mag, lw=1)
+    ax_mag.loglog(f, mag, lw=1)
     ax_mag.set_ylabel(r'$|H_{\mathrm{NC-NKD}}(f)|$')
     ax_mag.set_ylim(1, 10)
     ax_ph.semilogx(f, ph, lw=1)
