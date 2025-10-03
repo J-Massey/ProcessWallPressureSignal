@@ -96,7 +96,7 @@
 % \end{frame}
 
 \begin{frame}
-  \frametitle{Raw signals}
+  \frametitle{Raw calibration signals}
   \begin{figure}
     \centering
     \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_ts_signals_50psi_nonoise.pdf}
@@ -108,14 +108,16 @@
 \end{frame}
 
 \begin{frame}
-  \frametitle{Raw Spectra}
+  \frametitle{Raw calibration spectra: welch, $N_{\rm bin}=2^{14}$, $t_{\rm seg}=0.33$s}
   \begin{figure}
     \centering
     \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_nonoise.pdf}
     \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_noise.pdf}
     \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_noiseWN.pdf}
   \end{figure}
-%   Tomek to explain \textbf{top left:} \textbf{top right:} \textbf{bottom:}
+  
+  \centering
+  The PH doesn't suppress anything below $f = 500[\rm Hz]$ ($T^+ \approx 40$)
 \end{frame}
 
 \begin{frame}
@@ -145,6 +147,9 @@
         \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_nn_recon.pdf}
         \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_fn_recon.pdf}
         \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_an_recon.pdf}
+
+      \centering
+      There seems to be some low-end oddities in application of the TF. This could be due to the low-frequency resolution, try a HP\&LP filter.
 \end{frame}
 
 \begin{frame}
@@ -180,6 +185,9 @@
         \centering
         \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_ts_signals_50psi_nf.pdf}
         \includegraphics[width=0.4\textwidth]{sanity/50psi/PH-NKD/calib_ts_signals_50psi_f.pdf}
+
+        \centering
+        \textbf{Left:} facility noise (no flow), \textbf{right:} flow on measurements.
 \end{frame}
 
 \begin{frame}
@@ -189,9 +197,29 @@
 \end{frame}
 
 \begin{frame}
-    \frametitle{TF corrected spectra, no difference}
+    \frametitle{In-situ spectra at 50psi, filtered at 0.1Hz and 2kHz}
+        \centering
+        \includegraphics[width=0.8\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_f_filt.pdf}
+\end{frame}
+
+\begin{frame}
+    \frametitle{In-situ spectra at 50psi, filtered at 0.1Hz and 2kHz, corrected by TF}
+        \centering
+        \includegraphics[width=0.8\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_f_filt_TF.pdf}
+\end{frame}
+
+\begin{frame}
+    \frametitle{Compare this corrected PH to the NC}
+        \centering
+        \includegraphics[width=0.8\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_flow_NC_PH.pdf}
+\end{frame}
+\begin{frame}
+    \frametitle{Now we need to correct for the background noise using a digital Wiener filter}
         \centering
         \includegraphics[width=0.8\textwidth]{sanity/50psi/PH-NKD/calib_spectra_50psi_flow_recon.pdf}
+
+        \centering
+        Turning the flow on seems to add a bunch of low-frequency noise.
 \end{frame}
 
 \end{document}

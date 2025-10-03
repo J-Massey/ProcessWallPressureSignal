@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023) (preloaded format=pdflatex 2025.9.8)  3 OCT 2025 14:25
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023) (preloaded format=pdflatex 2025.9.8)  3 OCT 2025 16:15
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -992,154 +992,190 @@ Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_ts_signals_50
 <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nonoise.pdf, id=62, 327.1984pt x 146.99821pt>
 File: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nonoise.pdf Graphic file (type pdf)
 <use ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nonoise.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nonoise.pdf  used on input line 119.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nonoise.pdf  used on input line 121.
 (pdftex.def)             Requested size: 175.2664pt x 78.74307pt.
 <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_noise.pdf, id=63, 327.1984pt x 146.99821pt>
 File: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_noise.pdf Graphic file (type pdf)
 <use ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_noise.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_noise.pdf  used on input line 119.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_noise.pdf  used on input line 121.
 (pdftex.def)             Requested size: 175.2664pt x 78.74307pt.
 <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_noiseWN.pdf, id=64, 327.1984pt x 146.99821pt>
 File: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_noiseWN.pdf Graphic file (type pdf)
 <use ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_noiseWN.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_noiseWN.pdf  used on input line 119.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_noiseWN.pdf  used on input line 121.
 (pdftex.def)             Requested size: 175.2664pt x 78.74307pt.
+LaTeX Font Info:    Trying to load font information for OT1+ppl on input line 121.
+ (/usr/share/texlive/texmf-dist/tex/latex/psnfss/ot1ppl.fd
+File: ot1ppl.fd 2001/06/04 font definitions for OT1/ppl.
+)
+LaTeX Font Info:    Font shape `U/msa/m/n' will be
+(Font)              scaled to size 11.40997pt on input line 121.
+LaTeX Font Info:    Font shape `U/msa/m/n' will be
+(Font)              scaled to size 8.33606pt on input line 121.
+LaTeX Font Info:    Font shape `U/msb/m/n' will be
+(Font)              scaled to size 11.40997pt on input line 121.
+LaTeX Font Info:    Font shape `U/msb/m/n' will be
+(Font)              scaled to size 8.33606pt on input line 121.
  [3
 
  <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nonoise.pdf> <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_noise.pdf> <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_noiseWN.pdf>]
-<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nkd_fn_plus_nn.pdf, id=114, 332.84387pt x 146.99821pt>
+<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nkd_fn_plus_nn.pdf, id=118, 330.41809pt x 146.99821pt>
 File: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nkd_fn_plus_nn.pdf Graphic file (type pdf)
 <use ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nkd_fn_plus_nn.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nkd_fn_plus_nn.pdf  used on input line 125.
-(pdftex.def)             Requested size: 350.53949pt x 154.82594pt.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nkd_fn_plus_nn.pdf  used on input line 127.
+(pdftex.def)             Requested size: 350.53949pt x 155.95418pt.
  [4
 
  <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nkd_fn_plus_nn.pdf>]
-<../../figures/./sanity/50psi/PH-NKD/H_50psi_nn.png, id=134, 418.08195pt x 201.27196pt>
+<../../figures/./sanity/50psi/PH-NKD/H_50psi_nn.png, id=138, 418.08195pt x 201.27196pt>
 File: ../../figures/./sanity/50psi/PH-NKD/H_50psi_nn.png Graphic file (type png)
 <use ../../figures/./sanity/50psi/PH-NKD/H_50psi_nn.png>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/H_50psi_nn.png  used on input line 133.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/H_50psi_nn.png  used on input line 135.
 (pdftex.def)             Requested size: 175.2664pt x 84.37393pt.
-<../../figures/./sanity/50psi/PH-NKD/H_50psi_fn.png, id=136, 418.08195pt x 201.27196pt>
+<../../figures/./sanity/50psi/PH-NKD/H_50psi_fn.png, id=140, 418.08195pt x 201.27196pt>
 File: ../../figures/./sanity/50psi/PH-NKD/H_50psi_fn.png Graphic file (type png)
 <use ../../figures/./sanity/50psi/PH-NKD/H_50psi_fn.png>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/H_50psi_fn.png  used on input line 133.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/H_50psi_fn.png  used on input line 135.
 (pdftex.def)             Requested size: 175.2664pt x 84.37393pt.
-<../../figures/./sanity/50psi/PH-NKD/H_50psi_an.png, id=137, 418.08195pt x 201.27196pt>
+<../../figures/./sanity/50psi/PH-NKD/H_50psi_an.png, id=141, 418.08195pt x 201.27196pt>
 File: ../../figures/./sanity/50psi/PH-NKD/H_50psi_an.png Graphic file (type png)
 <use ../../figures/./sanity/50psi/PH-NKD/H_50psi_an.png>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/H_50psi_an.png  used on input line 133.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/H_50psi_an.png  used on input line 135.
 (pdftex.def)             Requested size: 175.2664pt x 84.37393pt.
  [5
 
  <../../figures/./sanity/50psi/PH-NKD/H_50psi_nn.png> <../../figures/./sanity/50psi/PH-NKD/H_50psi_fn.png> <../../figures/./sanity/50psi/PH-NKD/H_50psi_an.png>]
-<../../figures/./sanity/50psi/PH-NKD/H_50psi_same.png, id=148, 418.08195pt x 201.27196pt>
+<../../figures/./sanity/50psi/PH-NKD/H_50psi_same.png, id=152, 418.08195pt x 201.27196pt>
 File: ../../figures/./sanity/50psi/PH-NKD/H_50psi_same.png Graphic file (type png)
 <use ../../figures/./sanity/50psi/PH-NKD/H_50psi_same.png>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/H_50psi_same.png  used on input line 140.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/H_50psi_same.png  used on input line 142.
 (pdftex.def)             Requested size: 350.53949pt x 168.76323pt.
  [6
 
  <../../figures/./sanity/50psi/PH-NKD/H_50psi_same.png>]
-<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_recon.pdf, id=156, 331.18834pt x 146.99821pt>
+<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_recon.pdf, id=160, 327.1984pt x 146.99821pt>
 File: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_recon.pdf Graphic file (type pdf)
 <use ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_recon.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_recon.pdf  used on input line 148.
-(pdftex.def)             Requested size: 175.2664pt x 77.79204pt.
-<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_fn_recon.pdf, id=157, 331.18834pt x 146.99821pt>
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_recon.pdf  used on input line 153.
+(pdftex.def)             Requested size: 175.2664pt x 78.74307pt.
+<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_fn_recon.pdf, id=161, 331.18834pt x 146.99821pt>
 File: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_fn_recon.pdf Graphic file (type pdf)
 <use ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_fn_recon.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_fn_recon.pdf  used on input line 148.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_fn_recon.pdf  used on input line 153.
 (pdftex.def)             Requested size: 175.2664pt x 77.79204pt.
-<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_an_recon.pdf, id=158, 331.18834pt x 146.99821pt>
+<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_an_recon.pdf, id=162, 327.1984pt x 146.99821pt>
 File: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_an_recon.pdf Graphic file (type pdf)
 <use ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_an_recon.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_an_recon.pdf  used on input line 148.
-(pdftex.def)             Requested size: 175.2664pt x 77.79204pt.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_an_recon.pdf  used on input line 153.
+(pdftex.def)             Requested size: 175.2664pt x 78.74307pt.
  [7
 
  <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_recon.pdf> <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_fn_recon.pdf> <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_an_recon.pdf>]
-<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_filt.pdf, id=205, 331.18834pt x 146.99821pt>
+<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_filt.pdf, id=209, 331.18834pt x 146.99821pt>
 File: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_filt.pdf Graphic file (type pdf)
 <use ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_filt.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_filt.pdf  used on input line 157.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_filt.pdf  used on input line 162.
 (pdftex.def)             Requested size: 175.2664pt x 77.79204pt.
-<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_fn_filt.pdf, id=206, 331.18834pt x 146.99821pt>
+<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_fn_filt.pdf, id=210, 331.18834pt x 146.99821pt>
 File: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_fn_filt.pdf Graphic file (type pdf)
 <use ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_fn_filt.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_fn_filt.pdf  used on input line 157.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_fn_filt.pdf  used on input line 162.
 (pdftex.def)             Requested size: 175.2664pt x 77.79204pt.
-<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_an_filt.pdf, id=207, 331.18834pt x 146.99821pt>
+<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_an_filt.pdf, id=211, 331.18834pt x 146.99821pt>
 File: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_an_filt.pdf Graphic file (type pdf)
 <use ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_an_filt.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_an_filt.pdf  used on input line 157.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_an_filt.pdf  used on input line 162.
 (pdftex.def)             Requested size: 175.2664pt x 77.79204pt.
  [8
 
  <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_filt.pdf> <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_fn_filt.pdf> <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_an_filt.pdf>]
-<../../figures/./sanity/50psi/PH-NKD/H_50psi_nn_filt.png, id=255, 418.08195pt x 201.27196pt>
+<../../figures/./sanity/50psi/PH-NKD/H_50psi_nn_filt.png, id=257, 418.08195pt x 201.27196pt>
 File: ../../figures/./sanity/50psi/PH-NKD/H_50psi_nn_filt.png Graphic file (type png)
 <use ../../figures/./sanity/50psi/PH-NKD/H_50psi_nn_filt.png>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/H_50psi_nn_filt.png  used on input line 165.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/H_50psi_nn_filt.png  used on input line 170.
 (pdftex.def)             Requested size: 175.2664pt x 84.37393pt.
-<../../figures/./sanity/50psi/PH-NKD/H_50psi_fn_filt.png, id=256, 418.08195pt x 201.27196pt>
+<../../figures/./sanity/50psi/PH-NKD/H_50psi_fn_filt.png, id=258, 418.08195pt x 201.27196pt>
 File: ../../figures/./sanity/50psi/PH-NKD/H_50psi_fn_filt.png Graphic file (type png)
 <use ../../figures/./sanity/50psi/PH-NKD/H_50psi_fn_filt.png>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/H_50psi_fn_filt.png  used on input line 165.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/H_50psi_fn_filt.png  used on input line 170.
 (pdftex.def)             Requested size: 175.2664pt x 84.37393pt.
-<../../figures/./sanity/50psi/PH-NKD/H_50psi_an_filt.png, id=257, 418.08195pt x 201.27196pt>
+<../../figures/./sanity/50psi/PH-NKD/H_50psi_an_filt.png, id=259, 418.08195pt x 201.27196pt>
 File: ../../figures/./sanity/50psi/PH-NKD/H_50psi_an_filt.png Graphic file (type png)
 <use ../../figures/./sanity/50psi/PH-NKD/H_50psi_an_filt.png>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/H_50psi_an_filt.png  used on input line 165.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/H_50psi_an_filt.png  used on input line 170.
 (pdftex.def)             Requested size: 175.2664pt x 84.37393pt.
  [9
 
  <../../figures/./sanity/50psi/PH-NKD/H_50psi_nn_filt.png> <../../figures/./sanity/50psi/PH-NKD/H_50psi_fn_filt.png> <../../figures/./sanity/50psi/PH-NKD/H_50psi_an_filt.png>]
-<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_filt_recon.pdf, id=267, 331.18834pt x 146.99821pt>
+<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_filt_recon.pdf, id=269, 331.18834pt x 146.99821pt>
 File: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_filt_recon.pdf Graphic file (type pdf)
 <use ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_filt_recon.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_filt_recon.pdf  used on input line 175.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_filt_recon.pdf  used on input line 180.
 (pdftex.def)             Requested size: 175.2664pt x 77.79204pt.
-<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_fn_filt_recon.pdf, id=268, 331.18834pt x 146.99821pt>
+<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_fn_filt_recon.pdf, id=270, 331.18834pt x 146.99821pt>
 File: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_fn_filt_recon.pdf Graphic file (type pdf)
 <use ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_fn_filt_recon.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_fn_filt_recon.pdf  used on input line 175.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_fn_filt_recon.pdf  used on input line 180.
 (pdftex.def)             Requested size: 175.2664pt x 77.79204pt.
-<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_an_filt_recon.pdf, id=269, 331.18834pt x 146.99821pt>
+<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_an_filt_recon.pdf, id=271, 331.18834pt x 146.99821pt>
 File: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_an_filt_recon.pdf Graphic file (type pdf)
 <use ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_an_filt_recon.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_an_filt_recon.pdf  used on input line 175.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_an_filt_recon.pdf  used on input line 180.
 (pdftex.def)             Requested size: 175.2664pt x 77.79204pt.
  [10
 
  <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_filt_recon.pdf> <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_fn_filt_recon.pdf> <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_an_filt_recon.pdf>]
-<../../figures/./sanity/50psi/PH-NKD/calib_ts_signals_50psi_nf.pdf, id=316, 345.81194pt x 129.00195pt>
+<../../figures/./sanity/50psi/PH-NKD/calib_ts_signals_50psi_nf.pdf, id=318, 345.81194pt x 129.00195pt>
 File: ../../figures/./sanity/50psi/PH-NKD/calib_ts_signals_50psi_nf.pdf Graphic file (type pdf)
 <use ../../figures/./sanity/50psi/PH-NKD/calib_ts_signals_50psi_nf.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_ts_signals_50psi_nf.pdf  used on input line 183.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_ts_signals_50psi_nf.pdf  used on input line 191.
 (pdftex.def)             Requested size: 175.2664pt x 65.38264pt.
-<../../figures/./sanity/50psi/PH-NKD/calib_ts_signals_50psi_f.pdf, id=317, 345.81194pt x 129.00195pt>
+<../../figures/./sanity/50psi/PH-NKD/calib_ts_signals_50psi_f.pdf, id=319, 345.81194pt x 129.00195pt>
 File: ../../figures/./sanity/50psi/PH-NKD/calib_ts_signals_50psi_f.pdf Graphic file (type pdf)
 <use ../../figures/./sanity/50psi/PH-NKD/calib_ts_signals_50psi_f.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_ts_signals_50psi_f.pdf  used on input line 183.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_ts_signals_50psi_f.pdf  used on input line 191.
 (pdftex.def)             Requested size: 175.2664pt x 65.38264pt.
  [11
 
  <../../figures/./sanity/50psi/PH-NKD/calib_ts_signals_50psi_nf.pdf> <../../figures/./sanity/50psi/PH-NKD/calib_ts_signals_50psi_f.pdf>]
-<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_f.pdf, id=338, 327.1984pt x 146.99821pt>
+<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_f.pdf, id=340, 327.1984pt x 146.99821pt>
 File: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_f.pdf Graphic file (type pdf)
 <use ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_f.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_f.pdf  used on input line 189.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_f.pdf  used on input line 197.
 (pdftex.def)             Requested size: 350.53949pt x 157.48839pt.
  [12
 
  <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_f.pdf>]
-<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_flow_recon.pdf, id=358, 316.54529pt x 150.75458pt>
+<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_f_filt.pdf, id=360, 327.1984pt x 146.99821pt>
+File: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_f_filt.pdf Graphic file (type pdf)
+<use ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_f_filt.pdf>
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_f_filt.pdf  used on input line 203.
+(pdftex.def)             Requested size: 350.53949pt x 157.48839pt.
+ [13
+
+ <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_f_filt.pdf>]
+<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_f_filt_TF.pdf, id=381, 327.1984pt x 146.99821pt>
+File: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_f_filt_TF.pdf Graphic file (type pdf)
+<use ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_f_filt_TF.pdf>
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_f_filt_TF.pdf  used on input line 209.
+(pdftex.def)             Requested size: 350.53949pt x 157.48839pt.
+ [14
+
+ <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_f_filt_TF.pdf>]
+<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_flow_NC_PH.pdf, id=407, 327.1984pt x 146.99821pt>
+File: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_flow_NC_PH.pdf Graphic file (type pdf)
+<use ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_flow_NC_PH.pdf>
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_flow_NC_PH.pdf  used on input line 215.
+(pdftex.def)             Requested size: 350.53949pt x 157.48839pt.
+ [15
+
+ <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_flow_NC_PH.pdf>]
+<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_flow_recon.pdf, id=432, 316.54529pt x 150.75458pt>
 File: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_flow_recon.pdf Graphic file (type pdf)
 <use ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_flow_recon.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_flow_recon.pdf  used on input line 195.
+Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_flow_recon.pdf  used on input line 223.
 (pdftex.def)             Requested size: 350.53949pt x 166.95079pt.
- [13
+ [16
 
  <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_flow_recon.pdf>]
 \tf@nav=\write6
@@ -1156,18 +1192,18 @@ Package rerunfilecheck Info: File `sanity.out' has not changed.
 (rerunfilecheck)             Checksum: D41D8CD98F00B204E9800998ECF8427E;0.
  ) 
 Here is how much of TeX's memory you used:
- 32230 strings out of 476041
- 696945 string characters out of 5793175
+ 32328 strings out of 476041
+ 699730 string characters out of 5793175
  1857388 words of memory out of 6000000
- 52030 multiletter control sequences out of 15000+600000
- 528148 words of font info for 80 fonts, out of 8000000 for 9000
+ 52109 multiletter control sequences out of 15000+600000
+ 537695 words of font info for 106 fonts, out of 8000000 for 9000
  1137 hyphenation exceptions out of 8191
  128i,16n,122p,509b,891s stack positions out of 10000i,1000n,20000p,200000b,200000s
-</usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss9.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssbx10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssi9.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/mathpazo/fplmri.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/palatino/uplr8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/palatino/uplri8a.pfb>
-Output written on sanity.pdf (13 pages, 2326277 bytes).
+</usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss9.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssbx10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssi10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssi9.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/mathpazo/fplmri.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/palatino/uplr8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/palatino/uplri8a.pfb>
+Output written on sanity.pdf (16 pages, 2783660 bytes).
 PDF statistics:
- 430 PDF objects out of 1000 (max. 8388607)
- 348 compressed objects within 4 object streams
- 27 named destinations out of 1000 (max. 500000)
- 182 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 511 PDF objects out of 1000 (max. 8388607)
+ 416 compressed objects within 5 object streams
+ 33 named destinations out of 1000 (max. 500000)
+ 197 words of extra memory for PDF output out of 10000 (max. 10000000)
 
