@@ -1038,15 +1038,15 @@ def flow_tests():
     # nc_nf -= nc_nf.mean()  # Remove any DC offset
     # ph_nf -= ph_nf.mean()  # Remove any DC offset
 
-    # fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True)
-    # ax.plot(np.arange(len(ph1)) / FS, ph1, label='PH1', color=ph1_colour)
-    # ax.plot(np.arange(len(ph2)) / FS, ph2, label='PH2', color=ph2_colour)
-    # ax.plot(np.arange(len(nc)) / FS, nc, label='NC', color=nc_colour)
-    # ax.set_xlabel("Time [s]")
-    # ax.set_ylabel("Voltage [V]")
-    # ax.legend()
-    # fig.tight_layout()
-    # fig.savefig(f"{OUTPUT_DIR}/calib_ts_signals_50psi.pdf", dpi=400)
+    fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True)
+    ax.plot(np.arange(len(nc)) / FS, nc, label='NC', color=nc_colour, lw=0.2)
+    ax.plot(np.arange(len(ph1)) / FS, ph1, label='PH1', color=ph1_colour, lw=0.2)
+    ax.plot(np.arange(len(ph2)) / FS, ph2, label='PH2', color=ph2_colour, lw=0.2)
+    ax.set_xlabel("Time [s]")
+    ax.set_ylabel("Voltage [V]")
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(f"{OUTPUT_DIR}/calib_ts_signals_50psi.pdf", dpi=400)
 
     # plot subset of time series for vis
     fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True)
