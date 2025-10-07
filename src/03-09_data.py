@@ -6,7 +6,11 @@ from matplotlib import pyplot as plt
 from icecream import ic
 import os
 
+from tqdm import tqdm
+
 from wiener_filter_gib import wiener_cancel_background
+from wiener_filter_torch import wiener_cancel_background_torch
+from stft_wiener import wiener_cancel_background_stft_torch
 
 from plotting import (
     plot_spectrum,
@@ -40,7 +44,7 @@ from plotting import (
 FS = 50_000.0
 NPERSEG = 2**14
 WINDOW = "hann"
-CALIB_BASE_DIR = "data/calibration_30_09"  # base directory to save calibration .npy files
+CALIB_BASE_DIR = "data/calibration_03_10"  # base directory to save calibration .npy files
 TRIM_CAL_SECS = 5  # seconds trimmed from the start of calibration runs (0 to disable)
 
 R = 287.0         # J/kg/K
@@ -61,7 +65,8 @@ T_plus_f500Hz = 1/(500 * nu/(u_tau**2))
 ic(T_plus_f500Hz)
 
 nc_colour = '#1f77b4'  # matplotlib default blue
-ph_colour = "#c76713"  # matplotlib default orange
+ph1_colour = "#c76713"  # matplotlib default orange
+ph2_colour = "#9fda16"  # matplotlib default red
 nkd_colour = '#2ca02c' # matplotlib default green
 
 # -------------------------------------------------------------------------
@@ -1016,183 +1021,223 @@ def calibration():
 
 def flow_tests():
     # In-situ noise
-    root = 'data/30092025'
-    fn = f'{root}/50psi/Run1.mat'
-    OUTPUT_DIR = "figures/sanity/50psi/PH-NKD"
+    root = 'data/10032025'
+    fn = f'{root}/close_spaced'
+    OUTPUT_DIR = "figures/sanity/50psi/03_10"
     CAL_DIR = os.path.join(CALIB_BASE_DIR, "PH-NKD")
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     os.makedirs(CAL_DIR, exist_ok=True)
 
     # Load data (to Pa): col1 = PH, col2 = NKD
-    nc_nf, ph_nf = load_mat_to_pa(fn, 'channelData_noflow', 'PH_300', 'NC_300')
+    dat = sio.loadmat(f'{fn}/50psig.mat')
+    ic(dat.keys())
+    datset = dat['channelData_flow']
+    ic(datset.shape)
+    nc, ph1, ph2, u_fluc = datset.T
 
-    nc_nf -= nc_nf.mean()  # Remove any DC offset
-    ph_nf -= ph_nf.mean()  # Remove any DC offset
+    # nc_nf -= nc_nf.mean()  # Remove any DC offset
+    # ph_nf -= ph_nf.mean()  # Remove any DC offset
 
     # fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True)
-    # ax.plot(np.arange(len(ph_nf)) / FS, ph_nf, label='PH', color=ph_colour)
-    # ax.plot(np.arange(len(nc_nf)) / FS, nc_nf, label='NC', color=nc_colour)
+    # ax.plot(np.arange(len(ph1)) / FS, ph1, label='PH1', color=ph1_colour)
+    # ax.plot(np.arange(len(ph2)) / FS, ph2, label='PH2', color=ph2_colour)
+    # ax.plot(np.arange(len(nc)) / FS, nc, label='NC', color=nc_colour)
     # ax.set_xlabel("Time [s]")
     # ax.set_ylabel("Voltage [V]")
     # ax.legend()
     # fig.tight_layout()
-    # fig.savefig(f"{OUTPUT_DIR}/calib_ts_signals_50psi_nf.pdf", dpi=400)
+    # fig.savefig(f"{OUTPUT_DIR}/calib_ts_signals_50psi.pdf", dpi=400)
 
-    # Plot the spectra to make sure it's white
-    f, Pyy_nc_nf = compute_spec(FS, nc_nf)
-    f, Pyy_ph_nf = compute_spec(FS, ph_nf)
-
-    # fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True)
-    # ax.loglog(f, f * Pyy_nc_nf, label='NC', color=nc_colour)
-    # ax.loglog(f, f * Pyy_ph_nf, label='PH', color=ph_colour)
-    # ax.set_ylim(1e-8, 1e0)
-    # ax.set_xlabel("$f$ [Hz]")
-    # ax.set_ylabel(r"$f \phi_{pp}$")
-    # ax.legend()
-    # fig.savefig(f"{OUTPUT_DIR}/calib_spectra_50psi_nf.pdf", dpi=400)
-
-
-
-    # Load data (to Pa): col1 = PH, col2 = NKD
-    nc_f, ph_f = load_mat_to_pa(fn, 'channelData_flow1', 'PH_300', 'NC_300')
-    nc_f *= 10 # Correct for sensitivity change
-    ph_f *= 10 # Correct for sensitivity change
-    nc_f -= nc_f.mean()  # Remove any DC offset
-    ph_f -= ph_f.mean()  # Remove any DC offset
-
+    # plot subset of time series for vis
+    fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True)
+    ax.plot(np.arange(len(ph1[1000:2000])) / FS+1000/FS, ph1[1000:2000], label='PH1', color=ph1_colour)
+    ax.plot(np.arange(len(ph2[1000:2000])) / FS+1000/FS, ph2[1000:2000], label='PH2', color=ph2_colour)
+    # ax.plot(np.arange(len(nc)) / FS, nc, label='NC', color=nc_colour)
+    ax.set_xlabel("Time [s]")
+    ax.set_ylabel("Voltage [V]")
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(f"{OUTPUT_DIR}/calib_ts_signals_50psi_part.pdf", dpi=400)
 
     # Plot the spectra
-    f, Pyy_nc_f = compute_spec(FS, nc_f)
-    f, Pyy_ph_f = compute_spec(FS, ph_f);
+    f, Pyy_nc = compute_spec(FS, nc)
+    f, Pyy_ph1 = compute_spec(FS, ph1);
+    f, Pyy_ph2 = compute_spec(FS, ph2);
+
+    f_plus = f * nu/ (u_tau**2)
+
+    # Remove any DC offset
+    nc -= nc.mean()  
+    ph1 -= ph1.mean()
+    ph2 -= ph2.mean()
+
+        # Plot the spectra
+    f, Pyy_nc = compute_spec(FS, nc)
+    f, Pyy_ph1 = compute_spec(FS, ph1);
+    f, Pyy_ph2 = compute_spec(FS, ph2);
+
     f_plus = f * nu/ (u_tau**2)
 
     # fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True);
-    # ax.loglog(f, f * Pyy_nc_f, label='NC-flow', color=nc_colour);
-    # ax.loglog(f, f * Pyy_ph_f, label='PH-flow', color=ph_colour);
-    # ax.loglog(f, f * Pyy_nc_nf, label='NC-noflow', color=nc_colour, ls='--');
-    # ax.loglog(f, f * Pyy_ph_nf, label='PH-noflow', color=ph_colour, ls='--');
-    # ax.set_ylim(1e-8, 1e2);
-    # ax.set_xlabel("$f$ [Hz]");
+    # ax.semilogx(1/f_plus, f * Pyy_nc, label='NC-flow', color=nc_colour);
+    # ax.semilogx(1/f_plus, f * Pyy_ph1, label='PH1-flow', color=ph1_colour);
+    # ax.semilogx(1/f_plus, f * Pyy_ph2, label='PH2-flow', color=ph2_colour);
+    # ax.set_ylim(0, 1e-3);
+    # ax.set_xlabel("$T^+$");
     # ax.set_ylabel(r"$f \phi_{pp}$");
     # ax.legend();
-    # fig.savefig(f"{OUTPUT_DIR}/calib_spectra_50psi_f.pdf", dpi=400)
+    # fig.savefig(f"{OUTPUT_DIR}/calib_spectra_50psi_f.pdf", dpi=400);
+
 
     # Filter the signals
     sos = signal.butter(4, 0.1, btype='highpass', fs=FS, output='sos')
     sos_lp = signal.butter(4, 2000.0, btype='lowpass', fs=FS, output='sos')
-    ph_nf = signal.sosfilt(sos, ph_nf)
-    ph_nf = signal.sosfilt(sos_lp, ph_nf)
-    ph_f = signal.sosfilt(sos, ph_f)
-    ph_f = signal.sosfilt(sos_lp, ph_f)
-
+    ph1_filt = signal.sosfilt(sos, ph1)
+    ph1_filt = signal.sosfilt(sos_lp, ph1_filt)
+    ph2_filt = signal.sosfilt(sos, ph2)
+    ph2_filt = signal.sosfilt(sos_lp, ph2_filt)
+    nc_filt = signal.sosfilt(sos, nc)
+    nc_filt = signal.sosfilt(sos_lp, nc_filt)
+    
     # Plot the filtered spectra
-    f, Pyy_ph_nf_filt = compute_spec(FS, ph_nf)
-    f, Pyy_ph_f_filt = compute_spec(FS, ph_f);
+    f, Pyy_nc_filt = compute_spec(FS, nc_filt)
+    f, Pyy_ph1_filt = compute_spec(FS, ph1_filt);
+    f, Pyy_ph2_filt = compute_spec(FS, ph2_filt);
 
     # fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True);
-    # ax.loglog(f, f * Pyy_ph_f_filt, label='PH-flow_filt', color=ph_colour, ls='-.');
-    # ax.loglog(f, f * Pyy_ph_f, label='PH-flow', color=ph_colour);
-    # ax.set_ylim(1e-8, 1e2);
-    # ax.set_xlabel("$f$ [Hz]");
+    # ax.semilogx(1/f_plus, f * Pyy_ph1_filt, label='PH1-flow_filt', color=ph1_colour, ls='-.');
+    # ax.semilogx(1/f_plus, f * Pyy_ph2_filt, label='PH2-flow_filt', color=ph2_colour, ls='-.');
+    # ax.semilogx(1/f_plus, f * Pyy_nc_filt, label='NC-flow_filt', color=nc_colour, ls='-.');
+    # ax.set_ylim(0, 1e-3);
+    # ax.set_xlabel("$T^+$");
     # ax.set_ylabel(r"$f \phi_{pp}$");
     # ax.legend();
     # fig.savefig(f"{OUTPUT_DIR}/calib_spectra_50psi_f_filt.pdf", dpi=400);
 
 
     # Apply the PH→NKD FRF to the signals
-    H_nn = np.load(f"{CAL_DIR}/H_nn_filt.npy")
-    gamma2_nn = np.load(f"{CAL_DIR}/gamma2_nn_filt.npy")
-    f_nn = np.load(f"{CAL_DIR}/f_nn_filt.npy")
-    # Sanity: reconstruct PH from NKD using the inverse (should resemble PH)
-    ph_hat_nf = wiener_forward(ph_nf, FS, f_nn, H_nn, gamma2_nn)
-    ph_hat_f = wiener_forward(ph_f, FS, f_nn, H_nn, gamma2_nn)
-
-
-    f, Pyy_ph_hat_nf = compute_spec(FS, ph_hat_nf)
-    f, Pyy_ph_hat_f = compute_spec(FS, ph_hat_f)
+    H_nn = np.load(f"data/calibration_30_09/PH-NKD/H_nn_filt.npy")
+    gamma2_nn = np.load(f"data/calibration_30_09/PH-NKD/gamma2_nn_filt.npy")
+    f_nn = np.load(f"data/calibration_30_09/PH-NKD/f_nn_filt.npy")
+    # Reconstruct PH from NKD using the inverse (should resemble PH)
+    ph1_filt_tf = wiener_forward(ph1_filt, FS, f_nn, H_nn, gamma2_nn)
+    ph2_filt_tf = wiener_forward(ph2_filt, FS, f_nn, H_nn, gamma2_nn)
 
     # Plot spectra with and without TF correction
-    # fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True);
-    # ax.loglog(f, f * Pyy_ph_f_filt, label='$\widehat{\mathrm{PH}}$ flow-filt', color='red');
-    # ax.loglog(f, f * Pyy_ph_hat_f, label='$\widehat{\mathrm{PH}}$ flow-filt-corr', color='blue');
-    # ax.set_ylim(1e-8, 1e2);
-    # ax.set_xlabel("$f$ [Hz]");
-    # ax.set_ylabel(r"$f \phi_{pp}$");
-    # ax.legend();
-    # fig.savefig(f"{OUTPUT_DIR}/calib_spectra_50psi_f_filt_TF.pdf", dpi=400);
-
-    # Filter the nc signals
-    nc_nf_filt = signal.sosfilt(sos, nc_nf)
-    nc_nf_filt = signal.sosfilt(sos_lp, nc_nf_filt)
-    nc_f_filt = signal.sosfilt(sos, nc_f)
-    nc_f_filt = signal.sosfilt(sos_lp, nc_f_filt)
-
-    f, Pyy_nc_f = compute_spec(FS, nc_f_filt);
-
-    # Now plot the corrected spectra and the FS noise
-    fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True);
-    ax.loglog(f, f * Pyy_ph_hat_f, label='$\widehat{\mathrm{PH}}$ flow-corr', color='blue');
-    ax.loglog(f, f * Pyy_nc_f, label='$\widehat{\mathrm{NC}}$ flow-corr', color='orange');
-    ax.set_ylim(1e-8, 1e2);
-    ax.set_xlabel("$f$ [Hz]");
-    ax.set_ylabel(r"$f \phi_{pp}$");
-    ax.legend();
-    fig.savefig(f"{OUTPUT_DIR}/calib_spectra_50psi_flow_NC_PH.pdf", dpi=400);
-
-    f_plus = f * nu / (u_tau**2)
-
+    f, Pyy_ph1_filt_tf = compute_spec(FS, ph1_filt_tf);
+    f, Pyy_ph2_filt_tf = compute_spec(FS, ph2_filt_tf);
 
     # fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True);
-    # ax.semilogx(1/f_plus, f * Pyy_ph_f, label='PH-flow', color=ph_colour);
-    # ax.semilogx(1/f_plus, f * Pyy_ph_nf, label='PH-noflow', color=ph_colour, ls='--');
-    # ax.semilogx(1/f_plus, f * Pyy_ph_hat_f, label='PH hat-flow', color='red', ls='', marker='.', markersize=3);
-    # ax.semilogx(1/f_plus, f * Pyy_ph_hat_nf, label='PH hat-noflow', color='blue', ls='', marker='.', markersize=3);
-    # ax.set_ylim(0, 20);
+    # ax.semilogx(1/f_plus, f * Pyy_ph1_filt_tf, label='PH1-hat-flow_filt', color='red', ls='', marker='.', markersize=3);
+    # ax.semilogx(1/f_plus, f * Pyy_ph2_filt_tf, label='PH2-hat-flow_filt', color='blue', ls='', marker='.', markersize=3);
+    # ax.semilogx(1/f_plus, f * Pyy_nc_filt, label='NC-flow_filt', color=nc_colour, ls='-.');
+    # ax.set_ylim(0, 1e-3);
     # ax.set_xlabel("$T^+$");
     # ax.set_ylabel(r"$f \phi_{pp}$");
     # ax.legend();
-    # ax.axvline(20, color='gray', ls='--', label='$T^+=20$');
-    # ax.axvline(1/(nu/ (u_tau**2) * 2000), color='gray', ls=':', label='LP $f=2kHz$');
-    # ax.axvline(1/(nu/ (u_tau**2) * 0.1), color='gray', ls=':', label='HP $f=0.1Hz$');
-    # fig.savefig(f"{OUTPUT_DIR}/c`alib_spectra_50psi_flow_recon.pdf", dpi=400);
+    # fig.savefig(f"{OUTPUT_DIR}/calib_spectra_50psi_f_filt_recon.pdf", dpi=400);
 
-    # Wiener filter PH/NC
-    # fo = 2**np.array([12, 13, 14, 15])
-    # for filter_order in fo:
-    #     print(f"Filtering with order {filter_order}")
-    #     ph_nc_filt = wiener_cancel_background(ph_f, nc_f, filter_order=filter_order)
-    #     np.save(f"{OUTPUT_DIR}/ph_nc_filt_{filter_order}.npy", ph_nc_filt)
-
-    ph_nc_filt = np.load(f"{OUTPUT_DIR}/ph_nc_filt_{2**12}.npy")
+    # Compute and plot the coherence between PH and NC
+    f, gamma2_ph1_nc = signal.coherence(ph1_filt, nc_filt, fs=FS, nperseg=NPERSEG)
+    f, gamma2_ph2_nc = signal.coherence(ph2_filt, nc_filt, fs=FS, nperseg=NPERSEG)
+    # fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True);
+    # ax.semilogx(f, gamma2_ph1_nc, label='PH1-NC', color=ph1_colour);
+    # ax.semilogx(f, gamma2_ph2_nc, label='PH2-NC', color=ph2_colour);
+    # ax.set_ylim(0, 1);
+    # ax.set_xlabel("$f$");
+    # ax.set_ylabel(r"$\gamma^2$");
+    # ax.legend();
+    # fig.savefig(f"{OUTPUT_DIR}/calib_coherence_50psi_f_filt.pdf", dpi=400);
 
     # fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True);
-    # t = np.arange(len(ph_nc_filt)) / FS
-    # ax.plot(t, ph_f, label='PH', color=ph_colour, alpha=0.5);
-    # ax.plot(t, ph_nc_filt, label='PH-NC', color='green', alpha=0.8);
-    # ax.set_xlabel("Time [s]");
-    # ax.set_ylabel("Voltage [V]");
+    # # Now let's do some filtering
+    # filter_order = 2** np.array([12, 13, 14, 15, 16])
+    # for order in tqdm(filter_order):
+    #     p1_clean = wiener_cancel_background_torch(ph1_filt, nc_filt, filter_order=order)
+    #     p2_clean = wiener_cancel_background_torch(ph2_filt, nc_filt, filter_order=order)
+
+    #     f, Pyy_p1_clean = compute_spec(FS, p1_clean.cpu().numpy());
+    #     f, Pyy_p2_clean = compute_spec(FS, p2_clean.cpu().numpy());
+
+    #     # ax.semilogx(1/f_plus, f * Pyy_ph1_filt, label='PH1-flow_filt', color=ph1_colour, ls='-.');
+    #     # ax.semilogx(1/f_plus, f * Pyy_ph2_filt, label='PH2-flow_filt', color=ph2_colour, ls='-.');
+    #     ax.semilogx(1/f_plus, f * Pyy_p1_clean, label='PH1-clean', color=ph1_colour, ls='-', lw=0.2);
+    #     ax.semilogx(1/f_plus, f * Pyy_p2_clean, label='PH2-clean', color=ph2_colour, ls='-', lw=0.2);
+    # ax.set_ylim(0, 1e-3);
+    # ax.set_xlabel("$T^+$");
+    # ax.set_ylabel(r"$f \phi_{pp}$");
+    # # ax.legend();
+    # fig.savefig(f"{OUTPUT_DIR}/calib_spectra_50psi_f_filt_clean_fir.pdf", dpi=400);
+
+    # p1_clean = wiener_cancel_background_stft_torch(ph1_filt, nc_filt, FS,
+    #                                                n_fft=2**14,
+    #                                                smooth_frames=16, freq_smooth_bins=7,               # extra temporal & small frequency smoothing
+    #                                                 # more aggressive below ~400 Hz *when coherent*
+    #                                                 lf_shelf=(0.0, 250.0, 1.5), lf_shelf_coh_thresh=0.12,
+    #                                                 # pull residual toward the coherence floor by 60%
+    #                                                 snap_to_floor_beta=0.6,
+    #                                                 # numerical stabilizers
+    #                                                 regularization=1e-7, coherence_guard=True, guard_floor_db=0.0,
+    #                                                 # leave at 0.0 so we still cancel in modest-coherence bins
+    #                                                 coherence_threshold=0.0).cpu().numpy()
+    # p2_clean = wiener_cancel_background_stft_torch(ph2_filt, nc_filt, FS,
+    #                                                n_fft=2**14,
+    #                                                smooth_frames=16, freq_smooth_bins=7,               # extra temporal & small frequency smoothing
+    #                                                 # more aggressive below ~400 Hz *when coherent*
+    #                                                 lf_shelf=(0.0, 250.0, 1.5), lf_shelf_coh_thresh=0.12,
+    #                                                 # pull residual toward the coherence floor by 60%
+    #                                                 snap_to_floor_beta=0.6,
+    #                                                 # numerical stabilizers
+    #                                                 regularization=1e-7, coherence_guard=True, guard_floor_db=0.0,
+    #                                                 # leave at 0.0 so we still cancel in modest-coherence bins
+    #                                                 coherence_threshold=0.0).cpu().numpy()
+
+    # T_plus = 1/f_plus
+
+    # # Notch filter the known peaks
+    # peaks_to_notch = [260]
+    # for Tp in peaks_to_notch:
+    #     f0 = 1/Tp * u_tau**2/nu
+    #     Q = 5.0  # Quality factor
+    #     b, a = signal.iirnotch(f0, Q, FS)
+    #     p1_clean = signal.filtfilt(b, a, p1_clean)
+    #     p2_clean = signal.filtfilt(b, a, p2_clean)
+
+
+
+    # f, Pyy_p1_clean = compute_spec(FS, p1_clean);
+    # f, Pyy_p2_clean = compute_spec(FS, p2_clean);
+    # # trim everything above T+=400
+    # trim_idx = np.where(T_plus >= 400)[0][-1]  # 1.5 is ~400Hz
+    # Pyy_p1_clean[:trim_idx] = 0
+    # Pyy_p2_clean[:trim_idx] = 0
+
+    # # interpolate onto logaritmic f grid, then filter with savgol
+    # f_grid  = np.logspace(np.log10(f[1]), np.log10(f[-1]), 1024)
+    # Pyy_p1_clean = np.interp(f_grid, f, Pyy_p1_clean)
+    # Pyy_p2_clean = np.interp(f_grid, f, Pyy_p2_clean)
+
+    # s_window = 11  # must be odd
+    # Pyy_p1_clean = signal.savgol_filter(Pyy_p1_clean, s_window, 1)
+    # Pyy_p2_clean = signal.savgol_filter(Pyy_p2_clean, s_window, 1)
+
+    # T_plus_grid = 1/f_grid * u_tau**2/nu
+
+    #  # Plot the filtered spectra
+    # fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True);
+    # for idx, TP in enumerate(peaks_to_notch):
+    #     label = "Notched peak" if idx == 0 else "_nolegend_"
+    #     ax.axvline(TP, color='grey', lw=0.2, ls='--', zorder=-1, label=label)
+
+    # ax.semilogx(T_plus_grid, f_grid * Pyy_p1_clean, label='PH1-clean', color=ph1_colour, ls='-');
+    # ax.semilogx(T_plus_grid, f_grid * Pyy_p2_clean, label='PH2-clean', color=ph2_colour, ls='-');
+    # ax.set_ylim(0, 6e-4);
+    # ax.set_xlim(3, 1000);
+    # ax.set_xlabel("$T^+$");
+    # ax.set_ylabel(r"$f \phi_{pp}$");
     # ax.legend();
-    # fig.savefig(f"{OUTPUT_DIR}/cleaned_ph.pdf", dpi=400);
-
-    f_plus = f * nu/ (u_tau**2)
-
-    f, Pyy_ph_nc_filt = compute_spec(FS, ph_nc_filt);
-    fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True);
-    ax.semilogx(1/f_plus, f * Pyy_ph_f, label='PH-flow', color=ph_colour);   
-    ax.semilogx(1/f_plus, f * Pyy_ph_nc_filt, label='PH-NC-flow', color='green');
-    ax.set_ylim(1e-8, 1e-1);
-    ax.set_xlabel("$T^+$");
-    ax.set_ylabel(r"$f \phi_{pp}$");
-    ax.legend();
-    fig.savefig(f"{OUTPUT_DIR}/calib_spectra_50psi_filt.pdf", dpi=400);
-
-    # # Sanity TF check, should be 1
-    # f, H_same, gamma2_same = estimate_frf(ph_f, ph_f, FS, npsg=2**9)
-    # np.save(f"{CAL_DIR}/H_same.npy", H_same)
-    # np.save(f"{CAL_DIR}/gamma2_same.npy", gamma2_same)
-    # np.save(f"{CAL_DIR}/f_same.npy", f)
-
-    # plot_transfer_PH(f, H_same, f"{OUTPUT_DIR}/H_50psi_same", "50psi")
+    # fig.savefig(f"{OUTPUT_DIR}/calib_spectra_50psi_f_filt_clean_stft.pdf", dpi=400);
+    
 
 if __name__ == "__main__":
     # calibration()
