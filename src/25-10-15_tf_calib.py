@@ -671,9 +671,9 @@ def calibration_700_atm():
     dat2 = sio.loadmat(fn2) # options are channelData_LP, channelData_NF
     ic(dat1.keys(), dat2.keys())
     nkd1 = dat1['channelData_LP'][:,2]
-    nkd2 = dat2['channelData'][:,2]
+    nkd2 = dat2['channelData_LP'][:,2]
     ph1 = dat1['channelData_LP'][:,0]
-    ph2 = dat2['channelData'][:,1]
+    ph2 = dat2['channelData_LP'][:,1]
     f, Pyy_nkd1 = compute_spec(FS, nkd1)
     f, Pyy_nkd2 = compute_spec(FS, nkd2)
     f, Pyy_ph1 = compute_spec(FS, ph1)
@@ -695,7 +695,7 @@ def calibration_700_atm():
     # ax.set_xlim(1e0, 1e4)
 
     ax.legend()
-    fig.savefig(f"{OUTPUT_DIR}/700_atm_calib_spec.png", dpi=410)
+    fig.savefig(f"{OUTPUT_DIR}/700_atm_calib_spec_a2.png", dpi=410)
 
     f, H1, gamma1 = estimate_frf(ph1, nkd1, FS, npsg=8*11)
     np.save(f"{CAL_DIR}/H1_700_atm.npy", H1)
@@ -726,7 +726,7 @@ def calibration_700_atm():
     ax_ph.axvline(f_cut, color='red', linestyle='--', lw=1)
 
     fig.tight_layout()
-    plt.savefig(f"{OUTPUT_DIR}/700_atm_H.pdf", dpi=600)
+    plt.savefig(f"{OUTPUT_DIR}/700_atm_H_a2.pdf", dpi=600)
     plt.close()
 
 def calibration_700_50psi():
@@ -753,9 +753,9 @@ def calibration_700_50psi():
     dat2 = sio.loadmat(fn2) # options are channelData_LP, channelData_NF
     ic(dat1.keys(), dat2.keys())
     nkd1 = dat1['channelData_LP'][:,2]
-    nkd2 = dat2['channelData'][:,2]
+    nkd2 = dat2['channelData_LP'][:,2]
     ph1 = dat1['channelData_LP'][:,0]
-    ph2 = dat2['channelData'][:,1]
+    ph2 = dat2['channelData_LP'][:,1]
     f, Pyy_nkd1 = compute_spec(FS, nkd1)
     f, Pyy_nkd2 = compute_spec(FS, nkd2)
     f, Pyy_ph1 = compute_spec(FS, ph1)
@@ -777,7 +777,7 @@ def calibration_700_50psi():
     # ax.set_xlim(1e0, 1e4)
 
     ax.legend()
-    fig.savefig(f"{OUTPUT_DIR}/700_50psi_calib_spec.png", dpi=410)
+    fig.savefig(f"{OUTPUT_DIR}/700_50psi_calib_spec_a2.png", dpi=410)
 
     f, H1, gamma1 = estimate_frf(ph1, nkd1, FS, npsg=8*11)
     np.save(f"{CAL_DIR}/H1_700_50psi.npy", H1)
@@ -808,7 +808,7 @@ def calibration_700_50psi():
     ax_ph.axvline(f_cut, color='red', linestyle='--', lw=1)
 
     fig.tight_layout()
-    plt.savefig(f"{OUTPUT_DIR}/700_50psi_H.pdf", dpi=600)
+    plt.savefig(f"{OUTPUT_DIR}/700_50psi_H_a2.pdf", dpi=600)
     plt.close()
 
 def calibration_700_100psi():
@@ -836,9 +836,9 @@ def calibration_700_100psi():
     dat2 = sio.loadmat(fn2) # options are channelData_LP, channelData_NF
     ic(dat1.keys(), dat2.keys())
     nkd1 = dat1['channelData_LP'][:,2]
-    nkd2 = dat2['channelData'][:,2]
+    nkd2 = dat2['channelData_LP'][:,2]
     ph1 = dat1['channelData_LP'][:,0]
-    ph2 = dat2['channelData'][:,1]
+    ph2 = dat2['channelData_LP'][:,1]
     f, Pyy_nkd1 = compute_spec(FS, nkd1)
     f, Pyy_nkd2 = compute_spec(FS, nkd2)
     f, Pyy_ph1 = compute_spec(FS, ph1)
@@ -860,7 +860,7 @@ def calibration_700_100psi():
     # ax.set_xlim(1e0, 1e4)
 
     ax.legend()
-    fig.savefig(f"{OUTPUT_DIR}/700_100psi_calib_spec.png", dpi=410)
+    fig.savefig(f"{OUTPUT_DIR}/700_100psi_calib_spec_a2.png", dpi=410)
 
     f, H1, gamma1 = estimate_frf(ph1, nkd1, FS, npsg=8*11)
     np.save(f"{CAL_DIR}/H1_700_100psi.npy", H1)
@@ -891,7 +891,7 @@ def calibration_700_100psi():
     ax_ph.axvline(f_cut, color='red', linestyle='--', lw=1)
 
     fig.tight_layout()
-    plt.savefig(f"{OUTPUT_DIR}/700_100psi_H.pdf", dpi=600)
+    plt.savefig(f"{OUTPUT_DIR}/700_100psi_H_a2.pdf", dpi=600)
     plt.close()
 
 
@@ -1117,8 +1117,8 @@ def flow_tests():
 
 if __name__ == "__main__":
     # calibration()
-    calibration_700_atm()
-    calibration_700_50psi()
+    # calibration_700_atm()
+    # calibration_700_50psi()
     calibration_700_100psi()
 
     # flow_tests()

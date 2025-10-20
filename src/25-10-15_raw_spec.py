@@ -675,7 +675,7 @@ def calibration_400_atm():
     fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True)
     T_plus = 1/f * (u_tau**2)/nu
 
-    ax.semilogx(T_plus, f * Pyy_nkd, label='NKD', color=nkd_colour)
+    ax.semilogx(T_plus, f * Pyy_nkd, label='NC', color=nkd_colour)
     ax.semilogx(T_plus, f * Pyy_ph1, label='PH1', color=ph1_colour)
     ax.semilogx(T_plus, f * Pyy_ph2, label='PH2', color=ph2_colour)
     # ax.axvline(T_plus_fcut, color='gray', linestyle='--', label=r'$f_{\mathrm{LP}}'+r'={:.0f}$ [Hz]'.format(f_cut))
@@ -719,7 +719,7 @@ def calibration_400_50psi():
     # plot the raw spectra as T^+
     fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True)
     T_plus = 1/f * (u_tau**2)/nu
-    ax.semilogx(T_plus, f * Pyy_nkd, label='NKD', color=nkd_colour)
+    ax.semilogx(T_plus, f * Pyy_nkd, label='NC', color=nkd_colour)
     ax.semilogx(T_plus, f * Pyy_ph1, label='PH1', color=ph1_colour)
     ax.semilogx(T_plus, f * Pyy_ph2, label='PH2', color=ph2_colour)
     ax.set_xlabel("$T^+$")
@@ -760,7 +760,7 @@ def calibration_400_100psi():
     # plot the raw spectra as T^+
     fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True)
     T_plus = f #* (u_tau**2)/nu
-    ax.semilogx(T_plus, f * Pyy_nkd, label='NKD', color=nkd_colour)
+    ax.semilogx(T_plus, f * Pyy_nkd, label='NC', color=nkd_colour)
     ax.semilogx(T_plus, f * Pyy_ph1, label='PH1', color=ph1_colour)
     ax.semilogx(T_plus, f * Pyy_ph2, label='PH2', color=ph2_colour)
     ax.set_xlabel("$T^+$")
@@ -1000,8 +1000,8 @@ if __name__ == "__main__":
     dplus = d / nu_utau
     ic(dplus)
     # calibration()
-    # calibration_400_atm()
-    # calibration_400_50psi()
-    # calibration_400_100psi()
+    calibration_400_atm()
+    calibration_400_50psi()
+    calibration_400_100psi()
 
     # flow_tests()
