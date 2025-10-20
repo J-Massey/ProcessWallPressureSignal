@@ -1,10 +1,10 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023) (preloaded format=pdflatex 2025.9.8)  7 OCT 2025 13:52
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023) (preloaded format=pdflatex 2025.9.8)  20 OCT 2025 09:24
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
  %&-line parsing enabled.
-**/home/masseyj/Workspace/SAPPHiRe/PressureProcess/presentation/DARPA_07-30/DARPA_07-10
-(/home/masseyj/Workspace/SAPPHiRe/PressureProcess/presentation/DARPA_07-30/DARPA_07-10.tex
+**/home/masseyj/Workspace/SAPPHiRe/PressureProcess/presentation/INT_10-14/INT_10-14
+(/home/masseyj/Workspace/SAPPHiRe/PressureProcess/presentation/INT_10-14/INT_10-14.tex
 LaTeX2e <2022-11-01> patch level 1
 L3 programming layer <2023-02-22> (/usr/share/texlive/texmf-dist/tex/latex/beamer/beamer.cls
 Document Class: beamer 2023/02/20 v3.69 A class for typesetting presentations
@@ -785,29 +785,9 @@ Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 (hyperref)                removing `math shift' on input line 61.
 
-
-Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `math shift' on input line 66.
-
-
-Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `subscript' on input line 66.
-
-
-Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `\tau' on input line 66.
-
-
-Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `\approx' on input line 66.
-
-
-Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `math shift' on input line 66.
-
 Package translations Info: No language package found. I am going to use `english' as default language. on input line 66.
-No file DARPA_07-10.aux.
-\openout1 = `DARPA_07-10.aux'.
+(./INT_10-14.aux)
+\openout1 = `INT_10-14.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 66.
 LaTeX Font Info:    ... okay on input line 66.
@@ -827,6 +807,7 @@ LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 66.
 LaTeX Font Info:    ... okay on input line 66.
 LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 66.
 LaTeX Font Info:    ... okay on input line 66.
+
 *geometry* driver: auto-detecting
 *geometry* detected driver: pdftex
 *geometry* verbose mode - [ preamble ] result:
@@ -881,8 +862,9 @@ Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 48
 File: epstopdf-sys.cfg 2010/07/13 v1.3 Configuration of (r)epstopdf for TeX Live
 ))
 Package hyperref Info: Link coloring OFF on input line 66.
+ (./INT_10-14.out) (./INT_10-14.out)
 \@outlinefile=\write5
-\openout5 = `DARPA_07-10.out'.
+\openout5 = `INT_10-14.out'.
 
 LaTeX Font Info:    Overwriting symbol font `operators' in version `normal'
 (Font)                  OT1/ppl/m/n --> OT1/cmss/m/n on input line 66.
@@ -949,7 +931,7 @@ Dictionary: translator-theorem-dictionary, Language: English
 File: translations-basic-dictionary-english.trsl (english translation file `translations-basic-dictionary')
 )
 Package translations Info: loading dictionary `translations-basic-dictionary' for `english'. on input line 66.
- (./DARPA_07-10.nav)
+ (./INT_10-14.nav)
 LaTeX Font Info:    Trying to load font information for OML+zplm on input line 66.
  (/usr/share/texlive/texmf-dist/tex/latex/psnfss/omlzplm.fd
 File: omlzplm.fd 2002/09/08 Fontinst v1.914 font definitions for OML/zplm.
@@ -979,14 +961,6 @@ LaTeX Font Info:    Trying to load font information for OT1+mathkerncmss on inpu
 File: ot1mathkerncmss.fd 2020/01/31 Fontinst v1.933 font definitions for OT1/mathkerncmss.
 )
 LaTeX Font Info:    Font shape `U/msa/m/n' will be
-(Font)              scaled to size 11.40997pt on input line 74.
-LaTeX Font Info:    Font shape `U/msa/m/n' will be
-(Font)              scaled to size 8.33606pt on input line 74.
-LaTeX Font Info:    Font shape `U/msb/m/n' will be
-(Font)              scaled to size 11.40997pt on input line 74.
-LaTeX Font Info:    Font shape `U/msb/m/n' will be
-(Font)              scaled to size 8.33606pt on input line 74.
-LaTeX Font Info:    Font shape `U/msa/m/n' will be
 (Font)              scaled to size 9.37807pt on input line 74.
 LaTeX Font Info:    Font shape `U/msa/m/n' will be
 (Font)              scaled to size 7.29405pt on input line 74.
@@ -996,115 +970,110 @@ LaTeX Font Info:    Font shape `U/msb/m/n' will be
 (Font)              scaled to size 7.29405pt on input line 74.
  [1
 
-{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}{/usr/share/texlive/texmf-dist/fonts/enc/dvips/base/8r.enc}] [2
+{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}{/usr/share/texlive/texmf-dist/fonts/enc/dvips/base/8r.enc}]
+LaTeX Font Info:    Trying to load font information for OT1+ppl on input line 114.
+ (/usr/share/texlive/texmf-dist/tex/latex/psnfss/ot1ppl.fd
+File: ot1ppl.fd 2001/06/04 font definitions for OT1/ppl.
+) [2
 
 ]
-<../../figures/./sanity/50psi/PH-NKD/calib_ts_signals_50psi_nonoise.pdf, id=36, 337.93694pt x 129.1971pt>
-File: ../../figures/./sanity/50psi/PH-NKD/calib_ts_signals_50psi_nonoise.pdf Graphic file (type pdf)
-<use ../../figures/./sanity/50psi/PH-NKD/calib_ts_signals_50psi_nonoise.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_ts_signals_50psi_nonoise.pdf  used on input line 122.
-(pdftex.def)             Requested size: 262.90628pt x 100.519pt.
-<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nonoise.pdf, id=37, 327.1984pt x 146.99821pt>
-File: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nonoise.pdf Graphic file (type pdf)
-<use ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nonoise.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nonoise.pdf  used on input line 122.
-(pdftex.def)             Requested size: 262.90628pt x 118.11685pt.
+<pinholes.pdf, id=38, 409.95477pt x 134.13351pt>
+File: pinholes.pdf Graphic file (type pdf)
+<use pinholes.pdf>
+Package pdftex.def Info: pinholes.pdf  used on input line 129.
+(pdftex.def)             Requested size: 306.71954pt x 100.35837pt.
+ [3
 
-Overfull \vbox (15.55646pt too high) detected at line 122
- []
-
-[3
-
- <../../figures/./sanity/50psi/PH-NKD/calib_ts_signals_50psi_nonoise.pdf> <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nonoise.pdf>]
-<../../figures/./sanity/50psi/PH-NKD/H_50psi_nn.png, id=72, 418.08195pt x 201.27196pt>
-File: ../../figures/./sanity/50psi/PH-NKD/H_50psi_nn.png Graphic file (type png)
-<use ../../figures/./sanity/50psi/PH-NKD/H_50psi_nn.png>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/H_50psi_nn.png  used on input line 133.
-(pdftex.def)             Requested size: 219.08635pt x 105.46973pt.
-<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_recon.pdf, id=74, 327.1984pt x 146.99821pt>
-File: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_recon.pdf Graphic file (type pdf)
-<use ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_recon.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_recon.pdf  used on input line 133.
-(pdftex.def)             Requested size: 219.08635pt x 98.42996pt.
+ <./pinholes.pdf>]
+<../../figures/./raw_spectra/400_atm_raw_spec.png, id=59, 339.31647pt x 150.7094pt>
+File: ../../figures/./raw_spectra/400_atm_raw_spec.png Graphic file (type png)
+<use ../../figures/./raw_spectra/400_atm_raw_spec.png>
+Package pdftex.def Info: ../../figures/./raw_spectra/400_atm_raw_spec.png  used on input line 137.
+(pdftex.def)             Requested size: 306.71954pt x 136.2305pt.
+LaTeX Font Info:    Font shape `U/msa/m/n' will be
+(Font)              scaled to size 11.40997pt on input line 137.
+LaTeX Font Info:    Font shape `U/msa/m/n' will be
+(Font)              scaled to size 8.33606pt on input line 137.
+LaTeX Font Info:    Font shape `U/msb/m/n' will be
+(Font)              scaled to size 11.40997pt on input line 137.
+LaTeX Font Info:    Font shape `U/msb/m/n' will be
+(Font)              scaled to size 8.33606pt on input line 137.
  [4
 
- <../../figures/./sanity/50psi/PH-NKD/H_50psi_nn.png> <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_recon.pdf>]
-<../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_filt_recon.pdf, id=95, 331.18834pt x 146.99821pt>
-File: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_filt_recon.pdf Graphic file (type pdf)
-<use ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_filt_recon.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_filt_recon.pdf  used on input line 144.
-(pdftex.def)             Requested size: 306.71954pt x 136.13719pt.
+ <../../figures/./raw_spectra/400_atm_raw_spec.png>]
+<../../figures/./raw_spectra/400_50psi_raw_spec.png, id=69, 329.6217pt x 150.7094pt>
+File: ../../figures/./raw_spectra/400_50psi_raw_spec.png Graphic file (type png)
+<use ../../figures/./raw_spectra/400_50psi_raw_spec.png>
+Package pdftex.def Info: ../../figures/./raw_spectra/400_50psi_raw_spec.png  used on input line 145.
+(pdftex.def)             Requested size: 306.71954pt x 140.24796pt.
  [5
 
- <../../figures/./sanity/50psi/PH-NKD/calib_spectra_50psi_nn_filt_recon.pdf>]
-<../../figures/./sanity/50psi/03_10/pinholefig.pdf, id=115, 271.64395pt x 344.58736pt>
-File: ../../figures/./sanity/50psi/03_10/pinholefig.pdf Graphic file (type pdf)
-<use ../../figures/./sanity/50psi/03_10/pinholefig.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/03_10/pinholefig.pdf  used on input line 152.
-(pdftex.def)             Requested size: 175.2664pt x 222.32813pt.
+ <../../figures/./raw_spectra/400_50psi_raw_spec.png>]
+<../../figures/./tf_calib/700_atm_calib_spec.png, id=77, 331.03186pt x 150.7094pt>
+File: ../../figures/./tf_calib/700_atm_calib_spec.png Graphic file (type png)
+<use ../../figures/./tf_calib/700_atm_calib_spec.png>
+Package pdftex.def Info: ../../figures/./tf_calib/700_atm_calib_spec.png  used on input line 154.
+(pdftex.def)             Requested size: 219.08635pt x 99.74675pt.
+<../../figures/./tf_calib/700_atm_H.pdf, id=78, 418.08194pt x 201.27196pt>
+File: ../../figures/./tf_calib/700_atm_H.pdf Graphic file (type pdf)
+<use ../../figures/./tf_calib/700_atm_H.pdf>
+Package pdftex.def Info: ../../figures/./tf_calib/700_atm_H.pdf  used on input line 154.
+(pdftex.def)             Requested size: 219.08635pt x 105.46973pt.
+ [6
 
-Overfull \vbox (12.24873pt too high) detected at line 152
- []
-
-[6
-
- <../../figures/./sanity/50psi/03_10/pinholefig.pdf>]
-<../../figures/./sanity/50psi/03_10/calib_ts_signals_50psi.pdf, id=140, 345.81194pt x 129.00195pt>
-File: ../../figures/./sanity/50psi/03_10/calib_ts_signals_50psi.pdf Graphic file (type pdf)
-<use ../../figures/./sanity/50psi/03_10/calib_ts_signals_50psi.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/03_10/calib_ts_signals_50psi.pdf  used on input line 162.
-(pdftex.def)             Requested size: 262.90628pt x 98.08185pt.
-<../../figures/./sanity/50psi/03_10/calib_ts_signals_50psi_part.pdf, id=141, 347.17242pt x 129.00195pt>
-File: ../../figures/./sanity/50psi/03_10/calib_ts_signals_50psi_part.pdf Graphic file (type pdf)
-<use ../../figures/./sanity/50psi/03_10/calib_ts_signals_50psi_part.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/03_10/calib_ts_signals_50psi_part.pdf  used on input line 162.
-(pdftex.def)             Requested size: 262.90628pt x 97.69408pt.
+ <../../figures/./tf_calib/700_atm_calib_spec.png> <../../figures/./tf_calib/700_atm_H.pdf>]
+<../../figures/./tf_calib/700_50psi_calib_spec.png, id=112, 331.03186pt x 150.7094pt>
+File: ../../figures/./tf_calib/700_50psi_calib_spec.png Graphic file (type png)
+<use ../../figures/./tf_calib/700_50psi_calib_spec.png>
+Package pdftex.def Info: ../../figures/./tf_calib/700_50psi_calib_spec.png  used on input line 163.
+(pdftex.def)             Requested size: 219.08635pt x 99.74675pt.
+<../../figures/./tf_calib/700_50psi_H.pdf, id=113, 418.08194pt x 201.27196pt>
+File: ../../figures/./tf_calib/700_50psi_H.pdf Graphic file (type pdf)
+<use ../../figures/./tf_calib/700_50psi_H.pdf>
+Package pdftex.def Info: ../../figures/./tf_calib/700_50psi_H.pdf  used on input line 163.
+(pdftex.def)             Requested size: 219.08635pt x 105.46973pt.
  [7
 
- <../../figures/./sanity/50psi/03_10/calib_ts_signals_50psi.pdf> <../../figures/./sanity/50psi/03_10/calib_ts_signals_50psi_part.pdf>]
-<../../figures/./sanity/50psi/03_10/calib_spectra_50psi_f_filt_recon.pdf, id=164, 334.92026pt x 150.75458pt>
-File: ../../figures/./sanity/50psi/03_10/calib_spectra_50psi_f_filt_recon.pdf Graphic file (type pdf)
-<use ../../figures/./sanity/50psi/03_10/calib_spectra_50psi_f_filt_recon.pdf>
-Package pdftex.def Info: ../../figures/./sanity/50psi/03_10/calib_spectra_50psi_f_filt_recon.pdf  used on input line 170.
-(pdftex.def)             Requested size: 350.53949pt x 157.7909pt.
+ <../../figures/./tf_calib/700_50psi_calib_spec.png> <../../figures/./tf_calib/700_50psi_H.pdf>]
+<../../figures/./tf_calib/700_100psi_calib_spec.png, id=138, 331.03186pt x 150.7094pt>
+File: ../../figures/./tf_calib/700_100psi_calib_spec.png Graphic file (type png)
+<use ../../figures/./tf_calib/700_100psi_calib_spec.png>
+Package pdftex.def Info: ../../figures/./tf_calib/700_100psi_calib_spec.png  used on input line 172.
+(pdftex.def)             Requested size: 219.08635pt x 99.74675pt.
+<../../figures/./tf_calib/700_100psi_H.pdf, id=139, 418.08194pt x 201.27196pt>
+File: ../../figures/./tf_calib/700_100psi_H.pdf Graphic file (type pdf)
+<use ../../figures/./tf_calib/700_100psi_H.pdf>
+Package pdftex.def Info: ../../figures/./tf_calib/700_100psi_H.pdf  used on input line 172.
+(pdftex.def)             Requested size: 219.08635pt x 105.46973pt.
  [8
 
- <../../figures/./sanity/50psi/03_10/calib_spectra_50psi_f_filt_recon.pdf>]
+ <../../figures/./tf_calib/700_100psi_calib_spec.png> <../../figures/./tf_calib/700_100psi_H.pdf>]
 \tf@nav=\write6
-\openout6 = `DARPA_07-10.nav'.
+\openout6 = `INT_10-14.nav'.
 
 \tf@toc=\write7
-\openout7 = `DARPA_07-10.toc'.
+\openout7 = `INT_10-14.toc'.
 
 \tf@snm=\write8
-\openout8 = `DARPA_07-10.snm'.
+\openout8 = `INT_10-14.snm'.
 
- [9] (./DARPA_07-10.aux)
-
-LaTeX Warning: Temporary extra page added at the end. Rerun to get it removed.
-
-
-Package rerunfilecheck Warning: File `DARPA_07-10.out' has changed.
-(rerunfilecheck)                Rerun to get outlines right
-(rerunfilecheck)                or use package `bookmark'.
-
-Package rerunfilecheck Info: Checksums for `DARPA_07-10.out':
-(rerunfilecheck)             Before: <no file>
-(rerunfilecheck)             After:  D41D8CD98F00B204E9800998ECF8427E;0.
+ (./INT_10-14.aux)
+Package rerunfilecheck Info: File `INT_10-14.out' has not changed.
+(rerunfilecheck)             Checksum: D41D8CD98F00B204E9800998ECF8427E;0.
  ) 
 Here is how much of TeX's memory you used:
- 32063 strings out of 476041
- 686864 string characters out of 5793175
+ 32144 strings out of 476041
+ 686548 string characters out of 5793175
  1858388 words of memory out of 6000000
- 51890 multiletter control sequences out of 15000+600000
- 535530 words of font info for 100 fonts, out of 8000000 for 9000
+ 51950 multiletter control sequences out of 15000+600000
+ 542441 words of font info for 117 fonts, out of 8000000 for 9000
  1137 hyphenation exceptions out of 8191
- 128i,16n,122p,519b,891s stack positions out of 10000i,1000n,20000p,200000b,200000s
-</usr/share/texlive/texmf-dist/fonts/type1/public/stix/STIXGeneral-Italic.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/stix/STIXGeneral-Regular.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss9.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssbx10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssi10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssi9.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/mathpazo/fplmri.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/palatino/uplr8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/palatino/uplri8a.pfb>
-Output written on DARPA_07-10.pdf (9 pages, 2652116 bytes).
+ 128i,16n,122p,515b,891s stack positions out of 10000i,1000n,20000p,200000b,200000s
+</usr/share/texlive/texmf-dist/fonts/type1/public/stix/STIXGeneral-Italic.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss9.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssi10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssi8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssi9.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/mathpazo/fplmri.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/symbols/msam10.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/palatino/uplr8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/palatino/uplri8a.pfb>
+Output written on INT_10-14.pdf (8 pages, 3647875 bytes).
 PDF statistics:
- 242 PDF objects out of 1000 (max. 8388607)
- 181 compressed objects within 2 object streams
+ 219 PDF objects out of 1000 (max. 8388607)
+ 155 compressed objects within 2 object streams
  17 named destinations out of 1000 (max. 500000)
  92 words of extra memory for PDF output out of 10000 (max. 10000000)
 

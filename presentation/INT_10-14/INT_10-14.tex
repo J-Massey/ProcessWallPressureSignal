@@ -1,0 +1,223 @@
+\documentclass[aspectratio=169,9pt]{beamer}
+% Beamer layout
+\setbeamersize{text margin left=0.4cm, text margin right=0.2cm}
+
+% Math & fonts
+\usepackage{amsmath,amssymb}
+\usepackage{mathpazo}   % Palatino text + math
+
+% Tables & units
+\usepackage{booktabs}
+\usepackage{siunitx}
+
+% TikZ (one load, all libs)
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,calc,positioning,shapes.geometric,shapes.misc}
+
+% Algorithms
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usepackage{float}
+
+% Media
+\usepackage{multimedia}
+\usepackage{animate}
+
+% Bibliography
+\usepackage{natbib}
+
+
+\newcommand{\shortdate}{\the\month-\the\day}
+\graphicspath{{../../figures/.}}
+
+\include{setup}
+\definecolor{cardinalred}{RGB}{140,21,21}
+%--- Custom footline
+\setbeamertemplate{footline}{%
+\begin{beamercolorbox}[wd=\paperwidth,ht=4ex,dp=2.5ex]{}
+    \centering
+    \makebox[0.32\paperwidth][l]{\scriptsize\texttt{Spec. \shortdate}}
+    \makebox[0.32\paperwidth][c]{\scriptsize\texttt{$^{\dag}$masseyj@stanford.edu}}
+    \makebox[0.32\paperwidth][r]{\scriptsize\insertframenumber/\inserttotalframenumber}
+  \end{beamercolorbox}
+}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usetikzlibrary{arrows.meta,shapes.geometric,shapes.misc,positioning}
+
+\tikzset{
+  >={Stealth},
+  proc/.style = {rectangle, rounded corners, draw, align=left, minimum height=8mm, text width=35mm, align=center},
+  meas/.style    = {trapezium, trapezium left angle=70, trapezium right angle=110, draw, align=left, minimum height=8mm, text width=19mm, align=center},
+  decision/.style = {diamond, aspect=2.2, draw, align=center, inner xsep=1.2ex, inner ysep=1ex, text width=2cm},
+  smldec/.style = {diamond, aspect=2.2, draw, align=center, inner xsep=1.2ex, inner ysep=1ex, text width=19mm},
+  terminator/.style = {ellipse, draw, align=center, minimum height=8mm, minimum width=16mm},
+  line/.style  = {->, line width=0.6pt}
+}
+
+
+%--- Title info
+\title{SU update: \\ We have energy in the correct place !}
+\author{JMO Massey$^{\dag}$, F Cabrera-Booman, T Jaroslawski, JC Klewicki, BJ McKeon}
+\institute{Center for Turbulence Research \\ Stanford University}
+% \thanks{This work was supported by DARPA under the CHAOS program}
+\date{\today}
+
+\begin{document}
+
+%--- Title page
+\begin{frame}
+    \setcounter{framenumber}{0}
+    \titlepage
+    \vfill
+    {\scriptsize \centering Thanks to DARPA for funding this work.\par}
+\end{frame}
+
+\begin{frame}
+    % \frametitle{Test matrix}
+    % Data completed thus far:
+    % \begin{table}[]
+    %     \centering
+    %     \begin{tabular}{lccccc}
+    %     \toprule
+    %     Pressure (psi) & 0 & 30 &  50 & 70&100 \\
+    %     \midrule
+    %     $Re_\tau$ & 1,500  &3,500& 5,000 &6,500& 8,000 \\
+    %     \bottomrule
+    %     \end{tabular}
+    % \end{table}
+
+    \begin{itemize}
+    %     \item Fix $U_e=14[\mathrm{m/s}]$
+        \item $\delta\approx 0.035[\mathrm{m}]$, $U_e \approx14[\mathrm{m/s}]$, $T^+\equiv T u_\tau^2/\nu=10$
+    \end{itemize}
+    \begin{table}[]
+        \centering
+        \begin{tabular}{lccccc}
+        \toprule
+        Pressure (psi) & 0  &  50 & 100 \\
+        \midrule
+        $u_\tau$[m/s] & 0.58 & 0.47 & 0.52 \\
+        $\nu/u_\tau$ [m] & 27$\times 10^{-6}$ & 7.5$\times 10^{-6}$ & 3.7$\times 10^{-6}$ \\
+        $\nu$ [m$^2$/s] & 15.7$\times 10^{-6}$ & 3.52$\times 10^{-6}$ & 1.92$\times 10^{-6}$ \\
+        $Re_\tau$ & 1,300 & 4,700 & 9,500 \\
+        \textcolor{blue}{$f(T^+=10)$ [Hz]} & \textcolor{blue}{2,100} & \textcolor{blue}{4,700} & \textcolor{blue}{14,100} \\
+        \bottomrule
+        \end{tabular}
+    \end{table}
+
+    % \begin{itemize}
+    %     \item Testing pinhole diameters of $d=$ 2300, 700, 400 $\mu$m
+    %     \item Corresponds to $d^+ \approx$ 85, 93, 108
+    %     \item Under the frozen turbulence assumption, these sit around $T^+\sim 10$
+    % \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{}
+  \begin{figure}
+    \centering
+    \includegraphics[width=0.7\textwidth]{pinholes.pdf}
+  \end{figure}
+
+  \begin{itemize}
+    \centering
+        \item Testing pinhole diameters of $d=$ 2300, 700, 400 $\mu$m
+        \item Corresponds to $d^+ \approx$ 85, 93, 108
+        \item Under the frozen turbulence assumption, these sit around $T^+\sim 10$
+    \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{$Re_\tau\approx$ 1,300 ($d=$700 $\mu$m)}
+  \begin{figure}
+    \centering
+    \includegraphics[width=0.7\textwidth]{raw_spectra/400_atm_raw_spec.png}
+  \end{figure}
+\end{frame}
+
+\begin{frame}
+  \frametitle{$Re_\tau \approx$ 4,700 ($d=$700 $\mu$m)}
+  \begin{figure}
+    \centering
+    \includegraphics[width=0.7\textwidth]{raw_spectra/400_50psi_raw_spec.png}
+  \end{figure}
+\end{frame}
+
+\begin{frame}
+  \frametitle{}
+  \begin{figure}
+    \centering
+    \includegraphics[width=0.5\textwidth]{tf_calib/700_atm_calib_spec.png}
+    \includegraphics[width=0.5\textwidth]{tf_calib/700_atm_H.pdf}
+  \end{figure}
+\end{frame}
+
+\begin{frame}
+  \frametitle{}
+  \begin{figure}
+    \centering
+    \includegraphics[width=0.5\textwidth]{tf_calib/700_50psi_calib_spec.png}
+    \includegraphics[width=0.5\textwidth]{tf_calib/700_50psi_H.pdf}
+  \end{figure}
+\end{frame}
+
+\begin{frame}
+  \frametitle{}
+  \begin{figure}
+    \centering
+    \includegraphics[width=0.5\textwidth]{tf_calib/700_100psi_calib_spec.png}
+    \includegraphics[width=0.5\textwidth]{tf_calib/700_100psi_H.pdf}
+  \end{figure}
+\end{frame}
+
+% \begin{frame}
+%   \frametitle{}
+%   \begin{figure}
+%     \centering
+%     \includegraphics[width=0.5\textwidth]{tf_calib/400_100psi_calib_spec.png}
+%     \includegraphics[width=0.5\textwidth]{tf_calib/400_100psi_H.pdf}
+%   \end{figure}
+% \end{frame}
+
+% \begin{frame}
+%   \frametitle{Raw calibration signals}
+%   \begin{figure}
+%     \centering
+%     \includegraphics[width=0.6\textwidth]{band_calib/700micron/50psig/700_50_H_band.pdf}
+%   \end{figure}
+% \end{frame}
+
+% \begin{frame}
+%   \frametitle{Raw calibration signals}
+%   \begin{figure}
+%     \centering
+%     \includegraphics[width=0.6\textwidth]{band_calib/700micron/100psig/700_100_H_band.pdf}
+%   \end{figure}
+% \end{frame}
+
+% \begin{frame}
+%   \frametitle{Raw calibration signals}
+%   \begin{figure}
+%     \centering
+%     \includegraphics[width=0.6\textwidth]{band_calib/400micron/atm/400_atm_H_band.pdf}
+%   \end{figure}
+% \end{frame}
+
+% \begin{frame}
+%   \frametitle{Raw calibration signals}
+%   \begin{figure}
+%     \centering
+%     \includegraphics[width=0.6\textwidth]{band_calib/400micron/50psig/400_50_H_band.pdf}
+%   \end{figure}
+% \end{frame}
+
+% \begin{frame}
+%   \frametitle{Raw calibration signals}
+%   \begin{figure}
+%     \centering
+%     \includegraphics[width=0.6\textwidth]{band_calib/400micron/100psig/400_100_H_band.pdf}
+%   \end{figure}
+% \end{frame}
+
+\end{document}
