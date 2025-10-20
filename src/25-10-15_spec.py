@@ -645,11 +645,11 @@ def plot_white(ax):
     ax.loglog(x, y, '--', color='gray', label='White noise (slope +1)')
 
 
-def calibration_400_atm():
+def calibration_700_atm():
     root = 'data/20251014/flow_data'
     fn = f'{root}/atm.mat'
     OUTPUT_DIR = "figures/raw_spectra"
-    CAL_DIR = os.path.join(root, "tf_data")
+    CAL_DIR = os.path.join('data/20251014/tf_calib', "tf_data")
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     os.makedirs(CAL_DIR, exist_ok=True)
 
@@ -689,6 +689,15 @@ def calibration_400_atm():
 
     ax.legend()
     fig.savefig(f"{OUTPUT_DIR}/400_atm_raw_spec.png", dpi=410)
+
+    # apply tf
+    TF_CORRECTED_OUT = 'figures/tf_corrected_spectra' 
+    f1 = np.load(f"{CAL_DIR}/f_700_atm.npy")
+    H1 = np.load(f"{CAL_DIR}/H1_700_atm.npy")
+    gamma1 = np.load(f"{CAL_DIR}/gamma1_700_atm.npy")
+
+    
+    
 
 def calibration_400_50psi():
     root = 'data/20251014/flow_data'
@@ -1000,8 +1009,8 @@ if __name__ == "__main__":
     dplus = d / nu_utau
     ic(dplus)
     # calibration()
-    calibration_400_atm()
-    calibration_400_50psi()
-    calibration_400_100psi()
+    calibration_700_atm()
+    # calibration_400_50psi()
+    # calibration_400_100psi()
 
     # flow_tests()

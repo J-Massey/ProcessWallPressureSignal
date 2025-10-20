@@ -1117,8 +1117,8 @@ def flow_tests():
 
 if __name__ == "__main__":
     # calibration()
-    # calibration_700_atm()
-    # calibration_700_50psi()
+    calibration_700_atm()
+    calibration_700_50psi()
     calibration_700_100psi()
 
     # flow_tests()
