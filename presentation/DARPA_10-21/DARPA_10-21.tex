@@ -57,8 +57,8 @@
 
 
 %--- Title info
-\title{SU update: \\ We have energy in the correct place !}
-\author{JMO Massey$^{\dag}$, F Cabrera-Booman, T Jaroslawski, JC Klewicki, BJ McKeon}
+\title{SU update: \\ We have two-point measurements with two streamwise spacings}
+\author{JMO Massey$^{\dag}$, F Cabrera-Booman, JC Klewicki, T Jaroslawski, BJ McKeon}
 \institute{Center for Turbulence Research \\ Stanford University}
 % \thanks{This work was supported by DARPA under the CHAOS program}
 \date{\today}
@@ -106,15 +106,10 @@
         \end{tabular}
     \end{table}
 
-    % \begin{itemize}
-    %     \item Testing pinhole diameters of $d=$ 2300, 700, 400 $\mu$m
-    %     \item Corresponds to $d^+ \approx$ 85, 93, 108
-    %     \item Under the frozen turbulence assumption, these sit around $T^+\sim 10$
-    % \end{itemize}
 \end{frame}
 
 \begin{frame}
-  \frametitle{}
+  \frametitle{Pinhole diameters}
   \begin{figure}
     \centering
     \includegraphics[width=0.7\textwidth]{pinholes.pdf}
@@ -129,10 +124,36 @@
 \end{frame}
 
 \begin{frame}
+  \frametitle{Pinhole spacings}
+
+  \centering
+  \vspace{2cm}
+  {\Huge\bfseries \textcolor{blue}{Picture of spaced pinholes}}
+  \vspace{2cm}
+
+  \begin{itemize}
+    \centering
+        \item We have two-point measurements at two streamwise spacings: $3.2\delta$ and $2.8\delta$
+        \item Herein, we refer to these as `far' and `close' spacings
+        \item The spectra are plotted in voltage and haven't yet been converted to pressure
+    \end{itemize}
+\end{frame}
+
+\section{Raw Data}
+\begin{frame}
+  \centering
+  \vfill
+  {\Huge\bfseries \textcolor{cardinalred}{Raw Data}}
+  \vfill
+\end{frame}
+
+
+\begin{frame}
   \frametitle{$Re_\tau\approx$ 1,300 ($d=$700 $\mu$m)}
   \begin{figure}
     \centering
-    \includegraphics[width=0.7\textwidth]{raw_spectra/400_atm_raw_spec.png}
+    \includegraphics[width=0.7\textwidth]{raw_spectra/700_atm_raw_spec_far.png}
+    \includegraphics[width=0.7\textwidth]{raw_spectra/700_atm_raw_spec_close.png}
   \end{figure}
 \end{frame}
 
@@ -140,111 +161,71 @@
   \frametitle{$Re_\tau \approx$ 4,700 ($d=$700 $\mu$m)}
   \begin{figure}
     \centering
-    \includegraphics[width=0.7\textwidth]{raw_spectra/400_50psi_raw_spec.png}
+    \includegraphics[width=0.7\textwidth]{raw_spectra/700_50psi_raw_spec_far.png}
+    \includegraphics[width=0.7\textwidth]{raw_spectra/700_50psi_raw_spec_close.png}
   \end{figure}
 \end{frame}
 
 \begin{frame}
-  \frametitle{Calibration 1 for PH2}
+  \frametitle{$Re_\tau \approx$ 9,500 ($d=$700 $\mu$m)}
   \begin{figure}
     \centering
-    \includegraphics[width=0.5\textwidth]{tf_calib/700_atm_calib_spec.png}
-    \includegraphics[width=0.5\textwidth]{tf_calib/700_atm_H.pdf}
+    \includegraphics[width=0.7\textwidth]{raw_spectra/700_100psi_raw_spec_far.png}
+    \includegraphics[width=0.7\textwidth]{raw_spectra/700_100psi_raw_spec_close.png}
   \end{figure}
+\end{frame}
+
+
+\section{Transfer Functions}
+\begin{frame}
+  \centering
+  \vfill
+  {\Huge\bfseries \textcolor{cardinalred}{Transfer Functions}}
+  \vfill
+
+  \begin{itemize}
+    \item Received data last night
+    \item Plotting transfer functions for cali1, cali2, and in-situ noflow now
+    \item and incorporating into a single robust estimate, (will have if all goes well)
+  \end{itemize}
 \end{frame}
 
 \begin{frame}
-  \frametitle{Calibration 2 for PH2}
-  \begin{figure}
-    \centering
-    \includegraphics[width=0.5\textwidth]{tf_calib/700_atm_calib_spec_a2.png}
-    \includegraphics[width=0.5\textwidth]{tf_calib/700_atm_H_a2.pdf}
-  \end{figure}
+  \frametitle{$Re_\tau\approx$ 1,300 ($d=$700 $\mu$m)}
+  % \begin{figure}
+  %   \centering
+  %   \includegraphics[width=0.7\textwidth]{tf_plots/700_atm_tf_far.png}
+  %   \includegraphics[width=0.7\textwidth]{tf_plots/700_atm_tf_close.png}
+  % \end{figure}
 \end{frame}
 
 \begin{frame}
-  \frametitle{Calibration 1 for PH2}
-  \begin{figure}
-    \centering
-    \includegraphics[width=0.5\textwidth]{tf_calib/700_50psi_calib_spec.png}
-    \includegraphics[width=0.5\textwidth]{tf_calib/700_50psi_H.pdf}
-  \end{figure}
+  \frametitle{$Re_\tau \approx$ 4,700 ($d=$700 $\mu$m)}
+  % \begin{figure}
+  %   \centering
+  %   \includegraphics[width=0.7\textwidth]{tf_plots/700_50psi_tf_far.png}
+  %   \includegraphics[width=0.7\textwidth]{tf_plots/700_50psi_tf_close.png}
+  % \end{figure}
 \end{frame}
 
 \begin{frame}
-  \frametitle{Calibration 2 for PH2}
-  \begin{figure}
-    \centering
-    \includegraphics[width=0.5\textwidth]{tf_calib/700_50psi_calib_spec_a2.png}
-    \includegraphics[width=0.5\textwidth]{tf_calib/700_50psi_H_a2.pdf}
-  \end{figure}
+  \frametitle{$Re_\tau \approx$ 9,500 ($d=$700 $\mu$m)}
+  % \begin{figure}
+  %   \centering
+  %   \includegraphics[width=0.7\textwidth]{tf_plots/700_100psi_tf_far.png}
+  %   \includegraphics[width=0.7\textwidth]{tf_plots/700_100psi_tf_close.png}
+  % \end{figure}
 \end{frame}
 
 \begin{frame}
-  \frametitle{Calibration 1 for PH2}
-  \begin{figure}
-    \centering
-    \includegraphics[width=0.5\textwidth]{tf_calib/700_100psi_calib_spec.png}
-    \includegraphics[width=0.5\textwidth]{tf_calib/700_100psi_H.pdf}
-  \end{figure}
+  \frametitle{Ongoing work on incorporating the 3 separate transfer functions}
+  \begin{itemize}
+    \item The transfer functions appear to be similar, but not identical.
+    \item Small discrepancies can lead to large differences in the final spectra
+    \item We are working on methods to combine the 3 transfer functions into one robust estimate
+  \end{itemize}
 \end{frame}
 
-\begin{frame}
-  \frametitle{Calibration 2 for PH2}
-  \begin{figure}
-    \centering
-    \includegraphics[width=0.5\textwidth]{tf_calib/700_100psi_calib_spec_a2.png}
-    \includegraphics[width=0.5\textwidth]{tf_calib/700_100psi_H_a2.pdf}
-  \end{figure}
-\end{frame}
 
-% \begin{frame}
-%   \frametitle{}
-%   \begin{figure}
-%     \centering
-%     \includegraphics[width=0.5\textwidth]{tf_calib/400_100psi_calib_spec.png}
-%     \includegraphics[width=0.5\textwidth]{tf_calib/400_100psi_H.pdf}
-%   \end{figure}
-% \end{frame}
-
-% \begin{frame}
-%   \frametitle{Raw calibration signals}
-%   \begin{figure}
-%     \centering
-%     \includegraphics[width=0.6\textwidth]{band_calib/700micron/50psig/700_50_H_band.pdf}
-%   \end{figure}
-% \end{frame}
-
-% \begin{frame}
-%   \frametitle{Raw calibration signals}
-%   \begin{figure}
-%     \centering
-%     \includegraphics[width=0.6\textwidth]{band_calib/700micron/100psig/700_100_H_band.pdf}
-%   \end{figure}
-% \end{frame}
-
-% \begin{frame}
-%   \frametitle{Raw calibration signals}
-%   \begin{figure}
-%     \centering
-%     \includegraphics[width=0.6\textwidth]{band_calib/400micron/atm/400_atm_H_band.pdf}
-%   \end{figure}
-% \end{frame}
-
-% \begin{frame}
-%   \frametitle{Raw calibration signals}
-%   \begin{figure}
-%     \centering
-%     \includegraphics[width=0.6\textwidth]{band_calib/400micron/50psig/400_50_H_band.pdf}
-%   \end{figure}
-% \end{frame}
-
-% \begin{frame}
-%   \frametitle{Raw calibration signals}
-%   \begin{figure}
-%     \centering
-%     \includegraphics[width=0.6\textwidth]{band_calib/400micron/100psig/400_100_H_band.pdf}
-%   \end{figure}
-% \end{frame}
 
 \end{document}
