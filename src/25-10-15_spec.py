@@ -861,8 +861,8 @@ def calibration_700_100psi():
     u_tau = 0.52
     nu_utau = 3.7e-6
     nu = nu_utau * u_tau
-    Re_tau = u_tau *0.035 / nu
-    T10 = 0.1 * (u_tau**2)/nu
+    f_cut = 14_100
+    T_plus_fcut = 1/f_cut * (u_tau**2)/nu
     
     root = 'data/20251014/flow_data/far'
     fn_far = f'{root}/100psi.mat'
@@ -891,12 +891,15 @@ def calibration_700_100psi():
     ax[0].semilogx(f_far, f_far * Pyy_nkd_far, label='NC', color=nkd_colour)
     ax[0].semilogx(f_far, f_far * Pyy_ph1_far, label='PH1', color=ph1_colour)
     ax[0].semilogx(f_far, f_far * Pyy_ph2_far, label='PH2', color=ph2_colour)
-    # ax.axvline(T_plus_fcut, color='gray', linestyle='--', label=r'$f_{\mathrm{LP}}'+r'={:.0f}$ [Hz]'.format(f_cut))
+    ax[0].axvline(f_cut, color='red', linestyle='--')
     #
     ax[0].set_xlabel("$f$ [Hz]")
+
     ax[1].semilogx(T_plus, f_far * Pyy_nkd_far, label='NC', color=nkd_colour)
     ax[1].semilogx(T_plus, f_far * Pyy_ph1_far, label='PH1', color=ph1_colour)
     ax[1].semilogx(T_plus, f_far * Pyy_ph2_far, label='PH2', color=ph2_colour)
+    ax[1].axvline(T_plus_fcut, color='red', linestyle='--')
+
     ax[1].set_xlabel("$T^+$")
     ax[0].set_ylabel(r"$f \phi_{pp}$")
     # ax[1].set_ylabel(r"$f \phi_{pp}$")
@@ -928,12 +931,14 @@ def calibration_700_100psi():
     ax[0].semilogx(f_close, f_close * Pyy_nkd_close, label='NC', color=nkd_colour)
     ax[0].semilogx(f_close, f_close * Pyy_ph1_close, label='PH1', color=ph1_colour)
     ax[0].semilogx(f_close, f_close * Pyy_ph2_close, label='PH2', color=ph2_colour)
-    # ax.axvline(T_plus_fcut, color='gray', linestyle='--', label=r'$f_{\mathrm{LP}}'+r'={:.0f}$ [Hz]'.format(f_cut))
-    #
+    ax[0].axvline(f_cut, color='red', linestyle='--')
+
     ax[0].set_xlabel("$f$ [Hz]")
     ax[1].semilogx(T_plus, f_close * Pyy_nkd_close, label='NC', color=nkd_colour)
     ax[1].semilogx(T_plus, f_close * Pyy_ph1_close, label='PH1', color=ph1_colour)
     ax[1].semilogx(T_plus, f_close * Pyy_ph2_close, label='PH2', color=ph2_colour)
+    ax[1].axvline(T_plus_fcut, color='red', linestyle='--')
+    
     ax[1].set_xlabel("$T^+$")
     ax[0].set_ylabel(r"$f \phi_{pp}$")
     # ax[1].set_ylabel(r"$f \phi_{pp}$")
@@ -954,8 +959,8 @@ if __name__ == "__main__":
     dplus = d / nu_utau
     ic(dplus)
     # calibration()
-    calibration_700_atm()
-    calibration_700_50psi()
+    # calibration_700_atm()
+    # calibration_700_50psi()
     calibration_700_100psi()
 
     # flow_tests()

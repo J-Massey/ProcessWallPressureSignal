@@ -809,7 +809,7 @@ def calibration_700_50psi():
     plt.savefig(f"{OUTPUT_DIR}/700_50psi_H_a2.pdf", dpi=600)
     plt.close()
 
-def calibration_700_100psi():
+def calibration_700_100psi(plot=[0,1]):
     OUTPUT_DIR = "figures/tf_calib"
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     root = 'data/20251014/tf_calib'
@@ -872,90 +872,90 @@ def calibration_700_100psi():
 
     # Add in the no-flow calibration data
     root = 'data/20251014/flow_data/far'
-    fn = f'{root}/100psi.mat'
+    fn_far = f'{root}/100psi.mat'
     CAL_DIR_FAR = os.path.join('data/20251014/tf_calib', "tf_data")
     
-    dat = sio.loadmat(fn)
+    dat = sio.loadmat(fn_far)
     ic(dat.keys())
-    nc_nf = dat['channelData_noflow'][:,2]
-    ph1_nf = dat['channelData_noflow'][:,0]
-    ph2_nf = dat['channelData_noflow'][:,1]
-    f, Pyy_nc_nf = compute_spec(FS, nc_nf)
-    f, Pyy_ph1_nf = compute_spec(FS, ph1_nf)
-    f, Pyy_ph2_nf = compute_spec(FS, ph2_nf)
+    nc_nf_far = dat['channelData_noflow'][:,2]
+    ph1_nf_far = dat['channelData_noflow'][:,0]
+    ph2_nf_far = dat['channelData_noflow'][:,1]
 
-    f, Pyy_nc1_far = compute_spec(FS, nc1_far)
-    f, Pyy_nc2_far = compute_spec(FS, nc2_far)
-    f, Pyy_ph1_far = compute_spec(FS, ph1_far)
-    f, Pyy_ph2_far = compute_spec(FS, ph2_far)
+    root = 'data/20251016/flow_data/close'
+    fn_close = f'{root}/100psi.mat'
+    CAL_DIR_CLOSE = os.path.join('data/20251016/tf_calib', "tf_data")
 
-    # # plot the raw spectra as T^+
-    # fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True)
-    # T_plus = f #* (u_tau**2)/nu
-    # ax.loglog(T_plus, f * Pyy_nc1_far, label='NC$_{R1}$', color=nc_colour, lw=0.5)
-    # ax.loglog(T_plus, f * Pyy_nc2, label='NC$_{R2}$', color=nc_colour, lw=0.5)
-    # ax.loglog(T_plus, f * Pyy_ph1, label='PH1', color=ph1_colour, lw=0.5)
-    # ax.loglog(T_plus, f * Pyy_ph2, label='PH2', color=ph2_colour, lw=0.5)
-    # ax.loglog(T_plus, f * Pyy_nc_nf, label='NC$_{R}$ no flow', color=nc_colour, lw=0.5, ls='--')
-    # ax.loglog(T_plus, f * Pyy_ph1_nf, label='PH1 no flow', color=ph1_colour, lw=0.5, ls='--')
-    # ax.loglog(T_plus, f * Pyy_ph2_nf, label='PH2 no flow', color=ph2_colour, lw=0.5, ls='--')
+    dat = sio.loadmat(fn_close)
+    ic(dat.keys())
+    nc_nf_close = dat['channelData_noflow'][:,2]
+    ph1_nf_close = dat['channelData_noflow'][:,0]
+    ph2_nf_close = dat['channelData_noflow'][:,1]
+    
+    f1_nf_far, H1_nf_far, gamma1_nf_far = estimate_frf(ph1_nf_far, nc_nf_far, FS, npsg=2**10)
+    np.save(f"{CAL_DIR_FAR}/H1_700_100psi_nf.npy", H1_nf_far)
+    np.save(f"{CAL_DIR_FAR}/gamma1_700_100psi_nf.npy", gamma1_nf_far)
+    np.save(f"{CAL_DIR_FAR}/f1_700_100psi_nf.npy", f1_nf_far)
+    f2_nf_far, H2_nf_far, gamma2_nf_far = estimate_frf(ph2_nf_far, nc_nf_far, FS, npsg=2**10)
+    np.save(f"{CAL_DIR_FAR}/H2_700_100psi_nf.npy", H2_nf_far)
+    np.save(f"{CAL_DIR_FAR}/gamma2_700_100psi_nf.npy", gamma2_nf_far)
+    np.save(f"{CAL_DIR_FAR}/f2_700_100psi_nf.npy", f2_nf_far)
+    f1_nf_close, H1_nf_close, gamma1_nf_close = estimate_frf(ph1_nf_close, nc_nf_close, FS, npsg=2**10)
+    np.save(f"{CAL_DIR_CLOSE}/H1_700_100psi_nf.npy", H1_nf_close)
+    np.save(f"{CAL_DIR_CLOSE}/gamma1_700_100psi_nf.npy", gamma1_nf_close)
+    np.save(f"{CAL_DIR_CLOSE}/f1_700_100psi_nf.npy", f1_nf_close)
+    f2_nf_close, H2_nf_close, gamma2_nf_close = estimate_frf(ph2_nf_close, nc_nf_close, FS, npsg=2**10)
+    np.save(f"{CAL_DIR_CLOSE}/H2_700_100psi_nf.npy", H2_nf_close)
+    np.save(f"{CAL_DIR_CLOSE}/gamma2_700_100psi_nf.npy", gamma2_nf_close)
+    np.save(f"{CAL_DIR_CLOSE}/f2_700_100psi_nf.npy", f2_nf_close)
 
-    # ax.axvline(f_cut, color='red', linestyle='--', lw=1)
-    # ax.set_xlabel("$T^+$")
-    # ax.set_xlabel("$f$ [Hz]")
-    # ax.set_ylabel(r"$f \phi_{pp}$")
+    if 0 in plot:
+        # Now plot the TF with cutoff, annotated
+        mag1_far = np.abs(H1_far); phase1_far = np.unwrap(np.angle(H1_far))
+        mag2_far = np.abs(H2_far); phase2_far = np.unwrap(np.angle(H2_far))
+        mag1_close = np.abs(H1_close); phase1_close = np.unwrap(np.angle(H1_close))
+        mag2_close = np.abs(H2_close); phase2_close = np.unwrap(np.angle(H2_close))
 
-    # # ax.set_ylim(1e-10, 1e-2)
-    # # ax.set_xlim(1e0, 1e4)
+        mag1_nf_far = np.abs(H1_nf_far); phase1_nf_far = np.unwrap(np.angle(H1_nf_far))
+        mag2_nf_far = np.abs(H2_nf_far); phase2_nf_far = np.unwrap(np.angle(H2_nf_far))
+        mag1_nf_close = np.abs(H1_nf_close); phase1_nf_close = np.unwrap(np.angle(H1_nf_close))
+        mag2_nf_close = np.abs(H2_nf_close); phase2_nf_close = np.unwrap(np.angle(H2_nf_close))
 
-    # ax.legend(fontsize=6)
-    # fig.savefig(f"{OUTPUT_DIR}/700_100psi_calib_spec_nf.png", dpi=410)
-    # plt.close()
+        # mag1_nf = np.abs(H1_nf); phase1_nf = np.unwrap(np.angle(H1_nf))
+        # mag2_nf = np.abs(H2_nf); phase2_nf = np.unwrap(np.angle(H2_nf))
+        fig, (ax_mag, ax_ph) = plt.subplots(2, 1, sharex=True, figsize=(9, 4.5), dpi=600)
+        ax_mag.set_title(r'$H_{\mathrm{PH-NC}}$ ($700\mu m$, 100psi), with suggested cutoffs')
+        ax_mag.loglog(f1_far, mag1_far, lw=1, color=ph1_colour, label='PH1 far')
+        ax_mag.loglog(f2_far, mag2_far, lw=1, color=ph2_colour, label='PH2 far')
+        ax_mag.loglog(f1_close, mag1_close, lw=1, color=ph1_colour, ls='--', label='PH1 close')
+        ax_mag.loglog(f2_close, mag2_close, lw=1, color=ph2_colour, ls='--', label='PH2 close')
+        ax_mag.loglog(f1_nf_far, mag1_nf_far, lw=1, color='k', ls=':', label='PH1 in-situ far')
+        ax_mag.loglog(f2_nf_far, mag2_nf_far, lw=1, color='k', ls='-.', label='PH2 in-situ far')
+        ax_mag.loglog(f1_nf_close, mag1_nf_close, lw=1, color='k', ls=':', label='PH1 in-situ close')
+        ax_mag.loglog(f2_nf_close, mag2_nf_close, lw=1, color='k', ls='-.', label='PH2 in-situ close')
 
-    # Compute TF for no-flow data
-    # f1_nf, H1_nf, gamma1_nf = estimate_frf(ph1_nf, nc_nf, FS, npsg=2**10)
-    # np.save(f"{CAL_DIR_FAR}/H1_700_100psi_nf.npy", H1_nf)
-    # np.save(f"{CAL_DIR_FAR}/gamma1_700_100psi_nf.npy", gamma1_nf)
-    # np.save(f"{CAL_DIR_FAR}/f1_700_100psi_nf.npy", f1_nf)
-    # f2_nf, H2_nf, gamma2_nf = estimate_frf(ph2_nf, nc_nf, FS, npsg=2**10)
-    # np.save(f"{CAL_DIR_FAR}/H2_700_100psi_nf.npy", H2_nf)
-    # np.save(f"{CAL_DIR_FAR}/gamma2_700_100psi_nf.npy", gamma2_nf)
-    # np.save(f"{CAL_DIR_FAR}/f2_700_100psi_nf.npy", f2_nf)
+        ax_mag.legend(fontsize=8, ncol=2)
 
-    # Now plot the TF with cutoff, annotated
-    mag1_far = np.abs(H1_far); phase1_far = np.unwrap(np.angle(H1_far))
-    mag2_far = np.abs(H2_far); phase2_far = np.unwrap(np.angle(H2_far))
-    mag1_close = np.abs(H1_close); phase1_close = np.unwrap(np.angle(H1_close))
-    mag2_close = np.abs(H2_close); phase2_close = np.unwrap(np.angle(H2_close))
-    # mag1_nf = np.abs(H1_nf); phase1_nf = np.unwrap(np.angle(H1_nf))
-    # mag2_nf = np.abs(H2_nf); phase2_nf = np.unwrap(np.angle(H2_nf))
-    fig, (ax_mag, ax_ph) = plt.subplots(2, 1, sharex=True, figsize=(6, 3), dpi=600)
-    ax_mag.set_title(r'$H_{\mathrm{PH-NC}}$ ($700\mu m$, 100psi), with suggested cutoffs')
-    ax_mag.loglog(f1_far, mag1_far, lw=1, color=ph1_colour, label='PH1 far')
-    ax_mag.loglog(f2_far, mag2_far, lw=1, color=ph2_colour, label='PH2 far')
-    ax_mag.loglog(f1_close, mag1_close, lw=1, color=ph1_colour, ls='--', label='PH1 close')
-    ax_mag.loglog(f2_close, mag2_close, lw=1, color=ph2_colour, ls='--', label='PH2 close')
-    ax_mag.legend(fontsize=6)
+        ax_mag.set_ylabel(r'$|H_{\mathrm{PH-NC}}(f)|$')
+        # ax_mag.set_ylim(0.1, 100)
+        ax_mag.axvline(f_cut, color='red', linestyle='--', lw=1)
+        ax_mag.text(f_cut, 10, fr'$T^+ \approx {T_plus_fcut:.1f}$', color='red', va='center', ha='right', rotation=90)
 
-    ax_mag.set_ylabel(r'$|H_{\mathrm{PH-NC}}(f)|$')
-    # ax_mag.set_ylim(0.1, 100)
-    ax_mag.axvline(f_cut, color='red', linestyle='--', lw=1)
-    ax_mag.text(f_cut, 10, fr'$T^+ \approx {T_plus_fcut:.1f}$', color='red', va='center', ha='right', rotation=90)
+        ax_ph.semilogx(f1_far, phase1_far, lw=1, color=ph1_colour)
+        ax_ph.semilogx(f2_far, phase2_far, lw=1, color=ph2_colour)
+        ax_ph.semilogx(f1_close, phase1_close, lw=1, color=ph1_colour, ls='--')
+        ax_ph.semilogx(f2_close, phase2_close, lw=1, color=ph2_colour, ls='--')
+        ax_ph.semilogx(f1_nf_far, phase1_nf_far, lw=1, color='k', ls=':')
+        ax_ph.semilogx(f2_nf_far, phase2_nf_far, lw=1, color='k', ls='-.')
+        ax_ph.semilogx(f1_nf_close, phase1_nf_close, lw=1, color='k', ls=':')
+        ax_ph.semilogx(f2_nf_close, phase2_nf_close, lw=1, color='k', ls='-.')
+        ax_ph.set_ylabel(r'$\angle H_{\mathrm{PH-NC}}(f)\,[\mathrm{rad}]$')
+        ax_ph.set_xlabel(r'$f\ \mathrm{[Hz]}$')
+        # ax_ph.set_ylim(0, 7)
+        ax_ph.axvline(f_cut, color='red', linestyle='--', lw=1)
 
-    ax_ph.semilogx(f1_far, phase1_far, lw=1, color=ph1_colour)
-    ax_ph.semilogx(f2_far, phase2_far, lw=1, color=ph2_colour)
-    ax_ph.semilogx(f1_close, phase1_close, lw=1, color=ph1_colour, ls='--')
-    ax_ph.semilogx(f2_close, phase2_close, lw=1, color=ph2_colour, ls='--')
-    # ax_ph.semilogx(f1_nf, phase1_nf, lw=1, color='k', ls=':')
-    # ax_ph.semilogx(f2_nf, phase2_nf, lw=1, color='k', ls='-.')
-    ax_ph.set_ylabel(r'$\angle H_{\mathrm{PH-NC}}(f)\,[\mathrm{rad}]$')
-    ax_ph.set_xlabel(r'$f\ \mathrm{[Hz]}$')
-    # ax_ph.set_ylim(0, 7)
-    ax_ph.axvline(f_cut, color='red', linestyle='--', lw=1)
-
-    fig.tight_layout()
-    plt.savefig(f"{OUTPUT_DIR}/700_100psi_H_2cal.png", dpi=410)
-    plt.close()
+        fig.tight_layout()
+        plt.savefig(f"{OUTPUT_DIR}/700_100psi_H_2cal.png", dpi=410)
+        plt.close()
 
     # plot the coherence
     # fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True)
@@ -977,6 +977,6 @@ if __name__ == "__main__":
     # calibration()
     # calibration_700_atm()
     # calibration_700_50psi()
-    calibration_700_100psi()
+    calibration_700_100psi(plot=[1])
 
     # flow_tests()
