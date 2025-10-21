@@ -171,7 +171,7 @@
 % \end{frame}
 
 \begin{frame}
-  \frametitle{Raw Data: $Re_\tau \approx$ 9,500 ($d=$700 $\mu$m)}
+  \frametitle{Raw Data [V]: $Re_\tau \approx$ 9,500 ($d=$700 $\mu$m)}
   \begin{figure}
     \centering
     \includegraphics[width=0.7\textwidth]{raw_spectra/700_100psi_raw_spec_far.png}
@@ -221,12 +221,22 @@
 \end{frame}
 
 \begin{frame}
-  \frametitle{Ongoing work on incorporating the 4 separate transfer functions}
+  \frametitle{Under development: Combining transfer functions}
   \begin{itemize}
+    \centering
     \item The transfer functions appear to be similar, but not identical.
     \item Small discrepancies can lead to large differences in the final spectra
     \item We are working on methods to combine the 4 transfer functions into one robust estimate
+    \item With high confidence, we can fuse the two anechoic transfer functions into one robust estimate
   \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Anechoic Fused Transfer Function: $Re_\tau \approx$ 9,500 ($d=$700 $\mu$m)}
+  \begin{figure}
+    \centering
+    \includegraphics[width=0.9\textwidth]{tf_calib/700_100psi_H_anechoic_fused.pdf}
+  \end{figure}
 \end{frame}
 
 \end{document}
