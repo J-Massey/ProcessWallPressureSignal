@@ -961,7 +961,7 @@ def calibration_700_atm():
     ax_ph.axvline(f_cut, color='red', linestyle='--', lw=1)
 
     fig.tight_layout()
-    plt.savefig(f"{OUTPUT_DIR}/700_atm_H_a2.pdf", dpi=600)
+    plt.savefig(f"{OUTPUT_DIR}/700_atm_H_a2.png", dpi=600)
     plt.close()
 
 def calibration_700_50psi():
@@ -1041,22 +1041,24 @@ def calibration_700_50psi():
     ax_ph.axvline(f_cut, color='red', linestyle='--', lw=1)
 
     fig.tight_layout()
-    plt.savefig(f"{OUTPUT_DIR}/700_50psi_H_a2.pdf", dpi=600)
+    plt.savefig(f"{OUTPUT_DIR}/700_50psi_H_a2.png", dpi=600)
     plt.close()
 
 def calibration_700_100psi(plot=[0,1]):
     OUTPUT_DIR = "figures/tf_calib"
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     root = 'data/20251014/tf_calib'
+    CAL_DIR_FAR = os.path.join(root, "tf_data")
     fn1_far = f'{root}/100psi_lp_16khz_ph1.mat'
     fn2_far = f'{root}/100psi_lp_16khz_ph2.mat'
-    CAL_DIR_FAR = os.path.join(root, "tf_data")
     os.makedirs(CAL_DIR_FAR, exist_ok=True)
     root = 'data/20251016/tf_calib'
+    CAL_DIR_CLOSE = os.path.join(root, "tf_data")
     fn1_close = f'{root}/100psi_lp_16khz_ph1.mat'
     fn2_close = f'{root}/100psi_lp_16khz_ph2.mat'
-    CAL_DIR_CLOSE = os.path.join(root, "tf_data")
     os.makedirs(CAL_DIR_CLOSE, exist_ok=True)
+    CAL_DIR_COMB = 'data/20251016/flow_data/tf_combined'
+    os.makedirs(CAL_DIR_COMB, exist_ok=True)
 
     u_tau = 0.52
     nu_utau = 3.7e-6
@@ -1196,6 +1198,11 @@ def calibration_700_100psi(plot=[0,1]):
     f1_lab, H1_lab, g1_lab = combine_anechoic_calibrations(f1_far, H1_far, gamma1_far, f1_close, H1_close, gamma1_close)
     f2_lab, H2_lab, g2_lab = combine_anechoic_calibrations(f2_far, H2_far, gamma2_far, f2_close, H2_close, gamma2_close)
 
+    np.save(f"{CAL_DIR_COMB}/700_100psi_fused_anechoic_f1.npy", f1_lab)
+    np.save(f"{CAL_DIR_COMB}/700_100psi_fused_anechoic_H1.npy", H1_lab)
+    np.save(f"{CAL_DIR_COMB}/700_100psi_fused_anechoic_f2.npy", f2_lab)
+    np.save(f"{CAL_DIR_COMB}/700_100psi_fused_anechoic_H2.npy", H2_lab)
+
     if 1 in plot:
         # plot the fused TFs
         mag1 = np.abs(H1_lab); phase1 = np.unwrap(np.angle(H1_lab))
@@ -1217,7 +1224,7 @@ def calibration_700_100psi(plot=[0,1]):
         ax_ph.axvline(f_cut, color='red', linestyle='--', lw=1)
 
         fig.tight_layout()
-        plt.savefig(f"{OUTPUT_DIR}/700_100psi_H_anechoic_fused.pdf", dpi=600)
+        plt.savefig(f"{OUTPUT_DIR}/700_100psi_H_anechoic_fused.png", dpi=600)
         plt.close()
 
     # Incorporate the in-situ data to make final lab calibration
@@ -1229,6 +1236,12 @@ def calibration_700_100psi(plot=[0,1]):
                                                         f2_is_far, H2_is_far, gamma2_is_far)
     f2_hat, H2_hat, C2 = incorporate_insitu_calibration(f2_hat, H2_hat, g2_lab,
                                                         f2_is_close, H2_is_close, gamma2_is_close)
+    
+    np.save(f"{CAL_DIR_COMB}/700_100psi_fused_insitu_f1.npy", f1_hat)
+    np.save(f"{CAL_DIR_COMB}/700_100psi_fused_insitu_H1.npy", H1_hat)
+    np.save(f"{CAL_DIR_COMB}/700_100psi_fused_insitu_f2.npy", f2_hat)
+    np.save(f"{CAL_DIR_COMB}/700_100psi_fused_insitu_H2.npy", H2_hat)
+
     if 2 in plot:
         # plot the final lab TFs
         mag1 = np.abs(H1_hat); phase1 = np.unwrap(np.angle(H1_hat))
@@ -1250,7 +1263,7 @@ def calibration_700_100psi(plot=[0,1]):
         ax_ph.axvline(f_cut, color='red', linestyle='--', lw=1)
 
         fig.tight_layout()
-        plt.savefig(f"{OUTPUT_DIR}/700_100psi_H_fuse_situ.pdf", dpi=600)
+        plt.savefig(f"{OUTPUT_DIR}/700_100psi_H_fuse_situ.png", dpi=600)
         plt.close()
 
     
@@ -1264,6 +1277,6 @@ if __name__ == "__main__":
     # calibration()
     # calibration_700_atm()
     # calibration_700_50psi()
-    calibration_700_100psi(plot=[1, 2])
+    calibration_700_100psi(plot=[])
 
     # flow_tests()
