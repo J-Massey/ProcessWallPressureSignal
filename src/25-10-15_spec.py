@@ -1041,7 +1041,7 @@ def calibration_700_100psi(plot=[0,1]):
     if 4 in plot:
         
         # plot the TF-corrected spectra as T^+
-        fig, ax = plt.subplots(1, 2, figsize=(5, 2.), sharex=True)
+        fig, ax = plt.subplots(1, 2, figsize=(5, 2.), sharey=True, sharex=True)
 
         T_plus = 1/f * (u_tau**2)/nu
 
@@ -1049,6 +1049,8 @@ def calibration_700_100psi(plot=[0,1]):
         ax[0].semilogx(f, f * Pyy_ph1_close_nkd_fused_insitu, label='PH1 (Fused In-situ TF)', color=ph1_colour)
         ax[0].semilogx(f, f * Pyy_ph2_close_nkd_fused_insitu, label='PH2 (Fused In-situ TF)', color=ph2_colour)
         ax[0].set_xlabel("$f$ [Hz]")
+
+        ax[0].set_ylim(0, 1e-2)
 
         ax[1].semilogx(T_plus, f * Pyy_nkd_close, label='NC', color=nkd_colour)
         ax[1].semilogx(T_plus, f * Pyy_ph1_close_nkd_fused_insitu, label='PH1 (Fused In-situ TF)', color=ph1_colour)
@@ -1068,7 +1070,7 @@ if __name__ == "__main__":
     # calibration()
     # calibration_700_atm()
     # calibration_700_50psi()
-    calibration_700_100psi(plot=[1])
+    calibration_700_100psi(plot=[4])
     # ic(np.exp(-1)/1)
 
     # flow_tests()

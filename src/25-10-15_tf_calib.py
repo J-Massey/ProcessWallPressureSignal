@@ -242,9 +242,9 @@ def combine_anechoic_calibrations(
     f1, H1, g2_1,
     f2, H2, g2_2,
     *,
-    gmin: float = 0.3,
+    gmin: float = 0.99,
     smooth_oct: float | None = 1/6,
-    points_per_oct: int = 48,
+    points_per_oct: int = 32,
     eps: float = 1e-12,
 ):
     """
@@ -671,43 +671,6 @@ def apply_frf(
     y = np.fft.irfft(X * Hi, n=Nfft)[:N]
     return y
 
-def apply_frf_ph_corr(
-    x: np.ndarray,
-    fs: float,
-    f: np.ndarray,
-    H: np.ndarray,
-    demean: bool = True,
-    zero_dc: bool = True,
-):
-    """
-    Apply a measured FRF H (x→y) to a time series x to synthesise y.
-    This is the forward operation: Y = H · X in the frequency domain.
-    """
-    x = np.asarray(x, float)
-    if demean:
-        x = x - x.mean()
-
-    N = x.size
-    Nfft = int(2 ** np.ceil(np.log2(N)))
-    X = np.fft.rfft(x, n=Nfft)
-    fr = np.fft.rfftfreq(Nfft, d=1.0 / fs)
-
-    mag = np.abs(H)
-    phi = np.unwrap(np.angle(H))
-    # Safer OOB behaviour: taper magnitude to zero outside measured band
-    mag_i = np.interp(fr, f, mag, left=0.0, right=0.0)
-    phi_i = np.interp(fr, f, phi, left=phi[0], right=phi[-1])
-    Hi = mag_i * np.exp(1j * phi_i)
-
-    if zero_dc:
-        Hi[0] = 0.0
-        if Nfft % 2 == 0:
-            Hi[-1] = 0.0
-
-    y = np.fft.irfft(X * Hi, n=Nfft)[:N]
-    return y
-
-
 def design_notches(fs, freqs, Q=30.0):
     """
     Make a cascade of IIR notch filters (as SOS).
@@ -735,98 +698,6 @@ def apply_notches(x, sos):
     if sos is None:
         return x
     return sosfiltfilt(sos, x)
-
-
-
-# --------- Inner scaling helpers (units & Jacobian are correct) ---------
-def f_plus_from_f(f: np.ndarray, u_tau: float, nu: float) -> np.ndarray:
-    """f⁺ = f * nu / u_tau²."""
-    return f * (nu / (u_tau**2))
-
-
-def phi_pp_plus_per_fplus(Pyy: np.ndarray, rho: float, u_tau: float, nu: float) -> np.ndarray:
-    """
-    Dimensionless PSD per unit f⁺:
-    Φ_pp⁺(f⁺) = Φ_pp(f) / (ρ² u_τ² ν)
-    (Jacobian df/df⁺ = u_τ²/ν has been applied.)
-    """
-    return Pyy / ((rho**2) * (u_tau**2) * nu)
-
-
-def premultiplied_phi_pp_plus(f: np.ndarray, Pyy: np.ndarray, rho: float, u_tau: float, nu: float):
-    """
-    Return (1/f⁺, f⁺ Φ_pp⁺(f⁺)) with the zero bin safely excluded.
-    Using the identity: f⁺ Φ_pp⁺ = f * Φ_pp / (ρ² u_τ⁴), but computed via f⁺·Φ_pp⁺ for clarity.
-    """
-    f = np.asarray(f, float)
-    Pyy = np.asarray(Pyy, float)
-    f_plus = f_plus_from_f(f, u_tau, nu)
-    phi_plus = phi_pp_plus_per_fplus(Pyy, rho, u_tau, nu)   # per unit f⁺
-    y = f_plus * phi_plus                                   # premultiplied
-    mask = f_plus > 0
-    return 1.0 / f_plus[mask], y[mask]
-
-
-# --------- Robust forward equaliser for PH→nc ---------
-def _moving_average(y: np.ndarray, win: int = 7):
-    if win <= 1:
-        return y
-    k = int(max(1, win))
-    k = k + 1 - (k % 2)  # force odd
-    w = np.ones(k, float) / k
-    return np.convolve(y, w, mode='same')
-
-def stabilise_forward_frf(f: np.ndarray,
-                          H: np.ndarray,
-                          gamma2: np.ndarray,
-                          fs: float,
-                          g2_thresh: float = 0.6,
-                          smooth_bins: int = 9,
-                          enforce_min_gain: bool = True,
-                          monotone_hf_envelope: bool = True,
-                          clip_gain_max: float = 50.0):
-    """
-    Produce a forward PH→nc equaliser H_stab that:
-      * keeps the measured phase (unwrapped),
-      * smooths |H|,
-      * enforces |H| >= 1 where coherence is reliable,
-      * (optionally) makes the HF tail non-decreasing beyond the first unity crossing,
-      * extends the last reliable gain into the low-coherence tail,
-      * clips ridiculous gains to 'clip_gain_max'.
-    """
-    f = np.asarray(f, float)
-    H = np.asarray(H, complex)
-    gamma2 = np.asarray(gamma2, float)
-
-    mag = np.abs(H).astype(float)
-    phi = np.unwrap(np.angle(H))
-    # smooth
-    mag_s = _moving_average(mag, smooth_bins)
-
-    # coherent region
-    cmask = (gamma2 >= g2_thresh)
-    if np.any(cmask) and enforce_min_gain:
-        mag_s[cmask] = np.maximum(mag_s[cmask], 1.0)
-
-    # find first index where |H|>=1 in coherent region
-    idx_coh = np.where(cmask & (mag_s >= 1.0))[0]
-    if monotone_hf_envelope and idx_coh.size > 0:
-        start = int(idx_coh[0])
-        # enforce non-decreasing envelope beyond 'start' (within coherent mask)
-        # we also allow it to propagate a little into slightly lower g2 to avoid edge dips
-        env = np.maximum.accumulate(mag_s[start:])
-        mag_s[start:] = env
-
-    # extend the last reliable coherent gain across the trailing low-coherence tail
-    if np.any(cmask):
-        last_coh = int(np.max(np.where(cmask)[0]))
-        mag_s[last_coh+1:] = max(mag_s[last_coh], 1.0)
-
-    # clip absurd gains
-    mag_s = np.clip(mag_s, 0.0, clip_gain_max)
-
-    H_stab = mag_s * np.exp(1j * phi)
-    return H_stab
 
 
 # --------- Coherent FS-noise cancellation ---------
@@ -1273,10 +1144,24 @@ def calibration_700_100psi(plot=[0,1]):
     # lam = alpha * (1 - g2_bar) / (g2_bar + 1e-12) * (np.abs(H1_hat)**2)
     # F = np.conj(H1_hat) / (np.abs(H1_hat)**2 + lam + 1e-12)
 
+    # plot g1_lab g2_lab
+    if 3 in plot:
+        fig, ax = plt.subplots(1, 1, figsize=(5, 3), dpi=600)
+        ax.set_title(r'Coherence $\gamma^2$ used in calibration fusion ($700\mu m$, 100psi)')
+        ax.semilogx(f1_lab, g1_lab, lw=1, color=ph1_colour, label='PH1 lab fused')
+        ax.semilogx(f2_lab, g2_lab, lw=1, color=ph2_colour, label='PH2 lab fused')
+        ax.set_ylabel(r'$\gamma^2_{\mathrm{PH-NC}}(f)$')
+        ax.set_xlabel(r'$f\ \mathrm{[Hz]}$')
+        ax.set_ylim(-0.05, 1.05)
+        ax.legend()
+        fig.tight_layout()
+        plt.savefig(f"{OUTPUT_DIR}/700_100psi_gamma_fuse.png", dpi=600)
+        plt.close()
+
 if __name__ == "__main__":
     # calibration()
     # calibration_700_atm()
     # calibration_700_50psi()
-    calibration_700_100psi(plot=[])
+    calibration_700_100psi(plot=[2, 3])
 
     # flow_tests()
