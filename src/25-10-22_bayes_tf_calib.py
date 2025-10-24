@@ -6,6 +6,8 @@ from matplotlib import pyplot as plt
 from icecream import ic
 import os
 
+import frf_bayes as fb
+
 from tqdm import tqdm
 
 from wiener_filter_gib import wiener_cancel_background
@@ -235,8 +237,6 @@ def compute_spec(fs: float, x: np.ndarray, npsg : int = NPERSEG):
         return_onesided=True,
     )
     return f, Pxx
-
-import numpy as np
 
 def combine_anechoic_calibrations(
     f1, H1, g2_1,
@@ -751,6 +751,45 @@ def plot_white(ax):
     ax.loglog(x, y, '--', color='gray', label='White noise (slope +1)')
 
 
+def _interp_complex_to_grid(f_src, z_src, f_tgt):
+    """Linear interp of complex array (real/imag separately) onto f_tgt."""
+    z_src = np.asarray(z_src)
+    re = np.interp(f_tgt, f_src, np.real(z_src), left=np.real(z_src[0]), right=np.real(z_src[-1]))
+    im = np.interp(f_tgt, f_src, np.imag(z_src), left=np.imag(z_src[0]), right=np.imag(z_src[-1]))
+    return re + 1j * im
+
+def _welch_effective_dof(n_samples, nperseg, noverlap=None):
+    """
+    Rough DOF estimate for Welch:
+      nu ≈ 2 * n_segments,  n_segments = 1 + floor((N - nperseg) / (nperseg - noverlap))
+    Use the same nperseg/noverlap you used in estimate_frf (here npsg and ~50% overlap).
+    """
+    if noverlap is None:
+        noverlap = nperseg // 2
+    if n_samples < nperseg:
+        return 2.0
+    step = nperseg - noverlap
+    if step <= 0:
+        return 2.0
+    nseg = 1 + max((n_samples - nperseg) // step, 0)
+    return float(2 * max(nseg, 1))
+
+def _stack_on_common_grid(runs, f_ref, nperseg=2**10, noverlap=None):
+    """
+    runs = list of dicts with keys: f, H, gamma2, n_samples.
+    Returns H_stack, g2_stack, nu_stack each with shape (M, F_ref).
+    """
+    Hs, Gs, Nus = [], [], []
+    for r in runs:
+        Hs.append(_interp_complex_to_grid(r["f"], r["H"], f_ref))
+        Gs.append(np.interp(f_ref, r["f"], np.clip(r["gamma2"], 0.0, 1.0)))
+        nu_scalar = _welch_effective_dof(r["n_samples"], nperseg=nperseg, noverlap=noverlap)
+        Nus.append(np.full_like(f_ref, nu_scalar, dtype=float))
+    return np.vstack(Hs), np.vstack(Gs), np.vstack(Nus)
+# ---------------------------------------------------------------------------
+
+
+
 def calibration_700_atm():
     root = 'data/20251014/tf_calib'
     fn1 = f'{root}/0psi_lp_16khz_ph1.mat'
@@ -1066,13 +1105,53 @@ def calibration_700_100psi(plot=[0,1]):
         plt.close()
 
     # fuse the anechoic transfer functions
-    f1_lab, H1_lab, g1_lab = combine_anechoic_calibrations(f1_far, H1_far, gamma1_far, f1_close, H1_close, gamma1_close)
-    f2_lab, H2_lab, g2_lab = combine_anechoic_calibrations(f2_far, H2_far, gamma2_far, f2_close, H2_close, gamma2_close)
+    # ----------------- BAYESIAN FUSION: ANECHOIC ONLY -----------------
+    # Choose a common grid (use the denser one between far/close)
+    f_ref_1 = f1_far if f1_far.size >= f1_close.size else f1_close
+    f_ref_2 = f2_far if f2_far.size >= f2_close.size else f2_close
 
+    # Build run descriptors for PH1 and PH2 (anechoic only)
+    runs_ph1_anechoic = [
+        {"f": f1_far,   "H": H1_far,   "gamma2": gamma1_far,   "n_samples": len(ph1_far)},   # far
+        {"f": f1_close, "H": H1_close, "gamma2": gamma1_close, "n_samples": len(ph1_close)}, # close
+    ]
+    runs_ph2_anechoic = [
+        {"f": f2_far,   "H": H2_far,   "gamma2": gamma2_far,   "n_samples": len(ph2_far)},
+        {"f": f2_close, "H": H2_close, "gamma2": gamma2_close, "n_samples": len(ph2_close)},
+    ]
+
+    # Stack on common grid and compute DOF from Welch settings used in estimate_frf
+    H1_ane, G1_ane, NU1_ane = _stack_on_common_grid(runs_ph1_anechoic, f_ref_1, nperseg=2**10, noverlap=2**9)
+    H2_ane, G2_ane, NU2_ane = _stack_on_common_grid(runs_ph2_anechoic, f_ref_2, nperseg=2**10, noverlap=2**9)
+
+    # Bayesian fuse (per-probe); lambda_smooth controls cross-frequency regularization
+    lam = 2.0  # try 0..10; raise if you want slightly smoother fused curves
+    fused1_ane = fb.fuse_frf(freq=f_ref_1, Hm=H1_ane, gamma2=G1_ane, nu=NU1_ane,
+                            lambda_smooth=lam, tau2=np.inf, gamma2_min=0.05)
+    fused2_ane = fb.fuse_frf(freq=f_ref_2, Hm=H2_ane, gamma2=G2_ane, nu=NU2_ane,
+                            lambda_smooth=lam, tau2=np.inf, gamma2_min=0.05)
+
+    # Posterior means are your fused anechoic FRFs
+    f1_lab, H1_lab = fused1_ane.freq, fused1_ane.mu
+    f2_lab, H2_lab = fused2_ane.freq, fused2_ane.mu
+
+    # (Optional) credible bands for plots
+    H1_lo, H1_hi = fused1_ane.credible_band(level=0.95, K=400, random_state=0)
+    H2_lo, H2_hi = fused2_ane.credible_band(level=0.95, K=400, random_state=0)
+
+    # Save like you already do
     np.save(f"{CAL_DIR_COMB}/700_100psi_fused_anechoic_f1.npy", f1_lab)
     np.save(f"{CAL_DIR_COMB}/700_100psi_fused_anechoic_H1.npy", H1_lab)
     np.save(f"{CAL_DIR_COMB}/700_100psi_fused_anechoic_f2.npy", f2_lab)
     np.save(f"{CAL_DIR_COMB}/700_100psi_fused_anechoic_H2.npy", H2_lab)
+
+    # (Optional) also save credible bands for documentation
+    np.save(f"{CAL_DIR_COMB}/700_100psi_fused_anechoic_H1_lo.npy", H1_lo)
+    np.save(f"{CAL_DIR_COMB}/700_100psi_fused_anechoic_H1_hi.npy", H1_hi)
+    np.save(f"{CAL_DIR_COMB}/700_100psi_fused_anechoic_H2_lo.npy", H2_lo)
+    np.save(f"{CAL_DIR_COMB}/700_100psi_fused_anechoic_H2_hi.npy", H2_hi)
+# ---------------------------------------------------------------
+
 
     if 1 in plot:
         # plot the fused TFs
@@ -1099,19 +1178,73 @@ def calibration_700_100psi(plot=[0,1]):
         plt.close()
 
     # Incorporate the in-situ data to make final lab calibration
-    f1_hat, H1_hat, C1 = incorporate_insitu_calibration(f1_lab, H1_lab, g1_lab,
-                                                        f1_is_far, H1_is_far, gamma1_is_far)
-    f1_hat, H1_hat, C1 = incorporate_insitu_calibration(f1_hat, H1_hat, g1_lab,
-                                                        f1_is_close, H1_is_close, gamma1_is_close)
-    f2_hat, H2_hat, C2 = incorporate_insitu_calibration(f2_lab, H2_lab, g2_lab,
-                                                        f2_is_far, H2_is_far, gamma2_is_far)
-    f2_hat, H2_hat, C2 = incorporate_insitu_calibration(f2_hat, H2_hat, g2_lab,
-                                                        f2_is_close, H2_is_close, gamma2_is_close)
-    
+    # ----------------- BAYESIAN FUSION: ADD IN-SITU -----------------
+    # Build run descriptors including in-situ for PH1
+    runs_ph1_all = [
+        {"f": f1_far,      "H": H1_far,      "gamma2": gamma1_far,      "n_samples": len(ph1_far)},      # anechoic far
+        {"f": f1_close,    "H": H1_close,    "gamma2": gamma1_close,    "n_samples": len(ph1_close)},    # anechoic close
+        {"f": f1_is_far,   "H": H1_is_far,   "gamma2": gamma1_is_far,   "n_samples": len(ph1_is_far)},   # in-situ far
+        {"f": f1_is_close, "H": H1_is_close, "gamma2": gamma1_is_close, "n_samples": len(ph1_is_close)}, # in-situ close
+    ]
+
+    # And for PH2
+    runs_ph2_all = [
+        {"f": f2_far,      "H": H2_far,      "gamma2": gamma2_far,      "n_samples": len(ph2_far)},
+        {"f": f2_close,    "H": H2_close,    "gamma2": gamma2_close,    "n_samples": len(ph2_close)},
+        {"f": f2_is_far,   "H": H2_is_far,   "gamma2": gamma2_is_far,   "n_samples": len(ph2_is_far)},
+        {"f": f2_is_close, "H": H2_is_close, "gamma2": gamma2_is_close, "n_samples": len(ph2_is_close)},
+    ]
+
+    # Common grids (use the anechoic fused grids we already produced)
+    f_ref_1 = f1_lab
+    f_ref_2 = f2_lab
+
+    # Stack and compute DOF
+    H1_all, G1_all, NU1_all = _stack_on_common_grid(runs_ph1_all, f_ref_1, nperseg=2**10, noverlap=2**9)
+    H2_all, G2_all, NU2_all = _stack_on_common_grid(runs_ph2_all, f_ref_2, nperseg=2**10, noverlap=2**9)
+
+    # Convert coherence to variance; then gate (inflate) in-situ variance above f_cut
+    S1_all = fb.coherence_to_variance(H1_all, G1_all, NU1_all, gamma2_min=0.05, var_floor_rel=1e-12)
+    S2_all = fb.coherence_to_variance(H2_all, G2_all, NU2_all, gamma2_min=0.05, var_floor_rel=1e-12)
+
+    # Index runs: 0,1 = anechoic; 2,3 = in-situ
+    mask_hi_1 = f_ref_1 > f_cut
+    mask_hi_2 = f_ref_2 > f_cut
+
+    # If you only trust in-situ below f_cut, make it "irrelevant" above f_cut:
+    BIG = 1e12
+    S1_all[2:, mask_hi_1] = BIG   # in-situ rows 2,3
+    S2_all[2:, mask_hi_2] = BIG
+
+    # Optionally, do the opposite if you want to *prefer in-situ* at very low f:
+    # mask_lo_1 = f_ref_1 < f_low
+    # S1_all[0:2, mask_lo_1] = BIG  # de-weight anechoic below f_low
+
+    # Fuse (anechoic + gated in-situ)
+    lam = 2.0  # keep same smoothing as before
+    fused1_final = fb.fuse_frf(freq=f_ref_1, Hm=H1_all, sigma2=S1_all, lambda_smooth=lam, tau2=np.inf)
+    fused2_final = fb.fuse_frf(freq=f_ref_2, Hm=H2_all, sigma2=S2_all, lambda_smooth=lam, tau2=np.inf)
+
+    # Final FRFs and credible bands
+    f1_hat, H1_hat = fused1_final.freq, fused1_final.mu
+    f2_hat, H2_hat = fused2_final.freq, fused2_final.mu
+
+    H1hat_lo, H1hat_hi = fused1_final.credible_band(level=0.95, K=400, random_state=1)
+    H2hat_lo, H2hat_hi = fused2_final.credible_band(level=0.95, K=400, random_state=1)
+
+    # Save like you already do
     np.save(f"{CAL_DIR_COMB}/700_100psi_fused_insitu_f1.npy", f1_hat)
     np.save(f"{CAL_DIR_COMB}/700_100psi_fused_insitu_H1.npy", H1_hat)
     np.save(f"{CAL_DIR_COMB}/700_100psi_fused_insitu_f2.npy", f2_hat)
     np.save(f"{CAL_DIR_COMB}/700_100psi_fused_insitu_H2.npy", H2_hat)
+
+    # (Optional) save credible bands
+    np.save(f"{CAL_DIR_COMB}/700_100psi_fused_insitu_H1_lo.npy", H1hat_lo)
+    np.save(f"{CAL_DIR_COMB}/700_100psi_fused_insitu_H1_hi.npy", H1hat_hi)
+    np.save(f"{CAL_DIR_COMB}/700_100psi_fused_insitu_H2_lo.npy", H2hat_lo)
+    np.save(f"{CAL_DIR_COMB}/700_100psi_fused_insitu_H2_hi.npy", H2hat_hi)
+    # ---------------------------------------------------------------
+
 
     if 2 in plot:
         # plot the final lab TFs
@@ -1145,23 +1278,23 @@ def calibration_700_100psi(plot=[0,1]):
     # F = np.conj(H1_hat) / (np.abs(H1_hat)**2 + lam + 1e-12)
 
     # plot g1_lab g2_lab
-    if 3 in plot:
-        fig, ax = plt.subplots(1, 1, figsize=(5, 3), dpi=600)
-        ax.set_title(r'Coherence $\gamma^2$ used in calibration fusion ($700\mu m$, 100psi)')
-        ax.semilogx(f1_lab, g1_lab, lw=1, color=ph1_colour, label='PH1 lab fused')
-        ax.semilogx(f2_lab, g2_lab, lw=1, color=ph2_colour, label='PH2 lab fused')
-        ax.set_ylabel(r'$\gamma^2_{\mathrm{PH-NC}}(f)$')
-        ax.set_xlabel(r'$f\ \mathrm{[Hz]}$')
-        ax.set_ylim(-0.05, 1.05)
-        ax.legend()
-        fig.tight_layout()
-        plt.savefig(f"{OUTPUT_DIR}/700_100psi_gamma_fuse.png", dpi=600)
-        plt.close()
+    # if 3 in plot:
+    #     fig, ax = plt.subplots(1, 1, figsize=(5, 3), dpi=600)
+    #     ax.set_title(r'Coherence $\gamma^2$ used in calibration fusion ($700\mu m$, 100psi)')
+    #     ax.semilogx(f1_lab, g1_lab, lw=1, color=ph1_colour, label='PH1 lab fused')
+    #     ax.semilogx(f2_lab, g2_lab, lw=1, color=ph2_colour, label='PH2 lab fused')
+    #     ax.set_ylabel(r'$\gamma^2_{\mathrm{PH-NC}}(f)$')
+    #     ax.set_xlabel(r'$f\ \mathrm{[Hz]}$')
+    #     ax.set_ylim(-0.05, 1.05)
+    #     ax.legend()
+    #     fig.tight_layout()
+    #     plt.savefig(f"{OUTPUT_DIR}/700_100psi_gamma_fuse.png", dpi=600)
+    #     plt.close()
 
 if __name__ == "__main__":
     # calibration()
     # calibration_700_atm()
     # calibration_700_50psi()
-    calibration_700_100psi(plot=[2, 3])
+    calibration_700_100psi(plot=[1, 2, 3])
 
     # flow_tests()

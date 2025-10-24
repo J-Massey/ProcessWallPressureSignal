@@ -48,11 +48,11 @@ TRIM_CAL_SECS = 5  # seconds trimmed from the start of calibration runs (0 to di
 
 R = 287.0         # J/kg/K
 T = 298.0         # K (adjust if you have per-case temps)
-P_ATM = 101_325.0 # Pa
+P_0psi = 101_325.0 # Pa
 PSI_TO_PA = 6_894.76
 
-# Labels for operating conditions; first entry is assumed 'atm'
-psi_labels = ['atm']
+# Labels for operating conditions; first entry is assumed '0psi'
+psi_labels = ['0psi']
 Re_tau = 5000
 Re_tau = 1500
 delta = 0.035
@@ -79,74 +79,12 @@ DEFAULT_UNITS = {
     'channelData_300':      ('Pa', 'Pa'),  # NC,  PH
 }
 
-# If using volts, specify sensitivities (V/Pa) and preamp gains here:
-SENSITIVITIES_V_PER_PA = {  # leave empty if not using 'V'
-    # 'NKD': 0.05,
-    # 'PH':  0.05,
-    # 'NC':  0.05,
-}
+sensitivity = 316*1e-3 # V/Pa
 PREAMP_GAIN = {  # linear gain; leave 1.0 if unknown
     'NKD': 1.0,
     'PH':  1.0,
     'NC':  1.0,
 }
-# -------------------------------------------------------------------------
-DATA_LAYOUT = {
-    'channelData_300_plug': ('PH', 'NKD'),  # col1, col2
-    'channelData_300_nose': ('NC', 'NKD'),
-    'channelData_300':      ('NC',  'PH'),
-}
-
-def load_pair_pa(path: str, key: str):
-    ch1, ch2 = DATA_LAYOUT[key]
-    x, y = load_mat_to_pa(path, key=key, ch1_name=ch1, ch2_name=ch2)
-    return x, y
-
-
-def inner_scales(Re_taus, u_taus, nu_atm):
-    """Return delta (from the atm case) and nu for each case via Re_tau relation."""
-    Re_taus = np.asarray(Re_taus, dtype=float)
-    u_taus = np.asarray(u_taus, dtype=float)
-    delta = Re_taus[0] * nu_atm / u_taus[0]
-    nus = delta * u_taus / Re_taus
-    return float(delta), nus
-
-
-def estimate_frf(
-    x: np.ndarray,
-    y: np.ndarray,
-    fs: float,
-    window: str = WINDOW,
-    detrend: str = "false",
-    npsg: int = NPERSEG,
-):
-    """
-    Estimate H1 FRF and magnitude-squared coherence using Welch/CSD.
-
-    Returns
-    -------
-    f : array_like [Hz]
-    H : array_like (complex) = S_yx / S_xx  (x → y)
-    gamma2 : array_like in [0, 1]
-    """
-    x = np.asarray(x, float)
-    y = np.asarray(y, float)
-    nseg = int(min(npsg, x.size, y.size))
-    if nseg < 8:
-        raise ValueError(f"Signal too short for FRF: n={min(x.size, y.size)}")
-    nov = int(min(npsg // 2, nseg // 2))
-    w = get_window(window, nseg, fftbins=True)
-
-    f, Sxx = welch(x, fs=fs, window=w, nperseg=nseg, noverlap=nov, detrend=False)
-    _, Syy = welch(y, fs=fs, window=w, nperseg=nseg, noverlap=nov, detrend=False)
-    # SciPy convention: csd(x, y) = E{ X * conj(Y) }
-    _, Sxy = csd(x, y, fs=fs, window=w, nperseg=nseg, noverlap=nov, detrend=False)  # x→y
-
-    H = np.conj(Sxy) / Sxx               # H1 = Syx / Sxx = conj(Sxy)/Sxx
-    gamma2 = (np.abs(Sxy) ** 2) / (Sxx * Syy)
-    gamma2 = np.clip(gamma2.real, 0.0, 1.0)
-    return f, H, gamma2
-
 
 def _resolve_cal_dir(name: str) -> str:
     """
@@ -174,11 +112,7 @@ def convert_to_pa(x: np.ndarray, units: str, *, channel_name: str = "unknown") -
     elif u == 'mbar':
         return (x.astype(float) * 100.0)  # 1 mbar = 100 Pa
     elif u in ('v', 'volt', 'volts'):
-        if channel_name not in SENSITIVITIES_V_PER_PA or SENSITIVITIES_V_PER_PA[channel_name] is None:
-            raise ValueError(
-                f"Sensitivity (V/Pa) for channel '{channel_name}' not provided; cannot convert V→Pa."
-            )
-        sens = float(SENSITIVITIES_V_PER_PA[channel_name])  # V/Pa
+        sens = float(sensitivity)  # V/Pa
         gain = float(PREAMP_GAIN.get(channel_name, 1.0))
         # Pa = V / (gain * (V/Pa))
         return x.astype(float) / (gain * sens)
@@ -501,7 +435,21 @@ def apply_notches(x, sos):
         return x
     return sosfiltfilt(sos, x)
 
-
+def bl_model(Tplus, Re_tau: float, cf_2: float) -> np.ndarray:
+    A1 = 2.2
+    sig1 = 3.9
+    mean_Tplus = 20
+    A2 = 1.4 * (np.log10(Re_tau) - 2.2)
+    sig2 = 1.2
+    mean_To = 0.82
+    r1 = 0.5
+    r2 = 7
+    rv = np.exp(r1 * Tplus)/(np.exp(r1*r2) + np.exp(r1 * Tplus)) # correct
+    rv = np.nan_to_num(rv, nan=1)  # replace NaNs with 0
+    mean_To_plus = mean_To * Re_tau * np.sqrt(cf_2)
+    g1 = A1 * np.exp(-sig1 * (np.log10(Tplus) - np.log10(mean_Tplus))**2)
+    g2 = A2 * np.exp(-sig2 * (np.log10(Tplus) - np.log10(mean_To_plus))**2)
+    return g1, g2, rv
 
 # --------- Inner scaling helpers (units & Jacobian are correct) ---------
 def f_plus_from_f(f: np.ndarray, u_tau: float, nu: float) -> np.ndarray:
@@ -645,226 +593,14 @@ def plot_white(ax):
     ax.loglog(x, y, '--', color='gray', label='White noise (slope +1)')
 
 
-def calibration_700_atm():
+def calibration_700_0psi(plot=[0,1,2,3,4,5,6,7,8]):
     u_tau = 0.58
     nu_utau = 27e-6
     nu = nu_utau * u_tau
-
     f_cut = 2_100
     T_plus_fcut = 1/f_cut * (u_tau**2)/nu
-    ic(T_plus_fcut)
+    rho = 1.2 # kg/m^3
 
-    root = 'data/20251014/flow_data/far'
-    fn_far = f'{root}/atm.mat'
-    root = 'data/20251016/flow_data/close'
-    fn_close = f'{root}/atm.mat'
-    OUTPUT_DIR = "figures/raw_spectra"
-    CAL_DIR = os.path.join('data/20251014/tf_calib', "tf_data")
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    os.makedirs(CAL_DIR, exist_ok=True)
-
-
-    dat = sio.loadmat(fn_far) # options are channelData_LP, channelData_NF
-    ic(dat.keys())
-    nkd_far = dat['channelData_flow'][:,2]
-    ph1_far = dat['channelData_flow'][:,0]
-    ph2_far = dat['channelData_flow'][:,1]
-    f_far, Pyy_nkd_far = compute_spec(FS, nkd_far)
-    f_far, Pyy_ph1_far = compute_spec(FS, ph1_far)
-    f_far, Pyy_ph2_far = compute_spec(FS, ph2_far)
-
-    fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
-    T_plus = 1/f_far * (u_tau**2)/nu
-
-    fig.suptitle(r"$Re_\tau\approx$ 1,300 (700$\mu$m) - Far-spaced")
-
-    ax[0].semilogx(f_far, f_far * Pyy_nkd_far, label='NC', color=nkd_colour)
-    ax[0].semilogx(f_far, f_far * Pyy_ph1_far, label='PH1', color=ph1_colour)
-    ax[0].semilogx(f_far, f_far * Pyy_ph2_far, label='PH2', color=ph2_colour)
-    # ax.axvline(T_plus_fcut, color='gray', linestyle='--', label=r'$f_{\mathrm{LP}}'+r'={:.0f}$ [Hz]'.format(f_cut))
-    #
-    ax[0].set_xlabel("$f$ [Hz]")
-    ax[1].semilogx(T_plus, f_far * Pyy_nkd_far, label='NC', color=nkd_colour)
-    ax[1].semilogx(T_plus, f_far * Pyy_ph1_far, label='PH1', color=ph1_colour)
-    ax[1].semilogx(T_plus, f_far * Pyy_ph2_far, label='PH2', color=ph2_colour)
-    ax[1].set_xlabel("$T^+$")
-    ax[0].set_ylabel(r"$f \phi_{pp}$")
-    # ax[1].set_ylabel(r"$f \phi_{pp}$")
-
-    ax[0].set_ylim(0, 2e-3)
-    ax[1].set_ylim(0, 2e-3)
-    # ax.set_xlim(1e0, 1e4)
-
-    ax[0].legend()
-    ax[1].legend()
-    fig.savefig(f"{OUTPUT_DIR}/700_atm_raw_spec_far.png", dpi=410)
-
-    dat = sio.loadmat(fn_close) # options are channelData_LP, channelData_NF
-    ic(dat.keys())
-    nkd_close = dat['channelData_flow'][:,2]
-    ph1_close = dat['channelData_flow'][:,0]
-    ph2_close = dat['channelData_flow'][:,1]
-    f_close, Pyy_nkd_close = compute_spec(FS, nkd_close)
-    f_close, Pyy_ph1_close = compute_spec(FS, ph1_close)
-    f_close, Pyy_ph2_close = compute_spec(FS, ph2_close)
-
-    # plot the raw spectra as f and T^+
-    fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
-    T_plus = 1/f_close * (u_tau**2)/nu
-
-    fig.suptitle(r"$Re_\tau\approx$ 1,300 (700$\mu$m) - Close-spaced")
-
-    ax[0].semilogx(f_close, f_close * Pyy_nkd_close, label='NC', color=nkd_colour)
-    ax[0].semilogx(f_close, f_close * Pyy_ph1_close, label='PH1', color=ph1_colour)
-    ax[0].semilogx(f_close, f_close * Pyy_ph2_close, label='PH2', color=ph2_colour)
-    # ax.axvline(T_plus_fcut, color='gray', linestyle='--', label=r'$f_{\mathrm{LP}}'+r'={:.0f}$ [Hz]'.format(f_cut))
-    #
-    ax[0].set_xlabel("$f$ [Hz]")
-    ax[1].semilogx(T_plus, f_close * Pyy_nkd_close, label='NC', color=nkd_colour)
-    ax[1].semilogx(T_plus, f_close * Pyy_ph1_close, label='PH1', color=ph1_colour)
-    ax[1].semilogx(T_plus, f_close * Pyy_ph2_close, label='PH2', color=ph2_colour)
-    ax[1].set_xlabel("$T^+$")
-    ax[0].set_ylabel(r"$f \phi_{pp}$")
-    # ax[1].set_ylabel(r"$f \phi_{pp}$")
-
-    ax[0].set_ylim(0, 2e-3)
-    ax[1].set_ylim(0, 2e-3)
-    # ax.set_xlim(1e0, 1e4)
-
-    ax[0].legend()
-    ax[1].legend()
-    fig.savefig(f"{OUTPUT_DIR}/700_atm_raw_spec_close.png", dpi=410)
-
-    # # apply tf
-    # TF_CORRECTED_OUT = 'figures/tf_corrected_spectra' 
-    # f1 = np.load(f"{CAL_DIR}/f1_700_atm.npy")
-    # H1 = np.load(f"{CAL_DIR}/H1_700_atm.npy")
-    # gamma1 = np.load(f"{CAL_DIR}/gamma1_700_atm.npy")
-    # ph1_nkd = apply_frf(ph1, FS, f1, H1)
-
-    # f2 = np.load(f"{CAL_DIR}/f2_700_atm.npy")
-    # H2 = np.load(f"{CAL_DIR}/H2_700_atm.npy")
-    # gamma2 = np.load(f"{CAL_DIR}/gamma2_700_atm.npy")
-    # ph2_nkd = apply_frf(ph2, FS, f2, H2)
-
-    # # Compute the spectra of the TF-corrected signals
-    # f, Pyy_ph1_nkd = compute_spec(FS, ph1_nkd)
-    # f, Pyy_ph2_nkd = compute_spec(FS, ph2_nkd)
-
-    # # plot the TF-corrected spectra as T^+
-    # fig, ax = plt.subplots(1, 1, figsize=(5, 2.), sharex=True)
-    # T_plus = 1/f * (u_tau**2)/nu
-    # ax.semilogx(T_plus, f * Pyy_nkd, label='NC', color=nkd_colour)
-    # ax.semilogx(T_plus, f * Pyy_ph1_nkd, label='PH1 (TF-corrected)', color=ph1_colour)
-    # ax.semilogx(T_plus, f * Pyy_ph2_nkd, label='PH2 (TF-corrected)', color=ph2_colour)
-
-    # ax.set_xlabel("$T^+$")
-    # ax.set_ylabel(r"$f \phi_{pp}$")
-
-    # ax.set_ylim(0, 1e-3)
-    # ax.legend()
-    # fig.savefig(f"{TF_CORRECTED_OUT}/700_atm_tf_spec.png", dpi=410)
-
-def calibration_700_50psi():
-    u_tau = 0.47
-    nu_utau = 7.5e-6
-    nu = nu_utau * u_tau
-    f_cut = 4_700
-    T_plus_fcut = 1/f_cut * (u_tau**2)/nu
-
-    root = 'data/20251014/flow_data/far'
-    fn_far = f'{root}/50psi.mat'
-    root = 'data/20251016/flow_data/close'
-    fn_close = f'{root}/50psi.mat'
-    OUTPUT_DIR = "figures/raw_spectra"
-    CAL_DIR = os.path.join('data/20251014/tf_calib', "tf_data")
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    os.makedirs(CAL_DIR, exist_ok=True)
-
-
-    dat = sio.loadmat(fn_far) # options are channelData_LP, channelData_NF
-    ic(dat.keys())
-    nkd_far = dat['channelData_flow'][:,2]
-    ph1_far = dat['channelData_flow'][:,0]
-    ph2_far = dat['channelData_flow'][:,1]
-    f_far, Pyy_nkd_far = compute_spec(FS, nkd_far)
-    f_far, Pyy_ph1_far = compute_spec(FS, ph1_far)
-    f_far, Pyy_ph2_far = compute_spec(FS, ph2_far)
-
-    fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
-    T_plus = 1/f_far * (u_tau**2)/nu
-
-    fig.suptitle(r"$Re_\tau\approx$ 4,700 (700$\mu$m) - Far-spaced")
-
-    ax[0].semilogx(f_far, f_far * Pyy_nkd_far, label='NC', color=nkd_colour)
-    ax[0].semilogx(f_far, f_far * Pyy_ph1_far, label='PH1', color=ph1_colour)
-    ax[0].semilogx(f_far, f_far * Pyy_ph2_far, label='PH2', color=ph2_colour)
-    # ax[0].axvline(f_cut, color='red', linestyle='--', label=r'$f_{\mathrm{LP}}'+r'={:.0f}$ [Hz]'.format(f_cut))
-    # ax.axvline(T_plus_fcut, color='gray', linestyle='--', label=r'$f_{\mathrm{LP}}'+r'={:.0f}$ [Hz]'.format(f_cut))
-    #
-    ax[0].set_xlabel("$f$ [Hz]")
-    ax[1].semilogx(T_plus, f_far * Pyy_nkd_far, label='NC', color=nkd_colour)
-    ax[1].semilogx(T_plus, f_far * Pyy_ph1_far, label='PH1', color=ph1_colour)
-    ax[1].semilogx(T_plus, f_far * Pyy_ph2_far, label='PH2', color=ph2_colour)
-
-    ax[1].set_xlabel("$T^+$")
-    ax[0].set_ylabel(r"$f \phi_{pp}$")
-    # ax[1].set_ylabel(r"$f \phi_{pp}$")
-
-    ax[0].set_ylim(0, 1e-2)
-    ax[1].set_ylim(0, 1e-2)
-    ax[0].set_xlim(1e0, 1e4)
-    ax[1].set_xlim(1e0, 1e4)
-
-    ax[0].legend()
-    ax[1].legend()
-    fig.savefig(f"{OUTPUT_DIR}/700_50psi_raw_spec_far.png", dpi=410)
-
-    dat = sio.loadmat(fn_close) # options are channelData_LP, channelData_NF
-    ic(dat.keys())
-    nkd_close = dat['channelData_flow'][:,2]
-    ph1_close = dat['channelData_flow'][:,0]
-    ph2_close = dat['channelData_flow'][:,1]
-    f_close, Pyy_nkd_close = compute_spec(FS, nkd_close)
-    f_close, Pyy_ph1_close = compute_spec(FS, ph1_close)
-    f_close, Pyy_ph2_close = compute_spec(FS, ph2_close)
-
-    # plot the raw spectra as f and T^+
-    fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
-    T_plus = 1/f_close * (u_tau**2)/nu
-
-    fig.suptitle(r"$Re_\tau\approx$ 4,700 (700$\mu$m) - Close-spaced")
-
-    ax[0].semilogx(f_close, f_close * Pyy_nkd_close, label='NC', color=nkd_colour)
-    ax[0].semilogx(f_close, f_close * Pyy_ph1_close, label='PH1', color=ph1_colour)
-    ax[0].semilogx(f_close, f_close * Pyy_ph2_close, label='PH2', color=ph2_colour)
-    # ax.axvline(T_plus_fcut, color='gray', linestyle='--', label=r'$f_{\mathrm{LP}}'+r'={:.0f}$ [Hz]'.format(f_cut))
-    #
-    ax[0].set_xlabel("$f$ [Hz]")
-    ax[1].semilogx(T_plus, f_close * Pyy_nkd_close, label='NC', color=nkd_colour)
-    ax[1].semilogx(T_plus, f_close * Pyy_ph1_close, label='PH1', color=ph1_colour)
-    ax[1].semilogx(T_plus, f_close * Pyy_ph2_close, label='PH2', color=ph2_colour)
-    ax[1].set_xlabel("$T^+$")
-    ax[0].set_ylabel(r"$f \phi_{pp}$")
-    # ax[1].set_ylabel(r"$f \phi_{pp}$")
-
-    ax[0].set_ylim(0, 1e-2)
-    ax[1].set_ylim(0, 1e-2)
-    ax[0].set_xlim(1e0, 1e4)
-    ax[1].set_xlim(1e0, 1e4)
-
-    ax[0].legend()
-    ax[1].legend()
-    fig.savefig(f"{OUTPUT_DIR}/700_50psi_raw_spec_close.png", dpi=410)
-
-def calibration_700_100psi(plot=[0,1]):
-    u_tau = 0.52
-    nu_utau = 3.7e-6
-    nu = nu_utau * u_tau
-    f_cut = 14_100
-    T_plus_fcut = 1/f_cut * (u_tau**2)/nu
-    
-    OUTPUT_DIR = "figures/raw_spectra"
     TF_CORRECTED_OUT = 'figures/tf_corrected_spectra'
     os.makedirs(TF_CORRECTED_OUT, exist_ok=True)
     root = 'data/20251014/tf_calib'
@@ -876,15 +612,15 @@ def calibration_700_100psi(plot=[0,1]):
     CAL_DIR_COMB = 'data/20251016/flow_data/tf_combined'
 
     root = 'data/20251014/flow_data/far'
-    fn_far = f'{root}/100psi.mat'
+    fn_far = f'{root}/0psi.mat'
     root = 'data/20251016/flow_data/close'
-    fn_close = f'{root}/100psi.mat'
+    fn_close = f'{root}/0psi.mat'
 
     dat = sio.loadmat(fn_far) # options are channelData_LP, channelData_NF
     ic(dat.keys())
-    nkd_far = dat['channelData_flow'][:,2]
-    ph1_far = dat['channelData_flow'][:,0]
-    ph2_far = dat['channelData_flow'][:,1]
+    nkd_far = dat['channelData_flow'][:,2] * 1/sensitivity
+    ph1_far = dat['channelData_flow'][:,0] * 1/sensitivity
+    ph2_far = dat['channelData_flow'][:,1] * 1/sensitivity
     f_far, Pyy_nkd_far = compute_spec(FS, nkd_far)
     f_far, Pyy_ph1_far = compute_spec(FS, ph1_far)
     f_far, Pyy_ph2_far = compute_spec(FS, ph2_far)
@@ -892,6 +628,7 @@ def calibration_700_100psi(plot=[0,1]):
     if 0 in plot:
         fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
         T_plus = 1/f_far * (u_tau**2)/nu
+        # pre_mult = (rho**2) * (u_tau**4)
 
         fig.suptitle(r"$Re_\tau\approx$ 9,500 (700$\mu$m) - Far-spaced")
 
@@ -899,6 +636,9 @@ def calibration_700_100psi(plot=[0,1]):
         ax[0].semilogx(f_far, f_far * Pyy_ph1_far, label='PH1', color=ph1_colour)
         ax[0].semilogx(f_far, f_far * Pyy_ph2_far, label='PH2', color=ph2_colour)
         ax[0].axvline(f_cut, color='red', linestyle='--')
+
+        ax[0].set_xlim(1, 1e4)
+        ax[0].set_ylim(0, 0.2e-7)
         #
         ax[0].set_xlabel("$f$ [Hz]")
 
@@ -911,20 +651,15 @@ def calibration_700_100psi(plot=[0,1]):
         ax[0].set_ylabel(r"$f \phi_{pp}$")
         # ax[1].set_ylabel(r"$f \phi_{pp}$")
 
-        ax[0].set_ylim(0, 1e-2)
-        ax[1].set_ylim(0, 1e-2)
-        ax[0].set_xlim(1e0, 1e4)
-        ax[1].set_xlim(1e0, 1e4)
-
         ax[0].legend()
         ax[1].legend()
-        fig.savefig(f"{TF_CORRECTED_OUT}/700_100psi_raw_spec_far.png", dpi=410)
+        fig.savefig(f"{TF_CORRECTED_OUT}/700_0psi_raw_spec_far.png", dpi=410)
 
     dat = sio.loadmat(fn_close) # options are channelData_LP, channelData_NF
     ic(dat.keys())
-    nkd_close = dat['channelData_flow'][:,2]
-    ph1_close = dat['channelData_flow'][:,0]
-    ph2_close = dat['channelData_flow'][:,1]
+    nkd_close = dat['channelData_flow'][:,2]* 1/sensitivity
+    ph1_close = dat['channelData_flow'][:,0]* 1/sensitivity
+    ph2_close = dat['channelData_flow'][:,1]* 1/sensitivity
     f_close, Pyy_nkd_close = compute_spec(FS, nkd_close)
     f_close, Pyy_ph1_close = compute_spec(FS, ph1_close)
     f_close, Pyy_ph2_close = compute_spec(FS, ph2_close)
@@ -942,6 +677,212 @@ def calibration_700_100psi(plot=[0,1]):
         ax[0].semilogx(f_close, f_close * Pyy_ph2_close, label='PH2', color=ph2_colour)
         ax[0].axvline(f_cut, color='red', linestyle='--')
 
+        ax[0].set_xlim(1, 1e4)
+        ax[0].set_ylim(0, 0.2e-7)
+
+        ax[0].set_xlabel("$f$ [Hz]")
+        ax[1].semilogx(T_plus, f_close * Pyy_nkd_close, label='NC', color=nkd_colour)
+        ax[1].semilogx(T_plus, f_close * Pyy_ph1_close, label='PH1', color=ph1_colour)
+        ax[1].semilogx(T_plus, f_close * Pyy_ph2_close, label='PH2', color=ph2_colour)
+        ax[1].axvline(T_plus_fcut, color='red', linestyle='--')
+        
+        ax[1].set_xlabel("$T^+$")
+        ax[0].set_ylabel(r"$f \phi_{pp}$")
+
+        ax[0].legend()
+        ax[1].legend()
+        fig.savefig(f"{TF_CORRECTED_OUT}/700_0psi_raw_spec_close.png", dpi=410)
+
+    # Load and apply tf
+    f1_raw = np.load(f"{CAL_DIR_CLOSE}/f1_700_0psi.npy")
+    H1_raw = np.load(f"{CAL_DIR_CLOSE}/H1_700_0psi.npy")
+    f2_raw = np.load(f"{CAL_DIR_CLOSE}/f2_700_0psi.npy")
+    H2_raw = np.load(f"{CAL_DIR_CLOSE}/H2_700_0psi.npy")
+
+    ph1_close_nkd_raw = apply_frf(ph1_close, FS, f1_raw, H1_raw)
+    ph2_close_nkd_raw = apply_frf(ph2_close, FS, f2_raw, H2_raw)
+    # Compute the spectra of the TF-corrected signals
+    f, Pyy_ph1_close_nkd_raw = compute_spec(FS, ph1_close_nkd_raw)
+    f, Pyy_ph2_close_nkd_raw = compute_spec(FS, ph2_close_nkd_raw)
+
+    if 2 in plot:
+
+        # plot the TF-corrected spectra as T^+
+        fig, ax = plt.subplots(1, 2, figsize=(8,2.8), sharex=True)
+        T_plus = 1/f * (u_tau**2)/nu
+
+        ax[0].semilogx(f, f * Pyy_nkd_close, label='NC', color=nkd_colour)
+        ax[0].semilogx(f, f * Pyy_ph1_close_nkd_raw, label='PH1 (TF-corrected)', color=ph1_colour)
+        ax[0].semilogx(f, f * Pyy_ph2_close_nkd_raw, label='PH2 (TF-corrected)', color=ph2_colour)
+        ax[0].set_xlabel("$f$ [Hz]")
+        ax[0].set_xlim(1, 1e4)
+        ax[0].set_ylim(0, 0.2e-7)
+
+        ax[1].semilogx(T_plus, f * Pyy_nkd_close, label='NC', color=nkd_colour)
+        ax[1].semilogx(T_plus, f * Pyy_ph1_close_nkd_raw, label='PH1 (TF-corrected)', color=ph1_colour)
+        ax[1].semilogx(T_plus, f * Pyy_ph2_close_nkd_raw, label='PH2 (TF-corrected)', color=ph2_colour)
+        ax[1].set_xlabel("$T^+$")
+
+        ax[0].set_ylabel(r"$f \phi_{pp}$")
+
+        fig.savefig(f"{TF_CORRECTED_OUT}/700_0psi_tf_spec_close.png", dpi=410)
+
+    # load and apply fused anechoic tfs
+    f1_fused = np.load(f"{CAL_DIR_COMB}/700_0psi_fused_anechoic_f1.npy")
+    H1_fused = np.load(f"{CAL_DIR_COMB}/700_0psi_fused_anechoic_H1.npy")
+    f2_fused = np.load(f"{CAL_DIR_COMB}/700_0psi_fused_anechoic_f2.npy")
+    H2_fused = np.load(f"{CAL_DIR_COMB}/700_0psi_fused_anechoic_H2.npy")
+
+    ph1_close_nkd_fused = apply_frf(ph1_close, FS, f1_fused, H1_fused)
+    ph2_close_nkd_fused = apply_frf(ph2_close, FS, f2_fused, H2_fused)
+    # Compute the spectra of the TF-corrected signals
+    f, Pyy_ph1_close_nkd_fused = compute_spec(FS, ph1_close_nkd_fused)
+    f, Pyy_ph2_close_nkd_fused = compute_spec(FS, ph2_close_nkd_fused)
+
+    if 3 in plot:
+        
+        # plot the TF-corrected spectra as T^+
+        fig, ax = plt.subplots(1, 2, figsize=(8,2.8), sharex=True)
+
+        T_plus = 1/f * (u_tau**2)/nu
+
+        ax[0].semilogx(f, f * Pyy_nkd_close, label='NC', color=nkd_colour)
+        ax[0].semilogx(f, f * Pyy_ph1_close_nkd_fused, label='PH1 (Fused Anechoic TF)', color=ph1_colour)
+        ax[0].semilogx(f, f * Pyy_ph2_close_nkd_fused, label='PH2 (Fused Anechoic TF)', color=ph2_colour)
+        ax[0].set_xlabel("$f$ [Hz]")
+        ax[0].set_xlim(1, 1e4)
+        ax[0].set_ylim(0, 0.2e-7)
+
+        ax[1].semilogx(T_plus, f * Pyy_nkd_close, label='NC', color=nkd_colour)
+        ax[1].semilogx(T_plus, f * Pyy_ph1_close_nkd_fused, label='PH1 (Fused Anechoic TF)', color=ph1_colour)
+        ax[1].semilogx(T_plus, f * Pyy_ph2_close_nkd_fused, label='PH2 (Fused Anechoic TF)', color=ph2_colour)
+        ax[1].set_xlabel("$T^+$")
+
+        ax[0].set_ylabel(r"$f \phi_{pp}$")
+
+        fig.savefig(f"{TF_CORRECTED_OUT}/700_0psi_tf_fused_anechoic_spec_close.png", dpi=410)
+
+    # load and apply fused in-situ tfs
+    f1_fused_insitu = np.load(f"{CAL_DIR_COMB}/700_0psi_fused_insitu_f1.npy")
+    H1_fused_insitu = np.load(f"{CAL_DIR_COMB}/700_0psi_fused_insitu_H1.npy")
+    f2_fused_insitu = np.load(f"{CAL_DIR_COMB}/700_0psi_fused_insitu_f2.npy")
+    H2_fused_insitu = np.load(f"{CAL_DIR_COMB}/700_0psi_fused_insitu_H2.npy")
+
+    ph1_close_nkd_fused_insitu = apply_frf(ph1_close, FS, f1_fused_insitu, H1_fused_insitu)
+    ph2_close_nkd_fused_insitu = apply_frf(ph2_close, FS, f2_fused_insitu, H2_fused_insitu)
+    # Compute the spectra of the TF-corrected signals
+    f, Pyy_ph1_close_nkd_fused_insitu = compute_spec(FS, ph1_close_nkd_fused_insitu)
+    f, Pyy_ph2_close_nkd_fused_insitu = compute_spec(FS, ph2_close_nkd_fused_insitu)
+
+    if 4 in plot:
+        
+        # plot the TF-corrected spectra as T^+
+        fig, ax = plt.subplots(1, 2, figsize=(8,2.8), sharey=True, sharex=True)
+
+        T_plus = 1/f * (u_tau**2)/nu
+
+        ax[0].semilogx(f, (f * Pyy_nkd_close)/(rho**2 * u_tau**4), label='NC', color=nkd_colour)
+        ax[0].semilogx(f, (f * Pyy_ph1_close_nkd_fused_insitu)/(rho**2 * u_tau**4), label='PH1 (Fused In-situ TF)', color=ph1_colour)
+        ax[0].semilogx(f, (f * Pyy_ph2_close_nkd_fused_insitu)/(rho**2 * u_tau**4), label='PH2 (Fused In-situ TF)', color=ph2_colour)
+        ax[0].set_xlabel("$f$ [Hz]")
+
+        ax[0].set_xlim(1, 1e4)
+        ax[0].set_ylim(0, 1e-1)
+
+        ax[1].semilogx(T_plus, (f * Pyy_nkd_close)/(rho**2 * u_tau**4), label='NC', color=nkd_colour)
+        ax[1].semilogx(T_plus, (f * Pyy_ph1_close_nkd_fused_insitu)/(rho**2 * u_tau**4), label='PH1 (Fused In-situ TF)', color=ph1_colour)
+        ax[1].semilogx(T_plus, (f * Pyy_ph2_close_nkd_fused_insitu)/(rho**2 * u_tau**4), label='PH2 (Fused In-situ TF)', color=ph2_colour)
+        ax[1].set_xlabel("$T^+$")
+
+        ax[0].set_ylabel(r"$f \phi_{pp}$")
+
+        fig.savefig(f"{TF_CORRECTED_OUT}/700_0psi_tf_fused_insitu_spec_close.png", dpi=410)
+
+def calibration_700_50psi(plot=[0,1,2,4]):
+    u_tau = 0.47
+    nu_utau = 7.5e-6
+    nu = nu_utau * u_tau
+    f_cut = 4_700
+    T_plus_fcut = 1/f_cut * (u_tau**2)/nu
+    rho = 5.2 # kg/m^3
+
+    TF_CORRECTED_OUT = 'figures/tf_corrected_spectra'
+    os.makedirs(TF_CORRECTED_OUT, exist_ok=True)
+    root = 'data/20251014/tf_calib'
+    CAL_DIR_FAR = os.path.join(root, "tf_data")
+    os.makedirs(CAL_DIR_FAR, exist_ok=True)
+    root = 'data/20251016/tf_calib'
+    CAL_DIR_CLOSE = os.path.join(root, "tf_data")
+    os.makedirs(CAL_DIR_CLOSE, exist_ok=True)
+    CAL_DIR_COMB = 'data/20251016/flow_data/tf_combined'
+
+    root = 'data/20251014/flow_data/far'
+    fn_far = f'{root}/50psi.mat'
+    root = 'data/20251016/flow_data/close'
+    fn_close = f'{root}/50psi.mat'
+
+    dat = sio.loadmat(fn_far) # options are channelData_LP, channelData_NF
+    ic(dat.keys())
+    nkd_far = dat['channelData_flow'][:,2]* 1/sensitivity
+    ph1_far = dat['channelData_flow'][:,0]* 1/sensitivity
+    ph2_far = dat['channelData_flow'][:,1]* 1/sensitivity
+    f_far, Pyy_nkd_far = compute_spec(FS, nkd_far)
+    f_far, Pyy_ph1_far = compute_spec(FS, ph1_far)
+    f_far, Pyy_ph2_far = compute_spec(FS, ph2_far)
+
+    if 0 in plot:
+        fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
+        T_plus = 1/f_far * (u_tau**2)/nu
+
+        fig.suptitle(r"$Re_\tau\approx$ 9,500 (700$\mu$m) - Far-spaced")
+
+        ax[0].semilogx(f_far, f_far * Pyy_nkd_far, label='NC', color=nkd_colour)
+        ax[0].semilogx(f_far, f_far * Pyy_ph1_far, label='PH1', color=ph1_colour)
+        ax[0].semilogx(f_far, f_far * Pyy_ph2_far, label='PH2', color=ph2_colour)
+        ax[0].axvline(f_cut, color='red', linestyle='--')
+        
+        ax[0].set_xlim(1, 1e4)
+        ax[0].set_ylim(0, 0.5e-7)
+        ax[0].set_xlabel("$f$ [Hz]")
+
+        ax[1].semilogx(T_plus, f_far * Pyy_nkd_far, label='NC', color=nkd_colour)
+        ax[1].semilogx(T_plus, f_far * Pyy_ph1_far, label='PH1', color=ph1_colour)
+        ax[1].semilogx(T_plus, f_far * Pyy_ph2_far, label='PH2', color=ph2_colour)
+        ax[1].axvline(T_plus_fcut, color='red', linestyle='--')
+
+        ax[1].set_xlabel("$T^+$")
+        ax[0].set_ylabel(r"$f \phi_{pp}$")
+        # ax[1].set_ylabel(r"$f \phi_{pp}$")
+
+        ax[0].legend()
+        ax[1].legend()
+        fig.savefig(f"{TF_CORRECTED_OUT}/700_50psi_raw_spec_far.png", dpi=410)
+
+    dat = sio.loadmat(fn_close) # options are channelData_LP, channelData_NF
+    ic(dat.keys())
+    nkd_close = dat['channelData_flow'][:,2]* 1/sensitivity
+    ph1_close = dat['channelData_flow'][:,0]* 1/sensitivity
+    ph2_close = dat['channelData_flow'][:,1]* 1/sensitivity
+    f_close, Pyy_nkd_close = compute_spec(FS, nkd_close)
+    f_close, Pyy_ph1_close = compute_spec(FS, ph1_close)
+    f_close, Pyy_ph2_close = compute_spec(FS, ph2_close)
+
+    if 1 in plot:
+
+        # plot the raw spectra as f and T^+
+        fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
+        T_plus = 1/f_close * (u_tau**2)/nu
+
+        fig.suptitle(r"$Re_\tau\approx$ 9,500 (700$\mu$m) - Close-spaced")
+
+        ax[0].semilogx(f_close, f_close * Pyy_nkd_close, label='NC', color=nkd_colour)
+        ax[0].semilogx(f_close, f_close * Pyy_ph1_close, label='PH1', color=ph1_colour)
+        ax[0].semilogx(f_close, f_close * Pyy_ph2_close, label='PH2', color=ph2_colour)
+        ax[0].axvline(f_cut, color='red', linestyle='--')
+
+        ax[0].set_xlim(1, 1e4)
+        ax[0].set_ylim(0, 0.5e-7)
+
         ax[0].set_xlabel("$f$ [Hz]")
         ax[1].semilogx(T_plus, f_close * Pyy_nkd_close, label='NC', color=nkd_colour)
         ax[1].semilogx(T_plus, f_close * Pyy_ph1_close, label='PH1', color=ph1_colour)
@@ -952,10 +893,209 @@ def calibration_700_100psi(plot=[0,1]):
         ax[0].set_ylabel(r"$f \phi_{pp}$")
         # ax[1].set_ylabel(r"$f \phi_{pp}$")
 
+        ax[0].legend()
+        ax[1].legend()
+        fig.savefig(f"{TF_CORRECTED_OUT}/700_50psi_raw_spec_close.png", dpi=410)
+
+    # Load and apply tf
+    f1_raw = np.load(f"{CAL_DIR_CLOSE}/f1_700_50psi.npy")
+    H1_raw = np.load(f"{CAL_DIR_CLOSE}/H1_700_50psi.npy")
+    f2_raw = np.load(f"{CAL_DIR_CLOSE}/f2_700_50psi.npy")
+    H2_raw = np.load(f"{CAL_DIR_CLOSE}/H2_700_50psi.npy")
+
+    ph1_close_nkd_raw = apply_frf(ph1_close, FS, f1_raw, H1_raw)
+    ph2_close_nkd_raw = apply_frf(ph2_close, FS, f2_raw, H2_raw)
+    # Compute the spectra of the TF-corrected signals
+    f, Pyy_ph1_close_nkd_raw = compute_spec(FS, ph1_close_nkd_raw)
+    f, Pyy_ph2_close_nkd_raw = compute_spec(FS, ph2_close_nkd_raw)
+
+    if 2 in plot:
+
+        # plot the TF-corrected spectra as T^+
+        fig, ax = plt.subplots(1, 2, figsize=(8,2.8), sharex=True)
+        T_plus = 1/f * (u_tau**2)/nu
+
+        ax[0].semilogx(f, f * Pyy_nkd_close, label='NC', color=nkd_colour)
+        ax[0].semilogx(f, f * Pyy_ph1_close_nkd_raw, label='PH1 (TF-corrected)', color=ph1_colour)
+        ax[0].semilogx(f, f * Pyy_ph2_close_nkd_raw, label='PH2 (TF-corrected)', color=ph2_colour)
+        ax[0].set_xlabel("$f$ [Hz]")
+        ax[0].set_xlim(1, 1e4)
+        ax[0].set_ylim(0, 0.5e-7)
+
+        ax[1].semilogx(T_plus, f * Pyy_nkd_close, label='NC', color=nkd_colour)
+        ax[1].semilogx(T_plus, f * Pyy_ph1_close_nkd_raw, label='PH1 (TF-corrected)', color=ph1_colour)
+        ax[1].semilogx(T_plus, f * Pyy_ph2_close_nkd_raw, label='PH2 (TF-corrected)', color=ph2_colour)
+        ax[1].set_xlabel("$T^+$")
+
+        ax[0].set_ylabel(r"$f \phi_{pp}$")
+
+        fig.savefig(f"{TF_CORRECTED_OUT}/700_50psi_tf_spec_close.png", dpi=410)
+
+    # load and apply fused anechoic tfs
+    f1_fused = np.load(f"{CAL_DIR_COMB}/700_50psi_fused_anechoic_f1.npy")
+    H1_fused = np.load(f"{CAL_DIR_COMB}/700_50psi_fused_anechoic_H1.npy")
+    f2_fused = np.load(f"{CAL_DIR_COMB}/700_50psi_fused_anechoic_f2.npy")
+    H2_fused = np.load(f"{CAL_DIR_COMB}/700_50psi_fused_anechoic_H2.npy")
+
+    ph1_close_nkd_fused = apply_frf(ph1_close, FS, f1_fused, H1_fused)
+    ph2_close_nkd_fused = apply_frf(ph2_close, FS, f2_fused, H2_fused)
+    # Compute the spectra of the TF-corrected signals
+    f, Pyy_ph1_close_nkd_fused = compute_spec(FS, ph1_close_nkd_fused)
+    f, Pyy_ph2_close_nkd_fused = compute_spec(FS, ph2_close_nkd_fused)
+
+    if 3 in plot:
+        
+        # plot the TF-corrected spectra as T^+
+        fig, ax = plt.subplots(1, 2, figsize=(8,2.8), sharex=True)
+
+        T_plus = 1/f * (u_tau**2)/nu
+
+        ax[0].semilogx(f, f * Pyy_nkd_close, label='NC', color=nkd_colour)
+        ax[0].semilogx(f, f * Pyy_ph1_close_nkd_fused, label='PH1 (Fused Anechoic TF)', color=ph1_colour)
+        ax[0].semilogx(f, f * Pyy_ph2_close_nkd_fused, label='PH2 (Fused Anechoic TF)', color=ph2_colour)
+        ax[0].set_xlabel("$f$ [Hz]")
+        ax[0].set_xlim(1, 1e4)
+        ax[0].set_ylim(0, 0.5e-7)
+
+        ax[1].semilogx(T_plus, f * Pyy_nkd_close, label='NC', color=nkd_colour)
+        ax[1].semilogx(T_plus, f * Pyy_ph1_close_nkd_fused, label='PH1 (Fused Anechoic TF)', color=ph1_colour)
+        ax[1].semilogx(T_plus, f * Pyy_ph2_close_nkd_fused, label='PH2 (Fused Anechoic TF)', color=ph2_colour)
+        ax[1].set_xlabel("$T^+$")
+
+        ax[0].set_ylabel(r"$f \phi_{pp}$")
+
+        fig.savefig(f"{TF_CORRECTED_OUT}/700_50psi_tf_fused_anechoic_spec_close.png", dpi=410)
+
+    # load and apply fused in-situ tfs
+    f1_fused_insitu = np.load(f"{CAL_DIR_COMB}/700_50psi_fused_insitu_f1.npy")
+    H1_fused_insitu = np.load(f"{CAL_DIR_COMB}/700_50psi_fused_insitu_H1.npy")
+    f2_fused_insitu = np.load(f"{CAL_DIR_COMB}/700_50psi_fused_insitu_f2.npy")
+    H2_fused_insitu = np.load(f"{CAL_DIR_COMB}/700_50psi_fused_insitu_H2.npy")
+
+    ph1_close_nkd_fused_insitu = apply_frf(ph1_close, FS, f1_fused_insitu, H1_fused_insitu)
+    ph2_close_nkd_fused_insitu = apply_frf(ph2_close, FS, f2_fused_insitu, H2_fused_insitu)
+    # Compute the spectra of the TF-corrected signals
+    f, Pyy_ph1_close_nkd_fused_insitu = compute_spec(FS, ph1_close_nkd_fused_insitu)
+    f, Pyy_ph2_close_nkd_fused_insitu = compute_spec(FS, ph2_close_nkd_fused_insitu)
+
+    if 4 in plot:
+        
+        # plot the TF-corrected spectra as T^+
+        fig, ax = plt.subplots(1, 2, figsize=(8,2.8), sharey=True, sharex=True)
+        T_plus = 1/f * (u_tau**2)/nu
+
+        ax[0].semilogx(f, (f * Pyy_nkd_close)/(rho**2 * u_tau**4), label='NC', color=nkd_colour)
+        ax[0].semilogx(f, (f * Pyy_ph1_close_nkd_fused_insitu)/(rho**2 * u_tau**4), label='PH1 (Fused In-situ TF)', color=ph1_colour)
+        ax[0].semilogx(f, (f * Pyy_ph2_close_nkd_fused_insitu)/(rho**2 * u_tau**4), label='PH2 (Fused In-situ TF)', color=ph2_colour)
+        ax[0].set_xlabel("$f$ [Hz]")
+
+        ax[0].set_xlim(1, 1e4)
+        ax[0].set_ylim(0, 1e-1)
+
+        ax[1].semilogx(T_plus, (f * Pyy_nkd_close)/(rho**2 * u_tau**4), label='NC', color=nkd_colour)
+        ax[1].semilogx(T_plus, (f * Pyy_ph1_close_nkd_fused_insitu)/(rho**2 * u_tau**4), label='PH1 (Fused In-situ TF)', color=ph1_colour)
+        ax[1].semilogx(T_plus, (f * Pyy_ph2_close_nkd_fused_insitu)/(rho**2 * u_tau**4), label='PH2 (Fused In-situ TF)', color=ph2_colour)
+        ax[1].set_xlabel("$T^+$")
+
+        ax[0].set_ylabel(r"$f \phi_{pp}$")
+
+        fig.savefig(f"{TF_CORRECTED_OUT}/700_50psi_tf_fused_insitu_spec_close.png", dpi=410)
+
+def calibration_700_100psi(plot=[0,1,2,3,4]):
+    u_tau = 0.12
+    nu_utau = 3.7e-6
+    nu = nu_utau * u_tau
+    f_cut = 14_100
+    T_plus_fcut = 1/f_cut * (u_tau**2)/nu
+    rho = 9.4 # kg/m^3 at 100 psi
+    cf = 2*(u_tau**2)/14**2
+    ic(cf)
+
+    
+    TF_CORRECTED_OUT = 'figures/tf_corrected_spectra'
+    os.makedirs(TF_CORRECTED_OUT, exist_ok=True)
+    root = 'data/20251014/tf_calib'
+    CAL_DIR_FAR = os.path.join(root, "tf_data")
+    os.makedirs(CAL_DIR_FAR, exist_ok=True)
+    root = 'data/20251016/tf_calib'
+    CAL_DIR_CLOSE = os.path.join(root, "tf_data")
+    os.makedirs(CAL_DIR_CLOSE, exist_ok=True)
+    CAL_DIR_COMB = 'data/20251016/flow_data/tf_combined'
+
+    root = 'data/20251014/flow_data/far'
+    fn_far = f'{root}/100psi.mat'
+    root = 'data/20251016/flow_data/close'
+    fn_close = f'{root}/100psi.mat'
+
+    dat = sio.loadmat(fn_far) # options are channelData_LP, channelData_NF
+    ic(dat.keys())
+    nkd_far = dat['channelData_flow'][:,2]* 1/sensitivity
+    ph1_far = dat['channelData_flow'][:,0]* 1/sensitivity
+    ph2_far = dat['channelData_flow'][:,1]* 1/sensitivity
+    f_far, Pyy_nkd_far = compute_spec(FS, nkd_far)
+    f_far, Pyy_ph1_far = compute_spec(FS, ph1_far)
+    f_far, Pyy_ph2_far = compute_spec(FS, ph2_far)
+
+    if 0 in plot:
+        fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
+        T_plus = 1/f_far * (u_tau**2)/nu
+
+        fig.suptitle(r"$Re_\tau\approx$ 9,500 (700$\mu$m) - Far-spaced")
+
+        ax[0].semilogx(f_far, f_far * Pyy_nkd_far, label='NC', color=nkd_colour)
+        ax[0].semilogx(f_far, f_far * Pyy_ph1_far, label='PH1', color=ph1_colour)
+        ax[0].semilogx(f_far, f_far * Pyy_ph2_far, label='PH2', color=ph2_colour)
+        ax[0].axvline(f_cut, color='red', linestyle='--')
+        ax[0].set_xlim(1, 1e4)
+        ax[0].set_ylim(0, 2e-7)
+
+        ax[0].set_xlabel("$f$ [Hz]")
+
+        ax[1].semilogx(T_plus, f_far * Pyy_nkd_far, label='NC', color=nkd_colour)
+        ax[1].semilogx(T_plus, f_far * Pyy_ph1_far, label='PH1', color=ph1_colour)
+        ax[1].semilogx(T_plus, f_far * Pyy_ph2_far, label='PH2', color=ph2_colour)
+        ax[1].axvline(T_plus_fcut, color='red', linestyle='--')
+
+        ax[1].set_xlabel("$T^+$")
+        ax[0].set_ylabel(r"$f \phi_{pp}$")
+        # ax[1].set_ylabel(r"$f \phi_{pp}$")
+
+        ax[0].legend()
+        ax[1].legend()
+        fig.savefig(f"{TF_CORRECTED_OUT}/700_100psi_raw_spec_far.png", dpi=410)
+
+    dat = sio.loadmat(fn_close) # options are channelData_LP, channelData_NF
+    ic(dat.keys())
+    nkd_close = dat['channelData_flow'][:,2]* 1/sensitivity
+    ph1_close = dat['channelData_flow'][:,0]* 1/sensitivity
+    ph2_close = dat['channelData_flow'][:,1]* 1/sensitivity
+    f_close, Pyy_nkd_close = compute_spec(FS, nkd_close)
+    f_close, Pyy_ph1_close = compute_spec(FS, ph1_close)
+    f_close, Pyy_ph2_close = compute_spec(FS, ph2_close)
+
+    if 1 in plot:
+
+        # plot the raw spectra as f and T^+
+        fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
+        T_plus = 1/f_close * (u_tau**2)/nu
+
+        fig.suptitle(r"$Re_\tau\approx$ 9,500 (700$\mu$m) - Close-spaced")
+
+        ax[0].semilogx(f_close, f_close * Pyy_nkd_close, label='NC', color=nkd_colour)
+        ax[0].semilogx(f_close, f_close * Pyy_ph1_close, label='PH1', color=ph1_colour)
+        ax[0].semilogx(f_close, f_close * Pyy_ph2_close, label='PH2', color=ph2_colour)
+        ax[0].axvline(f_cut, color='red', linestyle='--')
+        ax[0].set_xlim(1, 1e4)
         ax[0].set_ylim(0, 1e-2)
-        ax[1].set_ylim(0, 1e-2)
-        ax[0].set_xlim(1e0, 1e4)
-        ax[1].set_xlim(1e0, 1e4)
+
+        ax[0].set_xlabel("$f$ [Hz]")
+        ax[1].semilogx(T_plus, f_close * Pyy_nkd_close, label='NC', color=nkd_colour)
+        ax[1].semilogx(T_plus, f_close * Pyy_ph1_close, label='PH1', color=ph1_colour)
+        ax[1].semilogx(T_plus, f_close * Pyy_ph2_close, label='PH2', color=ph2_colour)
+        ax[1].axvline(T_plus_fcut, color='red', linestyle='--')
+        
+        ax[1].set_xlabel("$T^+$")
+        ax[0].set_ylabel(r"$f \phi_{pp}$")
 
         ax[0].legend()
         ax[1].legend()
@@ -976,13 +1116,16 @@ def calibration_700_100psi(plot=[0,1]):
     if 2 in plot:
 
         # plot the TF-corrected spectra as T^+
-        fig, ax = plt.subplots(1, 2, figsize=(5, 2.), sharex=True)
+        fig, ax = plt.subplots(1, 2, figsize=(8,2.8), sharex=True)
         T_plus = 1/f * (u_tau**2)/nu
 
         ax[0].semilogx(f, f * Pyy_nkd_close, label='NC', color=nkd_colour)
         ax[0].semilogx(f, f * Pyy_ph1_close_nkd_raw, label='PH1 (TF-corrected)', color=ph1_colour)
         ax[0].semilogx(f, f * Pyy_ph2_close_nkd_raw, label='PH2 (TF-corrected)', color=ph2_colour)
         ax[0].set_xlabel("$f$ [Hz]")
+        ax[0].set_xlim(1, 1e4)
+        ax[0].set_ylim(0, 2e-7)
+
 
         ax[1].semilogx(T_plus, f * Pyy_nkd_close, label='NC', color=nkd_colour)
         ax[1].semilogx(T_plus, f * Pyy_ph1_close_nkd_raw, label='PH1 (TF-corrected)', color=ph1_colour)
@@ -1008,7 +1151,7 @@ def calibration_700_100psi(plot=[0,1]):
     if 3 in plot:
         
         # plot the TF-corrected spectra as T^+
-        fig, ax = plt.subplots(1, 2, figsize=(5, 2.), sharex=True)
+        fig, ax = plt.subplots(1, 2, figsize=(8,2.8), sharex=True)
 
         T_plus = 1/f * (u_tau**2)/nu
 
@@ -1016,6 +1159,9 @@ def calibration_700_100psi(plot=[0,1]):
         ax[0].semilogx(f, f * Pyy_ph1_close_nkd_fused, label='PH1 (Fused Anechoic TF)', color=ph1_colour)
         ax[0].semilogx(f, f * Pyy_ph2_close_nkd_fused, label='PH2 (Fused Anechoic TF)', color=ph2_colour)
         ax[0].set_xlabel("$f$ [Hz]")
+        ax[0].set_xlim(1, 1e4)
+        ax[0].set_ylim(0, 2e-7)
+
 
         ax[1].semilogx(T_plus, f * Pyy_nkd_close, label='NC', color=nkd_colour)
         ax[1].semilogx(T_plus, f * Pyy_ph1_close_nkd_fused, label='PH1 (Fused Anechoic TF)', color=ph1_colour)
@@ -1041,25 +1187,31 @@ def calibration_700_100psi(plot=[0,1]):
     if 4 in plot:
         
         # plot the TF-corrected spectra as T^+
-        fig, ax = plt.subplots(1, 2, figsize=(5, 2.), sharey=True, sharex=True)
+        fig, ax = plt.subplots(1, 2, figsize=(8,2.8), sharey=True, sharex=True)
 
         T_plus = 1/f * (u_tau**2)/nu
+        cf = 2*(u_tau**2)/14**2
+        g1, g2, rv = bl_model(T_plus, Re_tau, cf)
 
-        ax[0].semilogx(f, f * Pyy_nkd_close, label='NC', color=nkd_colour)
-        ax[0].semilogx(f, f * Pyy_ph1_close_nkd_fused_insitu, label='PH1 (Fused In-situ TF)', color=ph1_colour)
-        ax[0].semilogx(f, f * Pyy_ph2_close_nkd_fused_insitu, label='PH2 (Fused In-situ TF)', color=ph2_colour)
+        ax[0].semilogx(f, (f * Pyy_nkd_close)/(rho**2 * u_tau**4), label='NC', color=nkd_colour)
+        ax[0].semilogx(f, (f * Pyy_ph1_close_nkd_fused_insitu)/(rho**2 * u_tau**4), label='PH1 (Fused In-situ TF)', color=ph1_colour)
+        ax[0].semilogx(f, (f * Pyy_ph2_close_nkd_fused_insitu)/(rho**2 * u_tau**4), label='PH2 (Fused In-situ TF)', color=ph2_colour)
         ax[0].set_xlabel("$f$ [Hz]")
 
-        ax[0].set_ylim(0, 1e-2)
+        ax[0].set_xlim(1, 1e4)
+        ax[0].set_ylim(0, 5)
 
-        ax[1].semilogx(T_plus, f * Pyy_nkd_close, label='NC', color=nkd_colour)
-        ax[1].semilogx(T_plus, f * Pyy_ph1_close_nkd_fused_insitu, label='PH1 (Fused In-situ TF)', color=ph1_colour)
-        ax[1].semilogx(T_plus, f * Pyy_ph2_close_nkd_fused_insitu, label='PH2 (Fused In-situ TF)', color=ph2_colour)
+        ax[1].semilogx(T_plus, (f * Pyy_nkd_close)/(rho**2 * u_tau**4), label='NC', color=nkd_colour)
+        ax[1].semilogx(T_plus, (f * Pyy_ph1_close_nkd_fused_insitu)/(rho**2 * u_tau**4), label='PH1 (Fused In-situ TF)', color=ph1_colour)
+        ax[1].semilogx(T_plus, (f * Pyy_ph2_close_nkd_fused_insitu)/(rho**2 * u_tau**4), label='PH2 (Fused In-situ TF)', color=ph2_colour)
+        ax[1].semilogx(T_plus, rv*(g1+g2), label='BL Model', color='black', linestyle='--')
+
         ax[1].set_xlabel("$T^+$")
 
         ax[0].set_ylabel(r"$f \phi_{pp}$")
 
         fig.savefig(f"{TF_CORRECTED_OUT}/700_100psi_tf_fused_insitu_spec_close.png", dpi=410)
+
 
 
 if __name__ == "__main__":
@@ -1068,7 +1220,7 @@ if __name__ == "__main__":
     dplus = d / nu_utau
     ic(dplus)
     # calibration()
-    # calibration_700_atm()
+    # calibration_700_0psi()
     # calibration_700_50psi()
     calibration_700_100psi(plot=[4])
     # ic(np.exp(-1)/1)
