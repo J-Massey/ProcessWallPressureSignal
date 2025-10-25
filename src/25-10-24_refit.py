@@ -1,3 +1,4 @@
+import h5py
 import numpy as np
 from scipy.signal import welch, csd, get_window, iirnotch, sosfiltfilt, find_peaks
 import scipy.signal as signal
@@ -51,10 +52,6 @@ NPERSEG = 2**15
 WINDOW = "hann"
 TRIM_CAL_SECS = 5  # seconds trimmed from the start of calibration runs (0 to disable)
 
-R = 287.0         # J/kg/K
-T = 298.0         # K (adjust if you have per-case temps)
-P_0psi = 101_325.0 # Pa
-PSI_TO_PA = 6_894.76
 
 nc_colour = '#1f77b4'  # matplotlib default blue
 ph1_colour = "#c76713"  # matplotlib default orange
@@ -73,8 +70,25 @@ DEFAULT_UNITS = {
     'channelData_300':      ('Pa', 'Pa'),  # NC,  PH
 }
 
-sensitivity = 20*1e-3 # V/Pa
-sensitivity = 31.6*1e-3 # V/Pa
+
+# --- constants (keep once, top of file) ---
+R = 287.05        # J/kg/K
+PSI_TO_PA = 6_894.76
+P_ATM = 101_325.0
+
+def air_props_from_gauge(psi_gauge: float, T_K: float):
+    """
+    Return rho [kg/m^3], mu [Pa·s], nu [m^2/s] from gauge pressure [psi] and temperature [K].
+    Sutherland's law for mu; nu = mu/rho.
+    """
+    p_abs = P_ATM + psi_gauge * PSI_TO_PA
+    # Sutherland's
+    mu0, T0, S = 1.716e-5, 273.15, 110.4
+    mu = mu0 * (T_K/T0)**1.5 * (T0 + S)/(T_K + S)
+    rho = p_abs / (R * T_K)
+    nu = mu / rho
+    return rho, mu, nu
+
 
 def compute_spec(fs: float, x: np.ndarray, npsg : int = NPERSEG):
     """Welch PSD with sane defaults and shape guarding. Returns (f [Hz], Pxx [Pa^2/Hz])."""
@@ -200,360 +214,7 @@ def estimate_frf(
 
 
 
-def rerun(plot=[0,1,2,3,4]):
-    u_tau = 0.58
-    nu_utau = 27e-6
-    nu = nu_utau * u_tau
-    f_cut = 2_100
-    T_plus_fcut = 1/f_cut * (u_tau**2)/nu
-    rho = 1.2 # kg/m^3
-    cf = 2*(u_tau**2)/14**2
-    Re_tau = u_tau * 0.035 / nu
-    ic(Re_tau)
-
-    rrun = 'data/20251014/flow_data/far/0psi.mat'
-    dat = sio.loadmat(rrun) # options are channelData_LP, channelData_NF
-    ic(dat.keys())
-    nkd_far = dat['channelData_flow'][:,2] * 1/sensitivity
-    ph1_far = dat['channelData_flow'][:,0] * 1/sensitivity
-    ph2_far = dat['channelData_flow'][:,1] * 1/sensitivity
-    f_far, Pyy_nkd_far = compute_spec(FS, nkd_far)
-    f_far, Pyy_ph1_far = compute_spec(FS, ph1_far)
-    f_far, Pyy_ph2_far = compute_spec(FS, ph2_far)
-
-    if 0 in plot:
-        fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
-        T_plus = 1/f_far * (u_tau**2)/nu
-        g1, g2, rv = bl_model(T_plus, Re_tau, cf)
-        g1_c, g2_c, rv_c = channel_model(T_plus, Re_tau, u_tau, 14)
-
-        fig.suptitle(r"$Re_\tau\approx$ 1,300 (700$\mu$m) - Original")
-
-        ax[0].semilogx(f_far, (f_far * Pyy_nkd_far)/(rho**2 * u_tau**4), label='NC', color=nkd_colour)
-        ax[0].semilogx(f_far, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1', color=ph1_colour)
-        ax[0].semilogx(f_far, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2', color=ph2_colour)
-        ax[0].semilogx(f_far, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
-        ax[0].semilogx(f_far, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
-        ax[0].axvline(f_cut, color='red', linestyle='--')
-        ax[0].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-        ax[0].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
-
-        ax[0].set_xlabel("$f$ [Hz]")
-
-        ax[1].semilogx(T_plus, (f_far * Pyy_nkd_far)/(rho**2 * u_tau**4), label='NC', color=nkd_colour)
-        ax[1].semilogx(T_plus, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1', color=ph1_colour)
-        ax[1].semilogx(T_plus, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2', color=ph2_colour)
-        ax[1].semilogx(T_plus, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
-        ax[1].semilogx(T_plus, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
-
-        ax[1].axvline(T_plus_fcut, color='red', linestyle='--')
-        ax[1].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-        ax[1].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
-
-        ax[1].set_xlabel("$T^+$")
-        ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
-
-        ax[0].set_xlim(1, 1e4)
-        ax[0].set_ylim(0, 5)
-
-        ax[0].legend()
-        ax[1].legend()
-        fig.savefig('figures/remount_test/original.png', dpi=410)
-
-        ph1_clean = wiener_cancel_background_torch(ph1_far, nkd_far, FS).cpu().numpy()
-        ph2_clean = wiener_cancel_background_torch(ph2_far, nkd_far, FS).cpu().numpy()
-        f_clean, Pyy_ph1_clean = compute_spec(FS, ph1_clean)
-        f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean)
-
-        fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
-        ax[0].semilogx(f_clean, (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4), label='PH1 Cleaned', color=ph1_colour)
-        ax[0].semilogx(f_far, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1 Original', color=ph1_colour, alpha=0.3)
-        ax[0].semilogx(f_clean, (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4), label='PH2 Cleaned', color=ph2_colour)
-        ax[0].semilogx(f_far, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2 Original', color=ph2_colour, alpha=0.3)
-        ax[0].semilogx(f_far, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
-        ax[0].semilogx(f_far, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
-        ax[0].axvline(f_cut, color='red', linestyle='--')
-        ax[0].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-        ax[0].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
-
-        ax[0].set_xlabel("$f$ [Hz]")
-
-        T_plus_clean = 1/f_clean * (u_tau**2)/nu
-        ax[1].semilogx(T_plus_clean, (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4), label='PH1 Cleaned', color=ph1_colour)
-        ax[1].semilogx(T_plus, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1 Original', color=ph1_colour, alpha=0.3)
-        ax[1].semilogx(T_plus_clean, (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4), label='PH2 Cleaned', color=ph2_colour)
-        ax[1].semilogx(T_plus, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2 Original', color=ph2_colour, alpha=0.3)
-        ax[1].semilogx(T_plus, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
-        ax[1].semilogx(T_plus, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
-        ax[1].axvline(T_plus_fcut, color='red', linestyle='--')
-        ax[1].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-        ax[1].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
-
-        ax[1].set_xlabel(r"$T^+$")
-
-        ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
-        ax[0].set_xlim(1, 1e4)
-
-        ax[0].set_ylim(0, 5)
-        ax[0].legend()
-        fig.savefig('figures/remount_test/original_cleaned.png', dpi=410)
-    
-    rrun = 'data/20251023/remount/reRun.mat'
-    dat = sio.loadmat(rrun) # options are channelData_LP, channelData_NF
-    ic(dat.keys())
-    nkd_far = dat['channelData_LP'][:,2]* 1/sensitivity
-    ph1_far = dat['channelData_LP'][:,0]* 1/sensitivity
-    ph2_far = dat['channelData_LP'][:,1]* 1/sensitivity
-    f_far, Pyy_nkd_far = compute_spec(FS, nkd_far)
-    f_far, Pyy_ph1_far = compute_spec(FS, ph1_far)
-    f_far, Pyy_ph2_far = compute_spec(FS, ph2_far)
-
-    if 0 in plot:
-        fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
-        T_plus = 1/f_far * (u_tau**2)/nu
-        g1, g2, rv = bl_model(T_plus, Re_tau, cf)
-
-        fig.suptitle(r"$Re_\tau\approx$ 1,300 (700$\mu$m) - Original Refit")
-
-        ax[0].semilogx(f_far, (f_far * Pyy_nkd_far)/(rho**2 * u_tau**4), label='NC', color=nkd_colour)
-        ax[0].semilogx(f_far, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1', color=ph1_colour)
-        ax[0].semilogx(f_far, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2', color=ph2_colour)
-        ax[0].semilogx(f_far, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
-        ax[0].semilogx(f_far, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
-        ax[0].axvline(f_cut, color='red', linestyle='--')
-        ax[0].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-        ax[0].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
-
-
-        ax[0].set_xlabel("$f$ [Hz]")
-
-        ax[1].semilogx(T_plus, (f_far * Pyy_nkd_far)/(rho**2 * u_tau**4), label='NC', color=nkd_colour)
-        ax[1].semilogx(T_plus, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1', color=ph1_colour)
-        ax[1].semilogx(T_plus, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2', color=ph2_colour)
-        ax[1].semilogx(T_plus, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
-        ax[1].semilogx(T_plus, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
-        ax[1].axvline(T_plus_fcut, color='red', linestyle='--')
-        ax[1].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-        ax[1].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
-
-        ax[1].set_xlabel("$T^+$")
-        ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
-
-        ax[0].set_xlim(1, 1e4)
-        ax[0].set_ylim(0, 5)
-        ax[0].legend()
-        ax[1].legend()
-        fig.savefig('figures/remount_test/refit_original.png', dpi=410)
-
-        ph1_clean = wiener_cancel_background_torch(ph1_far, nkd_far, FS).cpu().numpy()
-        ph2_clean = wiener_cancel_background_torch(ph2_far, nkd_far, FS).cpu().numpy()
-        f_clean, Pyy_ph1_clean = compute_spec(FS, ph1_clean)
-        f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean)
-
-        fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
-        ax[0].semilogx(f_clean, (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4), label='PH1 Cleaned', color=ph1_colour)
-        ax[0].semilogx(f_far, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1 Original', color=ph1_colour, alpha=0.3)
-        ax[0].semilogx(f_clean, (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4), label='PH2 Cleaned', color=ph2_colour)
-        ax[0].semilogx(f_far, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2 Original', color=ph2_colour, alpha=0.3)
-        ax[0].semilogx(f_far, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
-        ax[0].semilogx(f_far, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
-        ax[0].axvline(f_cut, color='red', linestyle='--')
-        ax[0].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-        ax[0].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
-
-        ax[0].set_xlabel("$f$ [Hz]")
-
-        T_plus_clean = 1/f_clean * (u_tau**2)/nu
-        ax[1].semilogx(T_plus_clean, (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4), label='PH1 Cleaned', color=ph1_colour)
-        ax[1].semilogx(T_plus, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1 Original', color=ph1_colour, alpha=0.3)
-        ax[1].semilogx(T_plus_clean, (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4), label='PH2 Cleaned', color=ph2_colour)
-        ax[1].semilogx(T_plus, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2 Original', color=ph2_colour, alpha=0.3)
-        ax[1].semilogx(T_plus, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
-        ax[1].semilogx(T_plus, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
-        ax[1].axvline(T_plus_fcut, color='red', linestyle='--')
-        ax[1].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-        ax[1].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
-
-        ax[1].set_xlabel(r"$T^+$")
-
-        ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
-        ax[0].set_xlim(1, 1e4)
-
-        ax[0].set_ylim(0, 5)
-        ax[0].legend()
-        fig.savefig('figures/remount_test/refit_original_cleaned.png', dpi=410)
-
-    rrun = 'data/20251023/remount/swtichedNkdPH_run1.mat'
-    dat = sio.loadmat(rrun) # options are channelData_LP, channelData_NF
-    ic(dat.keys())
-    nkd_far = dat['channelData_LP'][:,2]* 1/sensitivity
-    ph1_far = dat['channelData_LP'][:,0]* 1/sensitivity
-    ph2_far = dat['channelData_LP'][:,1]* 1/sensitivity
-    f_far, Pyy_nkd_far = compute_spec(FS, nkd_far)
-    f_far, Pyy_ph1_far = compute_spec(FS, ph1_far)
-    f_far, Pyy_ph2_far = compute_spec(FS, ph2_far)
-
-    if 0 in plot:
-        fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
-        T_plus = 1/f_far * (u_tau**2)/nu
-        g1, g2, rv = bl_model(T_plus, Re_tau, cf)
-
-        fig.suptitle(r"$Re_\tau\approx$ 1,300 (700$\mu$m) - Switched PH1/NKD Run 1")
-        
-        ax[0].semilogx(f_far, (f_far * Pyy_nkd_far)/(rho**2 * u_tau**4), label='NC', color=nkd_colour)
-        ax[0].semilogx(f_far, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1', color=ph1_colour)
-        ax[0].semilogx(f_far, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2', color=ph2_colour)
-        ax[0].semilogx(f_far, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
-        ax[0].semilogx(f_far, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
-        ax[0].axvline(f_cut, color='red', linestyle='--')
-        ax[0].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-        ax[0].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
-
-        ax[0].set_xlabel("$f$ [Hz]")
-
-        ax[1].semilogx(T_plus, (f_far * Pyy_nkd_far)/(rho**2 * u_tau**4), label='NC', color=nkd_colour)
-        ax[1].semilogx(T_plus, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1', color=ph1_colour)
-        ax[1].semilogx(T_plus, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2', color=ph2_colour)
-        ax[1].semilogx(T_plus, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
-        ax[1].semilogx(T_plus, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
-        ax[1].axvline(T_plus_fcut, color='red', linestyle='--')
-        ax[1].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-        ax[1].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
-
-        ax[1].set_xlabel("$T^+$")
-        ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
-
-        ax[0].set_xlim(1, 1e4)
-        ax[0].set_ylim(0, 5)
-
-        ax[0].legend()
-        ax[1].legend()
-        fig.savefig('figures/remount_test/switched1.png', dpi=410)
-
-        ph1_clean = wiener_cancel_background_torch(ph1_far, nkd_far, FS).cpu().numpy()
-        ph2_clean = wiener_cancel_background_torch(ph2_far, nkd_far, FS).cpu().numpy()
-        f_clean, Pyy_ph1_clean = compute_spec(FS, ph1_clean)
-        f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean)
-
-        fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
-        ax[0].semilogx(f_clean, (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4), label='PH1 Cleaned', color=ph1_colour)
-        ax[0].semilogx(f_far, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1 Original', color=ph1_colour, alpha=0.3)
-        ax[0].semilogx(f_clean, (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4), label='PH2 Cleaned', color=ph2_colour)
-        ax[0].semilogx(f_far, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2 Original', color=ph2_colour, alpha=0.3)
-        ax[0].semilogx(f_far, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
-        ax[0].semilogx(f_far, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
-        ax[0].axvline(f_cut, color='red', linestyle='--')
-        ax[0].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-        ax[0].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
-
-        ax[0].set_xlabel("$f$ [Hz]")
-
-        T_plus_clean = 1/f_clean * (u_tau**2)/nu
-        ax[1].semilogx(T_plus_clean, (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4), label='PH1 Cleaned', color=ph1_colour)
-        ax[1].semilogx(T_plus, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1 Original', color=ph1_colour, alpha=0.3)
-        ax[1].semilogx(T_plus_clean, (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4), label='PH2 Cleaned', color=ph2_colour)
-        ax[1].semilogx(T_plus, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2 Original', color=ph2_colour, alpha=0.3)
-        ax[1].semilogx(T_plus, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
-        ax[1].semilogx(T_plus, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
-        ax[1].axvline(T_plus_fcut, color='red', linestyle='--')
-        ax[1].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-        ax[1].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
-
-        ax[1].set_xlabel(r"$T^+$")
-
-        ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
-        ax[0].set_xlim(1, 1e4)
-
-        ax[0].set_ylim(0, 5)
-        ax[0].legend()
-        fig.savefig('figures/remount_test/switched1_cleaned.png', dpi=410)
-
-    rrun = 'data/20251023/remount/swtichedNkdPH_run2.mat'
-    dat = sio.loadmat(rrun) # options are channelData_LP, channelData_NF
-    ic(dat.keys())
-    nkd_far = dat['channelData_LP'][:,2]* 1/sensitivity
-    ph1_far = dat['channelData_LP'][:,0]* 1/sensitivity
-    ph2_far = dat['channelData_LP'][:,1]* 1/sensitivity
-    f_far, Pyy_nkd_far = compute_spec(FS, nkd_far)
-    f_far, Pyy_ph1_far = compute_spec(FS, ph1_far)
-    f_far, Pyy_ph2_far = compute_spec(FS, ph2_far)
-
-    if 0 in plot:
-        fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
-        T_plus = 1/f_far * (u_tau**2)/nu
-        g1, g2, rv = bl_model(T_plus, Re_tau, cf)
-
-        fig.suptitle(r"$Re_\tau\approx$ 1,300 (700$\mu$m) - Switched PH2/NKD Run 2")
-
-        ax[0].semilogx(f_far, (f_far * Pyy_nkd_far)/(rho**2 * u_tau**4), label='NC', color=nkd_colour)
-        ax[0].semilogx(f_far, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1', color=ph1_colour)
-        ax[0].semilogx(f_far, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2', color=ph2_colour)
-        ax[0].semilogx(f_far, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
-        ax[0].semilogx(f_far, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
-        ax[0].axvline(f_cut, color='red', linestyle='--')
-        ax[0].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-        ax[0].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
-
-        ax[0].set_xlabel("$f$ [Hz]")
-
-        ax[1].semilogx(T_plus, (f_far * Pyy_nkd_far)/(rho**2 * u_tau**4), label='NC', color=nkd_colour)
-        ax[1].semilogx(T_plus, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1', color=ph1_colour)
-        ax[1].semilogx(T_plus, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2', color=ph2_colour)
-        ax[1].semilogx(T_plus, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
-        ax[1].semilogx(T_plus, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
-        ax[1].axvline(T_plus_fcut, color='red', linestyle='--')
-        ax[1].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-        ax[1].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
-
-        ax[1].set_xlabel("$T^+$")
-        ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
-
-        ax[0].set_xlim(1, 1e4)
-        ax[0].set_ylim(0, 5)
-
-        ax[0].legend()
-        ax[1].legend()
-        fig.savefig('figures/remount_test/switched2.png', dpi=410)
-
-        ph1_clean = wiener_cancel_background_torch(ph1_far, nkd_far, FS).cpu().numpy()
-        ph2_clean = wiener_cancel_background_torch(ph2_far, nkd_far, FS).cpu().numpy()
-        f_clean, Pyy_ph1_clean = compute_spec(FS, ph1_clean)
-        f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean)
-
-        fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
-        ax[0].semilogx(f_clean, (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4), label='PH1 Cleaned', color=ph1_colour)
-        ax[0].semilogx(f_far, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1 Original', color=ph1_colour, alpha=0.3)
-        ax[0].semilogx(f_clean, (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4), label='PH2 Cleaned', color=ph2_colour)
-        ax[0].semilogx(f_far, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2 Original', color=ph2_colour, alpha=0.3)
-        ax[0].semilogx(f_far, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
-        ax[0].semilogx(f_far, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
-        ax[0].axvline(f_cut, color='red', linestyle='--')
-        ax[0].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-        ax[0].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
-
-        ax[0].set_xlabel("$f$ [Hz]")
-
-        T_plus_clean = 1/f_clean * (u_tau**2)/nu
-        ax[1].semilogx(T_plus_clean, (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4), label='PH1 Cleaned', color=ph1_colour)
-        ax[1].semilogx(T_plus, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1 Original', color=ph1_colour, alpha=0.3)
-        ax[1].semilogx(T_plus_clean, (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4), label='PH2 Cleaned', color=ph2_colour)
-        ax[1].semilogx(T_plus, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2 Original', color=ph2_colour, alpha=0.3)
-        ax[1].semilogx(T_plus, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
-        ax[1].semilogx(T_plus, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
-        ax[1].axvline(T_plus_fcut, color='red', linestyle='--')
-        ax[1].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-        ax[1].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
-
-        ax[1].set_xlabel(r"$T^+$")
-
-        ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
-        ax[0].set_xlim(1, 1e4)
-
-        ax[0].set_ylim(0, 5)
-        ax[0].legend()
-        fig.savefig('figures/remount_test/switched2_cleaned.png', dpi=410)
-
-def plot_remount_new(plot=[0]):
+def plot_remount_atm(plot=[0]):
 
     u_tau = 0.58
     nu_utau = 27e-6
@@ -564,9 +225,9 @@ def plot_remount_new(plot=[0]):
     cf = 2*(u_tau**2)/14**2
     Re_tau = u_tau * 0.035 / nu
     ic(Re_tau)
-    sensitivity = 316e-3/12
+    sensitivity = 1/12 # V/Pa with a trailing 2pi that is SOMEWHERE
 
-    rrun = 'data/20251023/remount/newmounting.mat'
+    rrun = 'data/20251024/final/atm.mat'
     dat = sio.loadmat(rrun) # options are channelData_LP, channelData_NF
     ic(dat.keys())
     nkd_far = dat['channelData_LP'][:,2] * 1/sensitivity
@@ -615,16 +276,31 @@ def plot_remount_new(plot=[0]):
         ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
 
         ax[0].set_xlim(1, 1e4)
-        ax[0].set_ylim(0, 5)
+        ax[0].set_ylim(0, 10)
 
         ax[0].legend()
         ax[1].legend()
-        fig.savefig('figures/remount_test/new_mount.png', dpi=410)
+        fig.savefig('figures/final/atm.png', dpi=410)
 
-        ph1_clean = wiener_cancel_background_torch(ph1_far, nkd_far, FS).cpu().numpy()
-        ph2_clean = wiener_cancel_background_torch(ph2_far, nkd_far, FS).cpu().numpy()
-        f_clean, Pyy_ph1_clean = compute_spec(FS, ph1_clean)
-        f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean)
+    ph1_clean = wiener_cancel_background_torch(ph1_far, nkd_far, FS).cpu().numpy()
+    ph2_clean = wiener_cancel_background_torch(ph2_far, nkd_far, FS).cpu().numpy()
+    # Save the cleaned data as hdf5
+    with h5py.File('data/atm_cleaned.h5', 'w') as hf:
+        hf.create_dataset('ph1_clean', data=ph1_clean)
+        hf.create_dataset('ph2_clean', data=ph2_clean)
+    # add metadata attributes
+        hf.attrs['u_tau'] = u_tau
+        hf.attrs['nu'] = nu
+        hf.attrs['rho'] = rho
+        hf.attrs['FS'] = FS
+        hf.attrs['f_cut'] = f_cut
+        hf.attrs['Re_tau'] = Re_tau
+        hf.attrs['delta'] = 0.035
+
+    f_clean, Pyy_ph1_clean = compute_spec(FS, ph1_clean)
+    f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean)
+
+    if 0 in plot:
 
         fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
         fig.suptitle(r"$Re_\tau\approx$ 1,300 (700$\mu$m) - New Mounting")
@@ -657,117 +333,300 @@ def plot_remount_new(plot=[0]):
         ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
         ax[0].set_xlim(1, 1e4)
 
-        ax[0].set_ylim(0, 5)
+        ax[0].set_ylim(0, 10)
         ax[0].legend()
-        fig.savefig('figures/remount_test/new_mount_cleaned.png', dpi=410)
+        fig.savefig('figures/final/atm_cleaned.png', dpi=410)
 
-def change_sensitivity():
-    u_tau = 0.58
-    nu_utau = 27e-6
+def plot_remount_50psig(plot=[0]):
+    u_tau = 0.47
+    nu_utau = 7.5e-6
     nu = nu_utau * u_tau
-    f_cut = 2_100
+    f_cut = 4_700
     T_plus_fcut = 1/f_cut * (u_tau**2)/nu
-    rho = 1.2 # kg/m^3
+    rho = 5.2 # kg/m^3
     cf = 2*(u_tau**2)/14**2
     Re_tau = u_tau * 0.035 / nu
     ic(Re_tau)
-    rrun = 'data/20251023/remount/1VperPa.mat'
+    sensitivity = 1/12/1.75 # V/Pa with a trailing 2pi that is SOMEWHERE
+
+    rrun = 'data/20251024/final/50psig.mat'
     dat = sio.loadmat(rrun) # options are channelData_LP, channelData_NF
-    sensitivity = 1/12 # V/Pa
     ic(dat.keys())
-    nkd_far = dat['channelData_LP'][:,2]* 1/sensitivity
-    ph1_far = dat['channelData_LP'][:,0]* 1/sensitivity
-    ph2_far = dat['channelData_LP'][:,1]* 1/sensitivity
+    nkd_far = dat['channelData_LP'][:,2] * 1/sensitivity
+    ph1_far = dat['channelData_LP'][:,0] * 1/sensitivity
+    ph2_far = dat['channelData_LP'][:,1] * 1/sensitivity
     f_far, Pyy_nkd_far = compute_spec(FS, nkd_far)
     f_far, Pyy_ph1_far = compute_spec(FS, ph1_far)
     f_far, Pyy_ph2_far = compute_spec(FS, ph2_far)
 
-    fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
-    T_plus = 1/f_far * (u_tau**2)/nu
-    g1, g2, rv = bl_model(T_plus, Re_tau, cf)
-    g1_c, g2_c, rv_c = channel_model(T_plus, Re_tau, u_tau, 14)
+    if 0 in plot:
+        fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
+        T_plus = 1/f_far * (u_tau**2)/nu
+        g1, g2, rv = bl_model(T_plus, Re_tau, cf)
+        g1_c, g2_c, rv_c = channel_model(T_plus, Re_tau, u_tau, 14)
 
-    fig.suptitle(r"$Re_\tau\approx$ 1,300 (700$\mu$m) - New Mounting")
+    if 0 in plot:
+        fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
+        T_plus = 1/f_far * (u_tau**2)/nu
+        g1, g2, rv = bl_model(T_plus, Re_tau, cf)
+        g1_c, g2_c, rv_c = channel_model(T_plus, Re_tau, u_tau, 14)
 
-    ax[0].semilogx(f_far, (f_far * Pyy_nkd_far)/(rho**2 * u_tau**4), label='NC', color=nkd_colour)
-    ax[0].semilogx(f_far, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1', color=ph1_colour)
-    ax[0].semilogx(f_far, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2', color=ph2_colour)
-    ax[0].semilogx(f_far, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
-    ax[0].semilogx(f_far, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
-    ax[0].axvline(f_cut, color='red', linestyle='--')
-    ax[0].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-    ax[0].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
 
-    ax[0].set_xlabel("$f$ [Hz]")
+        fig.suptitle(r"$Re_\tau\approx$ 1,300 (700$\mu$m) - New Mounting")
 
-    ax[1].semilogx(T_plus, (f_far * Pyy_nkd_far)/(rho**2 * u_tau**4), label='NC', color=nkd_colour)
-    ax[1].semilogx(T_plus, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1', color=ph1_colour)
-    ax[1].semilogx(T_plus, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2', color=ph2_colour)
-    ax[1].semilogx(T_plus, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
-    ax[1].semilogx(T_plus, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
-    ax[1].axvline(T_plus_fcut, color='red', linestyle='--')
-    ax[1].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-    ax[1].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+        ax[0].semilogx(f_far, (f_far * Pyy_nkd_far)/(rho**2 * u_tau**4), label='NC', color=nkd_colour)
+        ax[0].semilogx(f_far, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1', color=ph1_colour)
+        ax[0].semilogx(f_far, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2', color=ph2_colour)
+        ax[0].semilogx(f_far, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
+        ax[0].semilogx(f_far, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
+        ax[0].axvline(f_cut, color='red', linestyle='--')
+        ax[0].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+        ax[0].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
 
-    ax[1].set_xlabel("$T^+$")
-    ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
+        ax[0].set_xlabel("$f$ [Hz]")
 
-    ax[0].set_xlim(1, 1e4)
-    ax[0].set_ylim(0, 5)
+        ax[1].semilogx(T_plus, (f_far * Pyy_nkd_far)/(rho**2 * u_tau**4), label='NC', color=nkd_colour)
+        ax[1].semilogx(T_plus, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1', color=ph1_colour)
+        ax[1].semilogx(T_plus, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2', color=ph2_colour)
+        ax[1].semilogx(T_plus, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
+        ax[1].semilogx(T_plus, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
+        ax[1].axvline(T_plus_fcut, color='red', linestyle='--')
+        ax[1].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+        ax[1].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
 
-    ax[0].legend()
-    ax[1].legend()
-    fig.savefig('figures/remount_test/new_mount.png', dpi=410)
+        ax[1].set_xlabel("$T^+$")
+        ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
 
+        ax[0].set_xlim(1, 1e4)
+        ax[0].set_ylim(0, 10)
+
+        ax[0].legend()
+        ax[1].legend()
+        fig.savefig('figures/final/50psig.png', dpi=410)
+
+        # Save the cleaned data as hdf5# Save the cleaned data as hdf5
     ph1_clean = wiener_cancel_background_torch(ph1_far, nkd_far, FS).cpu().numpy()
     ph2_clean = wiener_cancel_background_torch(ph2_far, nkd_far, FS).cpu().numpy()
+    # Save the cleaned data as hdf5
+    with h5py.File('data/50psig_cleaned.h5', 'w') as hf:
+        hf.create_dataset('ph1_clean', data=ph1_clean)
+        hf.create_dataset('ph2_clean', data=ph2_clean)
+    # add metadata attributes
+        hf.attrs['u_tau'] = u_tau
+        hf.attrs['nu'] = nu
+        hf.attrs['rho'] = rho
+        hf.attrs['FS'] = FS
+        hf.attrs['f_cut'] = f_cut
+        hf.attrs['Re_tau'] = Re_tau
+        hf.attrs['delta'] = 0.035
+
     f_clean, Pyy_ph1_clean = compute_spec(FS, ph1_clean)
     f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean)
 
-    fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
-    fig.suptitle(r"$Re_\tau\approx$ 1,300 (700$\mu$m) - New Mounting")
+    if 0 in plot:
 
-    ax[0].semilogx(f_clean, (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4), label='PH1 Cleaned', color=ph1_colour)
-    ax[0].semilogx(f_far, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1 Original', color=ph1_colour, alpha=0.3)
-    ax[0].semilogx(f_clean, (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4), label='PH2 Cleaned', color=ph2_colour)
-    ax[0].semilogx(f_far, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2 Original', color=ph2_colour, alpha=0.3)
-    ax[0].semilogx(f_far, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
-    ax[0].semilogx(f_far, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
-    ax[0].axvline(f_cut, color='red', linestyle='--')
-    ax[0].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-    ax[0].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+        fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
+        fig.suptitle(r"$Re_\tau\approx$ 1,300 (700$\mu$m) - New Mounting")
 
-    ax[0].set_xlabel("$f$ [Hz]")
+        ax[0].semilogx(f_clean, (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4), label='PH1 Cleaned', color=ph1_colour)
+        ax[0].semilogx(f_far, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1 Original', color=ph1_colour, alpha=0.3)
+        ax[0].semilogx(f_clean, (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4), label='PH2 Cleaned', color=ph2_colour)
+        ax[0].semilogx(f_far, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2 Original', color=ph2_colour, alpha=0.3)
+        ax[0].semilogx(f_far, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
+        ax[0].semilogx(f_far, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
+        ax[0].axvline(f_cut, color='red', linestyle='--')
+        ax[0].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+        ax[0].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
 
-    T_plus_clean = 1/f_clean * (u_tau**2)/nu
-    ax[1].semilogx(T_plus_clean, (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4), label='PH1 Cleaned', color=ph1_colour)
-    ax[1].semilogx(T_plus, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1 Original', color=ph1_colour, alpha=0.3)
-    ax[1].semilogx(T_plus_clean, (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4), label='PH2 Cleaned', color=ph2_colour)
-    ax[1].semilogx(T_plus, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2 Original', color=ph2_colour, alpha=0.3)
-    ax[1].semilogx(T_plus, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
-    ax[1].semilogx(T_plus, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
-    ax[1].axvline(T_plus_fcut, color='red', linestyle='--')
-    ax[1].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-    ax[1].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+        ax[0].set_xlabel("$f$ [Hz]")
 
-    ax[1].set_xlabel(r"$T^+$")
+        T_plus_clean = 1/f_clean * (u_tau**2)/nu
+        ax[1].semilogx(T_plus_clean, (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4), label='PH1 Cleaned', color=ph1_colour)
+        ax[1].semilogx(T_plus, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1 Original', color=ph1_colour, alpha=0.3)
+        ax[1].semilogx(T_plus_clean, (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4), label='PH2 Cleaned', color=ph2_colour)
+        ax[1].semilogx(T_plus, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2 Original', color=ph2_colour, alpha=0.3)
+        ax[1].semilogx(T_plus, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
+        ax[1].semilogx(T_plus, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
+        ax[1].axvline(T_plus_fcut, color='red', linestyle='--')
+        ax[1].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+        ax[1].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
 
-    ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
-    ax[0].set_xlim(1, 1e4)
+        ax[1].set_xlabel(r"$T^+$")
 
-    ax[0].set_ylim(0, 5)
-    ax[0].legend()
-    fig.savefig('figures/remount_test/new_mount_cleaned_sens.png', dpi=410)
+        ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
+        ax[0].set_xlim(1, 1e4)
+
+        ax[0].set_ylim(0, 10)
+        ax[0].legend()
+        fig.savefig('figures/final/50psig_cleaned.png', dpi=410)
+
+def plot_remount_100psig(plot=[0]):
+    # Metadata
+    u_tau = 0.52
+    nu_utau = 3.7e-6
+    nu = nu_utau * u_tau
+    f_cut = 14_100
+    T_plus_fcut = 1/f_cut * (u_tau**2)/nu
+    rho = 9.4 # kg/m^3 at 100 psi
+    cf = 2*(u_tau**2)/14**2
+    Re_tau = u_tau * 0.035 / nu
+    ic(Re_tau)
+    sensitivity = 1/12/1.75/1.75 # V/Pa with a trailing 2pi that is SOMEWHERE
+
+    rrun = 'data/20251024/final/100psig.mat'
+    dat = sio.loadmat(rrun) # options are channelData_LP, channelData_NF
+    ic(dat.keys())
+    nkd_far = dat['channelData_LP'][:,2] * 1/sensitivity
+    ph1_far = dat['channelData_LP'][:,0] * 1/sensitivity
+    ph2_far = dat['channelData_LP'][:,1] * 1/sensitivity
+    f_far, Pyy_nkd_far = compute_spec(FS, nkd_far)
+    f_far, Pyy_ph1_far = compute_spec(FS, ph1_far)
+    f_far, Pyy_ph2_far = compute_spec(FS, ph2_far)
+
+    if 0 in plot:
+        fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
+        T_plus = 1/f_far * (u_tau**2)/nu
+        g1, g2, rv = bl_model(T_plus, Re_tau, cf)
+        g1_c, g2_c, rv_c = channel_model(T_plus, Re_tau, u_tau, 14)
 
 
-    
+        fig.suptitle(r"$Re_\tau\approx$ 1,300 (700$\mu$m) - New Mounting")
+
+        ax[0].semilogx(f_far, (f_far * Pyy_nkd_far)/(rho**2 * u_tau**4), label='NC', color=nkd_colour)
+        ax[0].semilogx(f_far, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1', color=ph1_colour)
+        ax[0].semilogx(f_far, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2', color=ph2_colour)
+        ax[0].semilogx(f_far, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
+        ax[0].semilogx(f_far, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
+        ax[0].axvline(f_cut, color='red', linestyle='--')
+        ax[0].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+        ax[0].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+
+        ax[0].set_xlabel("$f$ [Hz]")
+
+        ax[1].semilogx(T_plus, (f_far * Pyy_nkd_far)/(rho**2 * u_tau**4), label='NC', color=nkd_colour)
+        ax[1].semilogx(T_plus, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1', color=ph1_colour)
+        ax[1].semilogx(T_plus, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2', color=ph2_colour)
+        ax[1].semilogx(T_plus, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
+        ax[1].semilogx(T_plus, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
+        ax[1].axvline(T_plus_fcut, color='red', linestyle='--')
+        ax[1].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+        ax[1].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+
+        ax[1].set_xlabel("$T^+$")
+        ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
+
+        ax[0].set_xlim(1, 1e4)
+        ax[0].set_ylim(0, 10)
+
+        ax[0].legend()
+        ax[1].legend()
+        fig.savefig('figures/final/100psig.png', dpi=410)
+
+    ph1_clean = wiener_cancel_background_torch(ph1_far, nkd_far, FS).cpu().numpy()
+    ph2_clean = wiener_cancel_background_torch(ph2_far, nkd_far, FS).cpu().numpy()
+    # Save the cleaned data as hdf5
+    with h5py.File('data/100psig_cleaned.h5', 'w') as hf:
+        hf.create_dataset('ph1_clean', data=ph1_clean)
+        hf.create_dataset('ph2_clean', data=ph2_clean)
+    # add metadata attributes
+        hf.attrs['u_tau'] = u_tau
+        hf.attrs['nu'] = nu
+        hf.attrs['rho'] = rho
+        hf.attrs['FS'] = FS
+        hf.attrs['f_cut'] = f_cut
+        hf.attrs['Re_tau'] = Re_tau
+        hf.attrs['delta'] = 0.035
+
+    f_clean, Pyy_ph1_clean = compute_spec(FS, ph1_clean)
+    f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean)
+
+    if 0 in plot:
+
+        fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
+        fig.suptitle(r"$Re_\tau\approx$ 1,300 (700$\mu$m) - New Mounting")
+
+        ax[0].semilogx(f_clean, (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4), label='PH1 Cleaned', color=ph1_colour)
+        ax[0].semilogx(f_far, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1 Original', color=ph1_colour, alpha=0.3)
+        ax[0].semilogx(f_clean, (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4), label='PH2 Cleaned', color=ph2_colour)
+        ax[0].semilogx(f_far, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2 Original', color=ph2_colour, alpha=0.3)
+        ax[0].semilogx(f_far, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
+        ax[0].semilogx(f_far, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
+        ax[0].axvline(f_cut, color='red', linestyle='--')
+        ax[0].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+        ax[0].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+
+        ax[0].set_xlabel("$f$ [Hz]")
+
+        T_plus_clean = 1/f_clean * (u_tau**2)/nu
+        ax[1].semilogx(T_plus_clean, (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4), label='PH1 Cleaned', color=ph1_colour)
+        ax[1].semilogx(T_plus, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1 Original', color=ph1_colour, alpha=0.3)
+        ax[1].semilogx(T_plus_clean, (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4), label='PH2 Cleaned', color=ph2_colour)
+        ax[1].semilogx(T_plus, (f_far * Pyy_ph2_far)/(rho**2 * u_tau**4), label='PH2 Original', color=ph2_colour, alpha=0.3)
+        ax[1].semilogx(T_plus, rv*(g1+g2), label='BL Model', color='k', linestyle='--')
+        ax[1].semilogx(T_plus, rv_c*(g1_c+g2_c), label='Channel Model', color='k', linestyle='-.')
+        ax[1].axvline(T_plus_fcut, color='red', linestyle='--')
+        ax[1].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+        ax[1].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+
+        ax[1].set_xlabel(r"$T^+$")
+
+        ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
+        ax[0].set_xlim(1, 1e4)
+
+        ax[0].set_ylim(0, 10)
+        ax[0].legend()
+        fig.savefig('figures/final/100psig_cleaned.png', dpi=410)
+
+def plot_model_comparison():
+    fn_atm = 'atm_cleaned.h5'
+    fn_50psig = '50psig_cleaned.h5'
+    fn_100psig = '100psig_cleaned.h5'
+    labels = ['0 psig', '50 psig', '100 psig']
+    colours = ['C0', 'C1', 'C2']
+
+    fig, ax = plt.subplots(1, 1, figsize=(4, 3), tight_layout=True)
+    for idxfn, fn in enumerate([fn_atm, fn_50psig, fn_100psig]):
+        with h5py.File(f'data/{fn}', 'r') as hf:
+            ph1_clean = hf['ph1_clean'][:]
+            ph2_clean = hf['ph2_clean'][:]
+            u_tau = hf.attrs['u_tau']
+            nu = hf.attrs['nu']
+            rho = hf.attrs['rho']
+            f_cut = hf.attrs['f_cut']
+            Re_tau = hf.attrs['Re_tau']
+        f_clean, Pyy_ph1_clean = compute_spec(FS, ph1_clean)
+        f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean)
+        T_plus = 1/f_clean * (u_tau**2)/nu
+
+        g1_c, g2_c, rv_c = channel_model(T_plus, Re_tau, u_tau, 14)
+        channel_fphipp_plus = rv_c*(g1_c+g2_c)
+        
+        data_fphipp_plus1 = (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4)
+        data_fphipp_plus2 = (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4)
+        ax.semilogx(T_plus, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        ax.semilogx(T_plus, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        ax.semilogx(T_plus, channel_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
+
+    ax.set_xlabel(r"$T^+$")
+    ax.set_ylabel(r"${f \phi_{pp}}^+$")
+    ax.set_xlim(1, 1e4)
+    ax.set_ylim(0, 10)
+    ax.grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+    ax.grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+    # ax.legend()
+    fig.savefig('figures/final/spectra_comparison.png', dpi=410)
+
+
+
 
 
 
 if __name__ == "__main__":
     # rerun()
-    plot_remount_new(plot=[0])
-    change_sensitivity()
+    plot_remount_atm(plot=[0])
+    plot_remount_50psig(plot=[0])
+    plot_remount_100psig(plot=[0])
+    plot_model_comparison()
     # ic(np.exp(-1)/1)
 
     # flow_tests()
