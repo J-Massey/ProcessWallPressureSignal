@@ -23,7 +23,7 @@ plt.rc("text.latex", preamble=r"\usepackage{mathpazo}")
 # Constants & defaults
 ############################
 FS = 50_000.0
-NPERSEG = 2**17
+NPERSEG = 2**14
 WINDOW = "hann"
 TRIM_CAL_SECS = 5  # seconds trimmed from the start of calibration runs (0 to disable)
 
@@ -48,9 +48,9 @@ TDEG = [18, 20, 22]
 TPLUS_CUT = 10  # picked so that we cut at half the inner peak
 
 CHAIN_SENS_V_PER_PA = {
-    'ph1': 51.7e-3,  # V/Pa
+    'ph1': 50.9e-3,  # V/Pa
     'ph2': 51.7e-3,  # V/Pa
-    'nc':  51.7e-3,  # V/Pa
+    'nc':  52.4e-3,  # V/Pa
 }
 
 def volts_to_pa(x_volts: np.ndarray, channel: str) -> np.ndarray:
@@ -421,10 +421,10 @@ def plot_tf_model_comparison():
 
         # Apply transfer function
         # Plot transfer function magnitude on top
-        f1_fused_insitu = np.load(f"data/20251016/flow_data/tf_combined/700_{labels[idxfn]}_fused_insitu_f1.npy")
-        H1_fused_insitu = np.load(f"data/20251016/flow_data/tf_combined/700_{labels[idxfn]}_fused_insitu_H1.npy")
-        f2_fused_insitu = np.load(f"data/20251016/flow_data/tf_combined/700_{labels[idxfn]}_fused_insitu_f2.npy")
-        H2_fused_insitu = np.load(f"data/20251016/flow_data/tf_combined/700_{labels[idxfn]}_fused_insitu_H2.npy")
+        f1_fused_insitu = np.load(f"figures/tf_vanilla/700_{labels[idxfn]}_vanilla_far_ph1_f.npy")
+        H1_fused_insitu = np.load(f"figures/tf_vanilla/700_{labels[idxfn]}_vanilla_far_ph1_H.npy")
+        f2_fused_insitu = np.load(f"figures/tf_vanilla/700_{labels[idxfn]}_vanilla_far_ph2_f.npy")
+        H2_fused_insitu = np.load(f"figures/tf_vanilla/700_{labels[idxfn]}_vanilla_far_ph2_H.npy")
 
         ph1_clean_tf = apply_frf(ph1_clean, FS, f1_fused_insitu, H1_fused_insitu)
         ph2_clean_tf = apply_frf(ph2_clean, FS, f2_fused_insitu, H2_fused_insitu)
@@ -434,8 +434,8 @@ def plot_tf_model_comparison():
         T_plus_tf = 1/f_clean_tf * (u_tau**2)/nu
         data_fphipp_plus1_tf = (f_clean_tf * Pyy_ph1_clean_tf)/(rho**2 * u_tau**4)
         data_fphipp_plus2_tf = (f_clean_tf * Pyy_ph2_clean_tf)/(rho**2 * u_tau**4)
-        ax.semilogx(T_plus_tf, data_fphipp_plus1_tf, linestyle=':', color=colours[idxfn], alpha=0.7)
-        ax.semilogx(T_plus_tf, data_fphipp_plus2_tf, linestyle=':', color=colours[idxfn], alpha=0.7)
+        ax.semilogx(T_plus_tf, data_fphipp_plus1_tf, linestyle='-', color=colours[idxfn], alpha=0.7, lw=0.7)
+        ax.semilogx(T_plus_tf, data_fphipp_plus2_tf, linestyle='-', color=colours[idxfn], alpha=0.7, lw=0.7)
 
     ax.set_xlabel(r"$T^+$")
     ax.set_ylabel(r"${f \phi_{pp}}^+$")
@@ -539,7 +539,7 @@ def plot_required_tfs():
 
 if __name__ == "__main__":
     # run_all_final()
-    # plot_model_comparison()
+    plot_model_comparison()
     plot_tf_model_comparison()
-    # plot_required_tfs()
+    plot_required_tfs()
     
