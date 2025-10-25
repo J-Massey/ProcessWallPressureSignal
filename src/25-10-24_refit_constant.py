@@ -47,10 +47,14 @@ TDEG = [18, 20, 22]
 
 TPLUS_CUT = 10  # picked so that we cut at half the inner peak
 
-CHAIN_SENS_V_PER_PA = 51.7  # V/Pa  
+CHAIN_SENS_V_PER_PA = {
+    'ph1': 51.7e-3,  # V/Pa
+    'ph2': 51.7e-3,  # V/Pa
+    'nc':  51.7e-3,  # V/Pa
+}
 
-def volts_to_pa(x_volts: np.ndarray) -> np.ndarray:
-    sens = CHAIN_SENS_V_PER_PA  # V/Pa
+def volts_to_pa(x_volts: np.ndarray, channel: str) -> np.ndarray:
+    sens = CHAIN_SENS_V_PER_PA[channel]  # V/Pa
     return x_volts / sens
 
 def f_cut_from_Tplus(u_tau: float, nu: float, Tplus_cut: float = TPLUS_CUT):
@@ -159,6 +163,43 @@ def estimate_frf(
     return f, H, gamma2
 
 
+def apply_frf(
+    x: np.ndarray,
+    fs: float,
+    f: np.ndarray,
+    H: np.ndarray,
+    demean: bool = True,
+    zero_dc: bool = True,
+):
+    """
+    Apply a measured FRF H (x→y) to a time series x to synthesise y.
+    This is the forward operation: Y = H · X in the frequency domain.
+    """
+    x = np.asarray(x, float)
+    if demean:
+        x = x - x.mean()
+
+    N = x.size
+    Nfft = int(2 ** np.ceil(np.log2(N)))
+    X = np.fft.rfft(x, n=Nfft)
+    fr = np.fft.rfftfreq(Nfft, d=1.0 / fs)
+
+    mag = np.abs(H)
+    phi = np.unwrap(np.angle(H))
+    # Safer OOB behaviour: taper magnitude to zero outside measured band
+    mag_i = np.interp(fr, f, mag, left=1.0, right=1.0)
+    phi_i = np.interp(fr, f, phi, left=phi[0], right=phi[-1])
+    Hi = mag_i * np.exp(1j * phi_i)
+
+    if zero_dc:
+        Hi[0] = 0.0
+        if Nfft % 2 == 0:
+            Hi[-1] = 0.0
+
+    y = np.fft.irfft(X * Hi, n=Nfft)[:N]
+    return y
+
+
 def analyse_run(
     mat_path: str,
     psi_gauge: float,   # psig for this run
@@ -180,9 +221,9 @@ def analyse_run(
     ph1_V, ph2_V, nkd_V = X[:,0], X[:,1], X[:,2]
 
     # --- Volts -> Pa using fixed chain sensitivities ---
-    ph1 = volts_to_pa(ph1_V)
-    ph2 = volts_to_pa(ph2_V)
-    nkd = volts_to_pa(nkd_V)
+    ph1 = volts_to_pa(ph1_V, 'ph1')
+    ph2 = volts_to_pa(ph2_V, 'ph2')
+    nkd = volts_to_pa(nkd_V, 'nc')
 
     # --- take out the mean ---
     ph1 -= np.mean(ph1)
@@ -263,6 +304,7 @@ def analyse_run(
         hf.attrs['delta'] = 0.035
         hf.attrs['psi_gauge'] = psi_gauge
         hf.attrs['T_K']       = T_K
+        hf.attrs['cf_2']      = 2*(u_tau**2)/14.0**2
 
     # return useful bits if you want to overlay/compare
     return dict(f=f, P_ph1=P_ph1, P_ph2=P_ph2, P_nkd=P_nkd,
@@ -304,7 +346,7 @@ def plot_model_comparison():
     fn_atm = '0psig_cleaned.h5'
     fn_50psig = '50psig_cleaned.h5'
     fn_100psig = '100psig_cleaned.h5'
-    labels = ['0 psig', '50 psig', '100 psig']
+    labels = ['0psig', '50psig', '100psig']
     colours = ['C0', 'C1', 'C2']
 
     fig, ax = plt.subplots(1, 1, figsize=(7, 3), tight_layout=True)
@@ -346,12 +388,77 @@ def plot_model_comparison():
     ax.legend(custom_lines, labels_handles, loc='upper right', fontsize=8)
     fig.savefig('figures/final/spectra_comparison.png', dpi=410)
 
+def plot_tf_model_comparison():
+    fn_atm = '0psig_cleaned.h5'
+    fn_50psig = '50psig_cleaned.h5'
+    fn_100psig = '100psig_cleaned.h5'
+    labels = ['0psig', '50psig', '100psig']
+    colours = ['C0', 'C1', 'C2']
+
+    fig, ax = plt.subplots(1, 1, figsize=(7, 3), tight_layout=True)
+    for idxfn, fn in enumerate([fn_atm, fn_50psig, fn_100psig]):
+        with h5py.File(f'data/{fn}', 'r') as hf:
+            ph1_clean = hf['ph1_clean'][:]
+            ph2_clean = hf['ph2_clean'][:]
+            u_tau = hf.attrs['u_tau']
+            nu = hf.attrs['nu']
+            rho = hf.attrs['rho']
+            f_cut = hf.attrs['f_cut']
+            Re_tau = hf.attrs['Re_tau']
+            cf_2 = hf.attrs['cf_2']  # default if missing
+        f_clean, Pyy_ph1_clean = compute_spec(FS, ph1_clean)
+        f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean)
+        T_plus = 1/f_clean * (u_tau**2)/nu
+
+        g1_c, g2_c, rv_c = channel_model(T_plus, Re_tau, u_tau, 14)
+        g1_b, g2_b, rv_b = bl_model(T_plus, Re_tau, cf_2)
+        channel_fphipp_plus = rv_c*(g1_c+g2_c)
+        bl_fphipp_plus = rv_b*(g1_b+g2_b)
+
+        ax.semilogx(T_plus, channel_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn], lw=0.7)
+        ax.semilogx(T_plus, bl_fphipp_plus, label=f'BL Model {labels[idxfn]}', linestyle='-.', color=colours[idxfn], lw=0.7)
+
+
+        # Apply transfer function
+        # Plot transfer function magnitude on top
+        f1_fused_insitu = np.load(f"data/20251016/flow_data/tf_combined/700_{labels[idxfn]}_fused_insitu_f1.npy")
+        H1_fused_insitu = np.load(f"data/20251016/flow_data/tf_combined/700_{labels[idxfn]}_fused_insitu_H1.npy")
+        f2_fused_insitu = np.load(f"data/20251016/flow_data/tf_combined/700_{labels[idxfn]}_fused_insitu_f2.npy")
+        H2_fused_insitu = np.load(f"data/20251016/flow_data/tf_combined/700_{labels[idxfn]}_fused_insitu_H2.npy")
+
+        ph1_clean_tf = apply_frf(ph1_clean, FS, f1_fused_insitu, H1_fused_insitu)
+        ph2_clean_tf = apply_frf(ph2_clean, FS, f2_fused_insitu, H2_fused_insitu)
+        f_clean_tf, Pyy_ph1_clean_tf = compute_spec(FS, ph1_clean_tf)
+        f_clean_tf, Pyy_ph2_clean_tf = compute_spec(FS, ph2_clean_tf)
+
+        T_plus_tf = 1/f_clean_tf * (u_tau**2)/nu
+        data_fphipp_plus1_tf = (f_clean_tf * Pyy_ph1_clean_tf)/(rho**2 * u_tau**4)
+        data_fphipp_plus2_tf = (f_clean_tf * Pyy_ph2_clean_tf)/(rho**2 * u_tau**4)
+        ax.semilogx(T_plus_tf, data_fphipp_plus1_tf, linestyle=':', color=colours[idxfn], alpha=0.7)
+        ax.semilogx(T_plus_tf, data_fphipp_plus2_tf, linestyle=':', color=colours[idxfn], alpha=0.7)
+
+    ax.set_xlabel(r"$T^+$")
+    ax.set_ylabel(r"${f \phi_{pp}}^+$")
+    ax.set_xlim(1, 1e4)
+    ax.set_ylim(0, 4)
+    ax.grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+    ax.grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+
+    labels_handles = ['0 psig Data', '0 psig Model',
+                      '50 psig Data', '50 psig Model',
+                      '100 psig Data', '100 psig Model']
+    label_colours = ['C0', 'C0', 'C1', 'C1', 'C2', 'C2']
+    label_styles = ['solid', 'dashed', 'solid', 'dashed', 'solid', 'dashed']
+    custom_lines = [Line2D([0], [0], color=label_colours[i], linestyle=label_styles[i]) for i in range(len(labels_handles))]
+    ax.legend(custom_lines, labels_handles, loc='upper right', fontsize=8)
+    fig.savefig('figures/final/spectra_comparison_tf.png', dpi=410)
+
 
 def plot_required_tfs():
     fn_atm = '0psig_cleaned.h5'
     fn_50psig = '50psig_cleaned.h5'
     fn_100psig = '100psig_cleaned.h5'
-    labels = ['0 psig', '50 psig', '100 psig']
+    labels = ['0psig', '50psig', '100psig']
     colours = ['C0', 'C1', 'C2']
 
     fig, ax = plt.subplots(2, 1, figsize=(7, 4), tight_layout=True)
@@ -382,13 +489,35 @@ def plot_required_tfs():
         data_fphipp_plus1 = data_fphipp_plus1[T_plus_mask]
         data_fphipp_plus2 = data_fphipp_plus2[T_plus_mask]
 
-        model_data_ratio1 = channel_fphipp_plus / data_fphipp_plus1 / (CHAIN_SENS_V_PER_PA**2)
-        model_data_ratio2 = channel_fphipp_plus / data_fphipp_plus2 / (CHAIN_SENS_V_PER_PA**2)
+        model_data_ratio1 = channel_fphipp_plus / data_fphipp_plus1
+        model_data_ratio2 = channel_fphipp_plus / data_fphipp_plus2
         ax[0].loglog(T_plus, model_data_ratio1, label=f'Ratio 1 {labels[idxfn]}', alpha=0.6, color=colours[idxfn])
         ax[0].loglog(T_plus, model_data_ratio2, label=f'Ratio 2 {labels[idxfn]}', alpha=0.6, color=colours[idxfn])
 
         ax[1].loglog(f_clean, model_data_ratio1, label=f'Ratio 1 {labels[idxfn]}', alpha=0.6, color=colours[idxfn])
         ax[1].loglog(f_clean, model_data_ratio2, label=f'Ratio 2 {labels[idxfn]}', alpha=0.6, color=colours[idxfn])
+
+        # Plot transfer function magnitude on top
+        f1_fused_insitu = np.load(f"data/20251016/flow_data/tf_combined/700_{labels[idxfn]}_fused_insitu_f1.npy")
+        H1_fused_insitu = np.load(f"data/20251016/flow_data/tf_combined/700_{labels[idxfn]}_fused_insitu_H1.npy")
+        f2_fused_insitu = np.load(f"data/20251016/flow_data/tf_combined/700_{labels[idxfn]}_fused_insitu_f2.npy")
+        H2_fused_insitu = np.load(f"data/20251016/flow_data/tf_combined/700_{labels[idxfn]}_fused_insitu_H2.npy")
+        
+        # Mask to cut off below TPLUS_CUT
+        tf_mask1 = (1/f1_fused_insitu * (u_tau**2)/nu) >= TPLUS_CUT
+        tf_mask2 = (1/f2_fused_insitu * (u_tau**2)/nu) >= TPLUS_CUT
+
+        f1_fused_insitu = f1_fused_insitu[tf_mask1]
+        H1_fused_insitu = H1_fused_insitu[tf_mask1]
+        f2_fused_insitu = f2_fused_insitu[tf_mask2]
+        H2_fused_insitu = H2_fused_insitu[tf_mask2]
+
+        ax[0].loglog(1/f1_fused_insitu * (u_tau**2)/nu, np.abs(H1_fused_insitu), linestyle='--', color=colours[idxfn])
+        ax[0].loglog(1/f2_fused_insitu * (u_tau**2)/nu, np.abs(H2_fused_insitu), linestyle='--', color=colours[idxfn])
+
+        ax[1].loglog(f1_fused_insitu, np.abs(H1_fused_insitu), linestyle='--', color=colours[idxfn])
+        ax[1].loglog(f2_fused_insitu, np.abs(H2_fused_insitu), linestyle='--', color=colours[idxfn])
+
     ax[0].set_xlabel(r"$T^+$")
     ax[0].set_ylabel(r"Model/Data Ratio")
     ax[0].set_xlim(1, 1.5e4)
@@ -409,7 +538,8 @@ def plot_required_tfs():
 
 
 if __name__ == "__main__":
-    run_all_final()
-    plot_model_comparison()
-    plot_required_tfs()
+    # run_all_final()
+    # plot_model_comparison()
+    plot_tf_model_comparison()
+    # plot_required_tfs()
     

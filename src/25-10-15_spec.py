@@ -694,10 +694,10 @@ def calibration_700_0psi(plot=[0,1,2,3,4,5,6,7,8]):
         fig.savefig(f"{TF_CORRECTED_OUT}/700_0psi_raw_spec_close.png", dpi=410)
 
     # Load and apply tf
-    f1_raw = np.load(f"{CAL_DIR_CLOSE}/f1_700_0psi.npy")
-    H1_raw = np.load(f"{CAL_DIR_CLOSE}/H1_700_0psi.npy")
-    f2_raw = np.load(f"{CAL_DIR_CLOSE}/f2_700_0psi.npy")
-    H2_raw = np.load(f"{CAL_DIR_CLOSE}/H2_700_0psi.npy")
+    f1_raw = np.load(f"{CAL_DIR_CLOSE}/f1_700_0psig.npy")
+    H1_raw = np.load(f"{CAL_DIR_CLOSE}/H1_700_0psig.npy")
+    f2_raw = np.load(f"{CAL_DIR_CLOSE}/f2_700_0psig.npy")
+    H2_raw = np.load(f"{CAL_DIR_CLOSE}/H2_700_0psig.npy")
 
     ph1_close_nkd_raw = apply_frf(ph1_close, FS, f1_raw, H1_raw)
     ph2_close_nkd_raw = apply_frf(ph2_close, FS, f2_raw, H2_raw)
@@ -898,10 +898,10 @@ def calibration_700_50psi(plot=[0,1,2,4]):
         fig.savefig(f"{TF_CORRECTED_OUT}/700_50psi_raw_spec_close.png", dpi=410)
 
     # Load and apply tf
-    f1_raw = np.load(f"{CAL_DIR_CLOSE}/f1_700_50psi.npy")
-    H1_raw = np.load(f"{CAL_DIR_CLOSE}/H1_700_50psi.npy")
-    f2_raw = np.load(f"{CAL_DIR_CLOSE}/f2_700_50psi.npy")
-    H2_raw = np.load(f"{CAL_DIR_CLOSE}/H2_700_50psi.npy")
+    f1_raw = np.load(f"{CAL_DIR_CLOSE}/f1_700_50psig.npy")
+    H1_raw = np.load(f"{CAL_DIR_CLOSE}/H1_700_50psig.npy")
+    f2_raw = np.load(f"{CAL_DIR_CLOSE}/f2_700_50psig.npy")
+    H2_raw = np.load(f"{CAL_DIR_CLOSE}/H2_700_50psig.npy")
 
     ph1_close_nkd_raw = apply_frf(ph1_close, FS, f1_raw, H1_raw)
     ph2_close_nkd_raw = apply_frf(ph2_close, FS, f2_raw, H2_raw)
@@ -1102,10 +1102,10 @@ def calibration_700_100psi(plot=[0,1,2,3,4]):
         fig.savefig(f"{TF_CORRECTED_OUT}/700_100psi_raw_spec_close.png", dpi=410)
 
     # Load and apply tf
-    f1_raw = np.load(f"{CAL_DIR_CLOSE}/f1_700_100psi.npy")
-    H1_raw = np.load(f"{CAL_DIR_CLOSE}/H1_700_100psi.npy")
-    f2_raw = np.load(f"{CAL_DIR_CLOSE}/f2_700_100psi.npy")
-    H2_raw = np.load(f"{CAL_DIR_CLOSE}/H2_700_100psi.npy")
+    f1_raw = np.load(f"{CAL_DIR_CLOSE}/f1_700_100psig.npy")
+    H1_raw = np.load(f"{CAL_DIR_CLOSE}/H1_700_100psig.npy")
+    f2_raw = np.load(f"{CAL_DIR_CLOSE}/f2_700_100psig.npy")
+    H2_raw = np.load(f"{CAL_DIR_CLOSE}/H2_700_100psig.npy")
 
     ph1_close_nkd_raw = apply_frf(ph1_close, FS, f1_raw, H1_raw)
     ph2_close_nkd_raw = apply_frf(ph2_close, FS, f2_raw, H2_raw)
@@ -1220,9 +1220,9 @@ if __name__ == "__main__":
     dplus = d / nu_utau
     ic(dplus)
     # calibration()
-    # calibration_700_0psi()
-    # calibration_700_50psi()
-    calibration_700_100psi(plot=[4])
+    calibration_700_0psi()
+    calibration_700_50psi()
+    calibration_700_100psi()
     # ic(np.exp(-1)/1)
 
     # flow_tests()

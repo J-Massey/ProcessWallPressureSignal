@@ -740,22 +740,22 @@ def calibration_700_0psi(plot=[0,1,2,3,4]):
     ph2_close = dat2_close['channelData_LP'][:,1]
 
     f1_far, H1_far, gamma1_far = estimate_frf(ph1_far, nc1_far, FS, npsg=2**9)
-    np.save(f"{CAL_DIR_FAR}/H1_700_0psi.npy", H1_far)
-    np.save(f"{CAL_DIR_FAR}/gamma1_700_0psi.npy", gamma1_far)
-    np.save(f"{CAL_DIR_FAR}/f1_700_0psi.npy", f1_far)
+    np.save(f"{CAL_DIR_FAR}/H1_700_0psig.npy", H1_far)
+    np.save(f"{CAL_DIR_FAR}/gamma1_700_0psig.npy", gamma1_far)
+    np.save(f"{CAL_DIR_FAR}/f1_700_0psig.npy", f1_far)
     f2_far, H2_far, gamma2_far = estimate_frf(ph2_far, nc2_far, FS, npsg=2**9)
-    np.save(f"{CAL_DIR_FAR}/H2_700_0psi.npy", H2_far)
-    np.save(f"{CAL_DIR_FAR}/gamma2_700_0psi.npy", gamma2_far)
-    np.save(f"{CAL_DIR_FAR}/f2_700_0psi.npy", f2_far)
+    np.save(f"{CAL_DIR_FAR}/H2_700_0psig.npy", H2_far)
+    np.save(f"{CAL_DIR_FAR}/gamma2_700_0psig.npy", gamma2_far)
+    np.save(f"{CAL_DIR_FAR}/f2_700_0psig.npy", f2_far)
 
     f1_close, H1_close, gamma1_close = estimate_frf(ph1_close, nc1_close, FS, npsg=2**9)
-    np.save(f"{CAL_DIR_CLOSE}/H1_700_0psi.npy", H1_close)
-    np.save(f"{CAL_DIR_CLOSE}/gamma1_700_0psi.npy", gamma1_close)
-    np.save(f"{CAL_DIR_CLOSE}/f1_700_0psi.npy", f1_close)
+    np.save(f"{CAL_DIR_CLOSE}/H1_700_0psig.npy", H1_close)
+    np.save(f"{CAL_DIR_CLOSE}/gamma1_700_0psig.npy", gamma1_close)
+    np.save(f"{CAL_DIR_CLOSE}/f1_700_0psig.npy", f1_close)
     f2_close, H2_close, gamma2_close = estimate_frf(ph2_close, nc2_close, FS, npsg=2**9)
-    np.save(f"{CAL_DIR_CLOSE}/H2_700_0psi.npy", H2_close)
-    np.save(f"{CAL_DIR_CLOSE}/gamma2_700_0psi.npy", gamma2_close)
-    np.save(f"{CAL_DIR_CLOSE}/f2_700_0psi.npy", f2_close)
+    np.save(f"{CAL_DIR_CLOSE}/H2_700_0psig.npy", H2_close)
+    np.save(f"{CAL_DIR_CLOSE}/gamma2_700_0psig.npy", gamma2_close)
+    np.save(f"{CAL_DIR_CLOSE}/f2_700_0psig.npy", f2_close)
 
 
     # Add in the no-flow calibration data
@@ -888,10 +888,10 @@ def calibration_700_0psi(plot=[0,1,2,3,4]):
     f2_hat, H2_hat, C2 = incorporate_insitu_calibration(f2_hat, H2_hat, g2_lab,
                                                         f2_is_close, H2_is_close, gamma2_is_close)
     
-    np.save(f"{CAL_DIR_COMB}/700_0psi_fused_insitu_f1.npy", f1_hat)
-    np.save(f"{CAL_DIR_COMB}/700_0psi_fused_insitu_H1.npy", H1_hat)
-    np.save(f"{CAL_DIR_COMB}/700_0psi_fused_insitu_f2.npy", f2_hat)
-    np.save(f"{CAL_DIR_COMB}/700_0psi_fused_insitu_H2.npy", H2_hat)
+    np.save(f"{CAL_DIR_COMB}/700_0psig_fused_insitu_f1.npy", f1_hat)
+    np.save(f"{CAL_DIR_COMB}/700_0psig_fused_insitu_H1.npy", H1_hat)
+    np.save(f"{CAL_DIR_COMB}/700_0psig_fused_insitu_f2.npy", f2_hat)
+    np.save(f"{CAL_DIR_COMB}/700_0psig_fused_insitu_H2.npy", H2_hat)
 
     if 2 in plot:
         # plot the final lab TFs
@@ -980,22 +980,22 @@ def calibration_700_50psi(plot=[0,1,2,3,4]):
     ph2_close = dat2_close['channelData_LP'][:,1]
 
     f1_far, H1_far, gamma1_far = estimate_frf(ph1_far, nc1_far, FS, npsg=2**9)
-    np.save(f"{CAL_DIR_FAR}/H1_700_50psi.npy", H1_far)
-    np.save(f"{CAL_DIR_FAR}/gamma1_700_50psi.npy", gamma1_far)
-    np.save(f"{CAL_DIR_FAR}/f1_700_50psi.npy", f1_far)
+    np.save(f"{CAL_DIR_FAR}/H1_700_50psig.npy", H1_far)
+    np.save(f"{CAL_DIR_FAR}/gamma1_700_50psig.npy", gamma1_far)
+    np.save(f"{CAL_DIR_FAR}/f1_700_50psig.npy", f1_far)
     f2_far, H2_far, gamma2_far = estimate_frf(ph2_far, nc2_far, FS, npsg=2**9)
-    np.save(f"{CAL_DIR_FAR}/H2_700_50psi.npy", H2_far)
-    np.save(f"{CAL_DIR_FAR}/gamma2_700_50psi.npy", gamma2_far)
-    np.save(f"{CAL_DIR_FAR}/f2_700_50psi.npy", f2_far)
+    np.save(f"{CAL_DIR_FAR}/H2_700_50psig.npy", H2_far)
+    np.save(f"{CAL_DIR_FAR}/gamma2_700_50psig.npy", gamma2_far)
+    np.save(f"{CAL_DIR_FAR}/f2_700_50psig.npy", f2_far)
 
     f1_close, H1_close, gamma1_close = estimate_frf(ph1_close, nc1_close, FS, npsg=2**9)
-    np.save(f"{CAL_DIR_CLOSE}/H1_700_50psi.npy", H1_close)
-    np.save(f"{CAL_DIR_CLOSE}/gamma1_700_50psi.npy", gamma1_close)
-    np.save(f"{CAL_DIR_CLOSE}/f1_700_50psi.npy", f1_close)
+    np.save(f"{CAL_DIR_CLOSE}/H1_700_50psig.npy", H1_close)
+    np.save(f"{CAL_DIR_CLOSE}/gamma1_700_50psig.npy", gamma1_close)
+    np.save(f"{CAL_DIR_CLOSE}/f1_700_50psig.npy", f1_close)
     f2_close, H2_close, gamma2_close = estimate_frf(ph2_close, nc2_close, FS, npsg=2**9)
-    np.save(f"{CAL_DIR_CLOSE}/H2_700_50psi.npy", H2_close)
-    np.save(f"{CAL_DIR_CLOSE}/gamma2_700_50psi.npy", gamma2_close)
-    np.save(f"{CAL_DIR_CLOSE}/f2_700_50psi.npy", f2_close)
+    np.save(f"{CAL_DIR_CLOSE}/H2_700_50psig.npy", H2_close)
+    np.save(f"{CAL_DIR_CLOSE}/gamma2_700_50psig.npy", gamma2_close)
+    np.save(f"{CAL_DIR_CLOSE}/f2_700_50psig.npy", f2_close)
 
 
     # Add in the no-flow calibration data
@@ -1128,10 +1128,10 @@ def calibration_700_50psi(plot=[0,1,2,3,4]):
     f2_hat, H2_hat, C2 = incorporate_insitu_calibration(f2_hat, H2_hat, g2_lab,
                                                         f2_is_close, H2_is_close, gamma2_is_close)
     
-    np.save(f"{CAL_DIR_COMB}/700_50psi_fused_insitu_f1.npy", f1_hat)
-    np.save(f"{CAL_DIR_COMB}/700_50psi_fused_insitu_H1.npy", H1_hat)
-    np.save(f"{CAL_DIR_COMB}/700_50psi_fused_insitu_f2.npy", f2_hat)
-    np.save(f"{CAL_DIR_COMB}/700_50psi_fused_insitu_H2.npy", H2_hat)
+    np.save(f"{CAL_DIR_COMB}/700_50psig_fused_insitu_f1.npy", f1_hat)
+    np.save(f"{CAL_DIR_COMB}/700_50psig_fused_insitu_H1.npy", H1_hat)
+    np.save(f"{CAL_DIR_COMB}/700_50psig_fused_insitu_f2.npy", f2_hat)
+    np.save(f"{CAL_DIR_COMB}/700_50psig_fused_insitu_H2.npy", H2_hat)
 
     if 2 in plot:
         # plot the final lab TFs
@@ -1221,22 +1221,22 @@ def calibration_700_100psi(plot=[0,1,2,3,4]):
     ph2_close = dat2_close['channelData_LP'][:,1]
 
     f1_far, H1_far, gamma1_far = estimate_frf(ph1_far, nc1_far, FS, npsg=2**9)
-    np.save(f"{CAL_DIR_FAR}/H1_700_100psi.npy", H1_far)
-    np.save(f"{CAL_DIR_FAR}/gamma1_700_100psi.npy", gamma1_far)
-    np.save(f"{CAL_DIR_FAR}/f1_700_100psi.npy", f1_far)
+    np.save(f"{CAL_DIR_FAR}/H1_700_100psig.npy", H1_far)
+    np.save(f"{CAL_DIR_FAR}/gamma1_700_100psig.npy", gamma1_far)
+    np.save(f"{CAL_DIR_FAR}/f1_700_100psig.npy", f1_far)
     f2_far, H2_far, gamma2_far = estimate_frf(ph2_far, nc2_far, FS, npsg=2**9)
-    np.save(f"{CAL_DIR_FAR}/H2_700_100psi.npy", H2_far)
-    np.save(f"{CAL_DIR_FAR}/gamma2_700_100psi.npy", gamma2_far)
-    np.save(f"{CAL_DIR_FAR}/f2_700_100psi.npy", f2_far)
+    np.save(f"{CAL_DIR_FAR}/H2_700_100psig.npy", H2_far)
+    np.save(f"{CAL_DIR_FAR}/gamma2_700_100psig.npy", gamma2_far)
+    np.save(f"{CAL_DIR_FAR}/f2_700_100psig.npy", f2_far)
 
     f1_close, H1_close, gamma1_close = estimate_frf(ph1_close, nc1_close, FS, npsg=2**9)
-    np.save(f"{CAL_DIR_CLOSE}/H1_700_100psi.npy", H1_close)
-    np.save(f"{CAL_DIR_CLOSE}/gamma1_700_100psi.npy", gamma1_close)
-    np.save(f"{CAL_DIR_CLOSE}/f1_700_100psi.npy", f1_close)
+    np.save(f"{CAL_DIR_CLOSE}/H1_700_100psig.npy", H1_close)
+    np.save(f"{CAL_DIR_CLOSE}/gamma1_700_100psig.npy", gamma1_close)
+    np.save(f"{CAL_DIR_CLOSE}/f1_700_100psig.npy", f1_close)
     f2_close, H2_close, gamma2_close = estimate_frf(ph2_close, nc2_close, FS, npsg=2**9)
-    np.save(f"{CAL_DIR_CLOSE}/H2_700_100psi.npy", H2_close)
-    np.save(f"{CAL_DIR_CLOSE}/gamma2_700_100psi.npy", gamma2_close)
-    np.save(f"{CAL_DIR_CLOSE}/f2_700_100psi.npy", f2_close)
+    np.save(f"{CAL_DIR_CLOSE}/H2_700_100psig.npy", H2_close)
+    np.save(f"{CAL_DIR_CLOSE}/gamma2_700_100psig.npy", gamma2_close)
+    np.save(f"{CAL_DIR_CLOSE}/f2_700_100psig.npy", f2_close)
 
 
     # Add in the no-flow calibration data
@@ -1369,10 +1369,10 @@ def calibration_700_100psi(plot=[0,1,2,3,4]):
     f2_hat, H2_hat, C2 = incorporate_insitu_calibration(f2_hat, H2_hat, g2_lab,
                                                         f2_is_close, H2_is_close, gamma2_is_close)
     
-    np.save(f"{CAL_DIR_COMB}/700_100psi_fused_insitu_f1.npy", f1_hat)
-    np.save(f"{CAL_DIR_COMB}/700_100psi_fused_insitu_H1.npy", H1_hat)
-    np.save(f"{CAL_DIR_COMB}/700_100psi_fused_insitu_f2.npy", f2_hat)
-    np.save(f"{CAL_DIR_COMB}/700_100psi_fused_insitu_H2.npy", H2_hat)
+    np.save(f"{CAL_DIR_COMB}/700_100psig_fused_insitu_f1.npy", f1_hat)
+    np.save(f"{CAL_DIR_COMB}/700_100psig_fused_insitu_H1.npy", H1_hat)
+    np.save(f"{CAL_DIR_COMB}/700_100psig_fused_insitu_f2.npy", f2_hat)
+    np.save(f"{CAL_DIR_COMB}/700_100psig_fused_insitu_H2.npy", H2_hat)
 
     if 2 in plot:
         # plot the final lab TFs
