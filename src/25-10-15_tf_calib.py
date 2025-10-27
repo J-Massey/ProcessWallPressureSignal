@@ -8,7 +8,13 @@ import numpy as np
 from scipy.io import loadmat
 from scipy.signal import welch, csd, get_window, iirnotch, sosfiltfilt
 import matplotlib.pyplot as plt
+import scienceplots
 from icecream import ic
+
+plt.style.use(["science", "grid"])
+plt.rcParams["font.size"] = "10.5"
+plt.rc("text", usetex=True)
+plt.rc("text.latex", preamble=r"\usepackage{mathpazo}")
 
 # =============================================================================
 # Constants & styling
@@ -375,120 +381,6 @@ def incorporate_insitu_calibration(
 
     return f_lab, H_hat, C
 
-
-# =============================================================================
-# FRF application & simple filtering helpers (unchanged logic)
-# =============================================================================
-def wiener_forward(
-    x: np.ndarray,
-    fs: float,
-    f: np.ndarray,
-    H: np.ndarray,
-    gamma2: np.ndarray,
-    nfft_pow: int = 0,
-    demean: bool = True,
-    zero_dc: bool = True,
-    taper_hz: float = 0.0,
-) -> np.ndarray:
-    """
-    Forward FRF application: given x (PH) and H_{PH->nc}, synthesize ŷ ≈ nc.
-    Uses coherence-weighted magnitude (sqrt(gamma2)) and optional in-band taper.
-    """
-    x = np.asarray(x, float)
-    f = np.asarray(f, float)
-    H = np.asarray(H)
-    gamma2 = np.asarray(gamma2, float)
-
-    if x.ndim != 1:
-        raise ValueError("x must be 1-D")
-    if f.ndim != 1 or H.ndim != 1 or gamma2.ndim != 1:
-        raise ValueError("f, H, gamma2 must be 1-D")
-    if not (len(f) == len(H) == len(gamma2)):
-        raise ValueError("f, H, gamma2 must have the same length")
-    if np.any(~np.isfinite(x)) or np.any(~np.isfinite(H)) or np.any(~np.isfinite(gamma2)):
-        raise ValueError("Inputs contain NaN/Inf")
-    if np.any(np.diff(f) <= 0):
-        raise ValueError("f must be strictly increasing")
-    if f[0] < 0 or f[-1] > fs / 2 + 1e-9:
-        raise ValueError("f must lie within [0, fs/2]")
-
-    if demean:
-        x = x - x.mean()
-
-    N = x.size
-    min_pow = int(np.ceil(np.log2(max(1, N))))
-    if nfft_pow and nfft_pow > 0:
-        Nfft = 2 ** max(nfft_pow, min_pow)
-    else:
-        Nfft = 2 ** min_pow
-
-    X = np.fft.rfft(x, n=Nfft)
-    fr = np.fft.rfftfreq(Nfft, d=1.0 / fs)
-
-    Hr = np.interp(fr, f, np.real(H), left=0.0, right=0.0)
-    Hi = np.interp(fr, f, np.imag(H), left=0.0, right=0.0)
-    H_i = Hr + 1j * Hi
-
-    g2_i = np.clip(np.interp(fr, f, gamma2, left=0.0, right=0.0), 0.0, 1.0)
-    W = np.sqrt(g2_i)
-
-    if taper_hz and taper_hz > 0.0:
-        band_lo = f[0]
-        band_hi = f[-1]
-        lo_edge = np.where((fr >= band_lo) & (fr < band_lo + taper_hz))[0]
-        hi_edge = np.where((fr <= band_hi) & (fr > band_hi - taper_hz))[0]
-        if lo_edge.size > 0:
-            t = (fr[lo_edge] - band_lo) / taper_hz
-            W[lo_edge] *= 0.5 * (1 - np.cos(np.pi * t))
-        if hi_edge.size > 0:
-            t = (band_hi - fr[hi_edge]) / taper_hz
-            W[hi_edge] *= 0.5 * (1 - np.cos(np.pi * t))
-
-    Y = W * H_i * X
-    if zero_dc and Y.size > 0:
-        Y[0] = 0.0
-
-    y_hat = np.fft.irfft(Y, n=Nfft)[:N]
-    return y_hat
-
-
-def wiener_inverse(
-    y_r: np.ndarray,
-    fs: float,
-    f: np.ndarray,
-    H: np.ndarray,
-    gamma2: np.ndarray,
-    demean: bool = True,
-    zero_dc: bool = True,
-) -> np.ndarray:
-    """
-    Coherence-weighted inverse filter: H_inv = gamma^2 * H* / |H|^2.
-    """
-    y = np.asarray(y_r, float)
-    if demean:
-        y = y - y.mean()
-    N = y.size
-    Nfft = int(2 ** np.ceil(np.log2(N)))
-    Yr = np.fft.rfft(y, n=Nfft)
-    fr = np.fft.rfftfreq(Nfft, d=1.0 / fs)
-
-    mag = np.abs(H)
-    phi = np.unwrap(np.angle(H))
-    mag_i = np.interp(fr, f, mag, left=1.0, right=1.0)
-    phi_i = np.interp(fr, f, phi, left=phi[0], right=phi[-1])
-    Hi = mag_i * np.exp(1j * phi_i)
-
-    g2_i = np.clip(np.interp(fr, f, gamma2, left=0.0, right=0.0), 0.0, 1.0)
-
-    eps = np.finfo(float).eps
-    Hinv = g2_i * np.conj(Hi) / np.maximum(mag_i**2, eps)
-    if zero_dc:
-        Hinv[0] = 0.0
-        if Nfft % 2 == 0:
-            Hinv[-1] = 0.0
-
-    x_hat = np.fft.irfft(Yr * Hinv, n=Nfft)[:N]
-    return x_hat
 
 
 def apply_frf(

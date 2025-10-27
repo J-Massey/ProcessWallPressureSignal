@@ -1,0 +1,2 @@
+\beamer@sectionintoc {1}{New measurements}{6}{0}{1}
+\beamer@sectionintoc {2}{Best estimate}{11}{0}{2}

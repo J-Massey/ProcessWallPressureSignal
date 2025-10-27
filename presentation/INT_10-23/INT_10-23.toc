@@ -1,5 +1,2 @@
 \beamer@sectionintoc {1}{Raw Data}{5}{0}{1}
-\beamer@sectionintoc {2}{Transfer Functions}{9}{0}{2}
-\beamer@sectionintoc {3}{Fused TFs}{14}{0}{3}
-\beamer@sectionintoc {4}{Resulting Spectra Close Spaced}{21}{0}{4}
-\beamer@sectionintoc {5}{White noise problem ?}{25}{0}{5}
+\beamer@sectionintoc {2}{Refit microphones}{9}{0}{2}

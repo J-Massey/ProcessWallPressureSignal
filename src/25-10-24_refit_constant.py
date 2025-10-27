@@ -270,7 +270,7 @@ def analyse_run(
         ax[0].axvline(f_cut, color='red', linestyle='--')
         ax[0].grid(True, which='both', linestyle=':', linewidth=0.3, alpha=0.7)
         ax[0].set_xlabel("$f$ [Hz]"); ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
-        ax[0].set_xlim(1, 1e4); ax[0].set_ylim(0, 7)
+        ax[0].set_xlim(1, 1e4); ax[0].set_ylim(0, 9)
 
         ax[1].semilogx(T_plus, prem(P_nkd), label='NC', color=nkd_colour)
         ax[1].semilogx(T_plus, prem(P_ph1), label='PH1', color=ph1_colour)
@@ -375,7 +375,7 @@ def plot_model_comparison():
     ax.set_xlabel(r"$T^+$")
     ax.set_ylabel(r"${f \phi_{pp}}^+$")
     ax.set_xlim(1, 1e4)
-    ax.set_ylim(0, 4)
+    ax.set_ylim(0, 8)
     ax.grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
     ax.grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
 
@@ -421,10 +421,10 @@ def plot_tf_model_comparison():
 
         # Apply transfer function
         # Plot transfer function magnitude on top
-        f1_fused_insitu = np.load(f"figures/tf_vanilla/700_{labels[idxfn]}_vanilla_far_ph1_f.npy")
-        H1_fused_insitu = np.load(f"figures/tf_vanilla/700_{labels[idxfn]}_vanilla_far_ph1_H.npy")
-        f2_fused_insitu = np.load(f"figures/tf_vanilla/700_{labels[idxfn]}_vanilla_far_ph2_f.npy")
-        H2_fused_insitu = np.load(f"figures/tf_vanilla/700_{labels[idxfn]}_vanilla_far_ph2_H.npy")
+        f1_fused_insitu = np.load(f"data/20251016/flow_data/tf_combined/700_{labels[idxfn]}_fused_insitu_f1.npy")
+        H1_fused_insitu = np.load(f"data/20251016/flow_data/tf_combined/700_{labels[idxfn]}_fused_insitu_H1.npy")
+        f2_fused_insitu = np.load(f"data/20251016/flow_data/tf_combined/700_{labels[idxfn]}_fused_insitu_f2.npy")
+        H2_fused_insitu = np.load(f"data/20251016/flow_data/tf_combined/700_{labels[idxfn]}_fused_insitu_H2.npy")
 
         ph1_clean_tf = apply_frf(ph1_clean, FS, f1_fused_insitu, H1_fused_insitu)
         ph2_clean_tf = apply_frf(ph2_clean, FS, f2_fused_insitu, H2_fused_insitu)
@@ -440,7 +440,7 @@ def plot_tf_model_comparison():
     ax.set_xlabel(r"$T^+$")
     ax.set_ylabel(r"${f \phi_{pp}}^+$")
     ax.set_xlim(1, 1e4)
-    ax.set_ylim(0, 4)
+    ax.set_ylim(0, 5)
     ax.grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
     ax.grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
 
@@ -538,7 +538,7 @@ def plot_required_tfs():
 
 
 if __name__ == "__main__":
-    # run_all_final()
+    run_all_final()
     plot_model_comparison()
     plot_tf_model_comparison()
     plot_required_tfs()

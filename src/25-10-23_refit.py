@@ -73,8 +73,8 @@ DEFAULT_UNITS = {
     'channelData_300':      ('Pa', 'Pa'),  # NC,  PH
 }
 
-sensitivity = 20*1e-3 # V/Pa
-sensitivity = 31.6*1e-3 # V/Pa
+# sensitivity = 20*1e-3 # V/Pa
+sensitivity = 316e-3 * 50e-3 # V/Pa
 
 def compute_spec(fs: float, x: np.ndarray, npsg : int = NPERSEG):
     """Welch PSD with sane defaults and shape guarding. Returns (f [Hz], Pxx [Pa^2/Hz])."""
@@ -217,6 +217,11 @@ def rerun(plot=[0,1,2,3,4]):
     nkd_far = dat['channelData_flow'][:,2] * 1/sensitivity
     ph1_far = dat['channelData_flow'][:,0] * 1/sensitivity
     ph2_far = dat['channelData_flow'][:,1] * 1/sensitivity
+    # Apply band pass at 0.1-f_cut Hz
+    nkd_far = bandpass_filter(nkd_far, 0.1, f_cut, FS)
+    ph1_far = bandpass_filter(ph1_far, 0.1, f_cut, FS)
+    ph2_far = bandpass_filter(ph2_far, 0.1, f_cut, FS)
+
     f_far, Pyy_nkd_far = compute_spec(FS, nkd_far)
     f_far, Pyy_ph1_far = compute_spec(FS, ph1_far)
     f_far, Pyy_ph2_far = compute_spec(FS, ph2_far)
@@ -266,6 +271,7 @@ def rerun(plot=[0,1,2,3,4]):
         f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean)
 
         fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
+        fig.suptitle(r"$Re_\tau\approx$ 1,300 (700$\mu$m) - Original")
         ax[0].semilogx(f_clean, (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4), label='PH1 Cleaned', color=ph1_colour)
         ax[0].semilogx(f_far, (f_far * Pyy_ph1_far)/(rho**2 * u_tau**4), label='PH1 Original', color=ph1_colour, alpha=0.3)
         ax[0].semilogx(f_clean, (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4), label='PH2 Cleaned', color=ph2_colour)
@@ -294,7 +300,7 @@ def rerun(plot=[0,1,2,3,4]):
         ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
         ax[0].set_xlim(1, 1e4)
 
-        ax[0].set_ylim(0, 5)
+        ax[0].set_ylim(0, 15)
         ax[0].legend()
         fig.savefig('figures/remount_test/original_cleaned.png', dpi=410)
     
@@ -308,7 +314,7 @@ def rerun(plot=[0,1,2,3,4]):
     f_far, Pyy_ph1_far = compute_spec(FS, ph1_far)
     f_far, Pyy_ph2_far = compute_spec(FS, ph2_far)
 
-    if 0 in plot:
+    if 1 in plot:
         fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
         T_plus = 1/f_far * (u_tau**2)/nu
         g1, g2, rv = bl_model(T_plus, Re_tau, cf)
@@ -379,7 +385,7 @@ def rerun(plot=[0,1,2,3,4]):
         ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
         ax[0].set_xlim(1, 1e4)
 
-        ax[0].set_ylim(0, 5)
+        ax[0].set_ylim(0, 15)
         ax[0].legend()
         fig.savefig('figures/remount_test/refit_original_cleaned.png', dpi=410)
 
@@ -564,7 +570,7 @@ def plot_remount_new(plot=[0]):
     cf = 2*(u_tau**2)/14**2
     Re_tau = u_tau * 0.035 / nu
     ic(Re_tau)
-    sensitivity = 316e-3/12
+    sensitivity = 316e-3 * 50e-3
 
     rrun = 'data/20251023/remount/newmounting.mat'
     dat = sio.loadmat(rrun) # options are channelData_LP, channelData_NF
@@ -615,7 +621,7 @@ def plot_remount_new(plot=[0]):
         ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
 
         ax[0].set_xlim(1, 1e4)
-        ax[0].set_ylim(0, 5)
+        ax[0].set_ylim(0, 8)
 
         ax[0].legend()
         ax[1].legend()
@@ -657,7 +663,7 @@ def plot_remount_new(plot=[0]):
         ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
         ax[0].set_xlim(1, 1e4)
 
-        ax[0].set_ylim(0, 5)
+        ax[0].set_ylim(0, 15)
         ax[0].legend()
         fig.savefig('figures/remount_test/new_mount_cleaned.png', dpi=410)
 
@@ -765,9 +771,9 @@ def change_sensitivity():
 
 
 if __name__ == "__main__":
-    # rerun()
-    plot_remount_new(plot=[0])
-    change_sensitivity()
+    rerun()
+    # plot_remount_new(plot=[0])
+    # change_sensitivity()
     # ic(np.exp(-1)/1)
 
     # flow_tests()
