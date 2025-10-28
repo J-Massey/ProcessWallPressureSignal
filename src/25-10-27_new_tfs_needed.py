@@ -3,20 +3,18 @@ import numpy as np
 from scipy.signal import welch, csd, get_window
 import scipy.io as sio
 
-from matplotlib import pyplot as plt
-from matplotlib.lines import Line2D
-import scienceplots
 from icecream import ic
 from pathlib import Path
 
 from scipy.signal import butter, sosfiltfilt
-
-
 import torch
 from tqdm import tqdm
 
 from wiener_filter_torch import wiener_cancel_background_torch
 
+from matplotlib import pyplot as plt
+from matplotlib.lines import Line2D
+import scienceplots
 plt.style.use(["science", "grid"])
 plt.rcParams["font.size"] = "10.5"
 plt.rc("text", usetex=True)
@@ -381,9 +379,9 @@ def plot_model_comparison():
         
         data_fphipp_plus1 = (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4)
         data_fphipp_plus2 = (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4)
-        ax.semilogx(T_plus, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        ax.semilogx(T_plus, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        ax.semilogx(T_plus, channel_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
+        ax.semilogx(f_clean, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        ax.semilogx(f_clean, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        ax.semilogx(f_clean, channel_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
     ax.set_xlabel(r"$T^+$")
     ax.set_ylabel(r"${f \phi_{pp}}^+$")
@@ -428,8 +426,8 @@ def plot_tf_model_comparison():
         channel_fphipp_plus = rv_c*(g1_c+g2_c)
         bl_fphipp_plus = rv_b*(g1_b+g2_b)
 
-        ax.semilogx(T_plus, channel_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn], lw=0.7)
-        ax.semilogx(T_plus, bl_fphipp_plus, label=f'BL Model {labels[idxfn]}', linestyle='-.', color=colours[idxfn], lw=0.7)
+        ax.semilogx(f_clean, channel_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn], lw=0.7)
+        ax.semilogx(f_clean, bl_fphipp_plus, label=f'BL Model {labels[idxfn]}', linestyle='-.', color=colours[idxfn], lw=0.7)
 
 
         # Apply transfer function
@@ -447,8 +445,8 @@ def plot_tf_model_comparison():
         T_plus_tf = 1/f_clean_tf * (u_tau**2)/nu
         data_fphipp_plus1_tf = (f_clean_tf * Pyy_ph1_clean_tf)/(rho**2 * u_tau**4)
         data_fphipp_plus2_tf = (f_clean_tf * Pyy_ph2_clean_tf)/(rho**2 * u_tau**4)
-        ax.semilogx(T_plus_tf, data_fphipp_plus1_tf, linestyle='-', color=colours[idxfn], alpha=0.7, lw=0.7)
-        ax.semilogx(T_plus_tf, data_fphipp_plus2_tf, linestyle='-', color=colours[idxfn], alpha=0.7, lw=0.7)
+        ax.semilogx(f_clean_tf, data_fphipp_plus1_tf, linestyle='-', color=colours[idxfn], alpha=0.7, lw=0.7)
+        ax.semilogx(f_clean_tf, data_fphipp_plus2_tf, linestyle='-', color=colours[idxfn], alpha=0.7, lw=0.7)
 
     ax.set_xlabel(r"$T^+$")
     ax.set_ylabel(r"${f \phi_{pp}}^+$")
@@ -548,11 +546,102 @@ def plot_required_tfs():
     ax[0].legend(loc='upper left', fontsize=8)
     fig.savefig('figures/final/required_transfer_functions.png', dpi=410)
 
+def plot_required_ratios():
+    fn_atm = '0psig_cleaned.h5'
+    fn_50psig = '50psig_cleaned.h5'
+    fn_100psig = '100psig_cleaned.h5'
+    labels = ['0psig', '50psig', '100psig']
+    colours = ['C0', 'C1', 'C2']
+
+    fig, ax = plt.subplots(1, 1, figsize=(20, 12), tight_layout=True)
+    for idxfn, fn in enumerate([fn_atm, fn_50psig, fn_100psig]):
+        with h5py.File(f'data/{fn}', 'r') as hf:
+            ph1_clean = hf['ph1_clean'][:]
+            ph2_clean = hf['ph2_clean'][:]
+            u_tau = hf.attrs['u_tau']
+            nu = hf.attrs['nu']
+            rho = hf.attrs['rho']
+            f_cut = hf.attrs['f_cut']
+            Re_tau = hf.attrs['Re_tau']
+        f_clean, Pyy_ph1_clean = compute_spec(FS, ph1_clean)
+        f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean)
+        T_plus = 1/f_clean * (u_tau**2)/nu
+
+        g1_c, g2_c, rv_c = channel_model(T_plus, Re_tau, u_tau, 14)
+        channel_fphipp_plus = rv_c*(g1_c+g2_c)
+        g1_b, g2_b, rv_b = bl_model(T_plus, Re_tau, 2*(u_tau**2)/14.0**2)
+        bl_fphipp_plus = rv_b*(g1_b+g2_b)
+        
+        data_fphipp_plus1 = (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4)
+        data_fphipp_plus2 = (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4)
+
+        # Cut off where the filter does
+        T_plus_mask = T_plus >= TPLUS_CUT
+        f_clean = f_clean[T_plus_mask]
+        T_plus = T_plus[T_plus_mask]
+        channel_fphipp_plus = channel_fphipp_plus[T_plus_mask]
+        bl_fphipp_plus = bl_fphipp_plus[T_plus_mask]
+        data_fphipp_plus1 = data_fphipp_plus1[T_plus_mask]
+        data_fphipp_plus2 = data_fphipp_plus2[T_plus_mask]
+
+        model_data_ratio1 = channel_fphipp_plus / data_fphipp_plus1
+        model_data_ratio1 = bl_fphipp_plus / data_fphipp_plus1
+        model_data_ratio2 = channel_fphipp_plus / data_fphipp_plus2
+        model_data_ratio2 = bl_fphipp_plus / data_fphipp_plus2
+
+        ax.loglog(f_clean, model_data_ratio1, label=f'Ratio 1 {labels[idxfn]}', alpha=0.6, color=colours[idxfn])
+        ax.loglog(f_clean, model_data_ratio2, label=f'Ratio 2 {labels[idxfn]}', alpha=0.6, color=colours[idxfn])
+
+        ic(model_data_ratio1)
+
+        freq_print = np.geomspace(50, 2500, 16)
+        avg = np.empty_like(freq_print)
+        for i, f in enumerate(freq_print):
+            idx = np.argmin(np.abs(f_clean - f))
+            # ic(fn, (model_data_ratio1[idx]+model_data_ratio2[idx])/2)
+            avg[i] = (model_data_ratio1[idx]+model_data_ratio2[idx])/2
+        # ic(fn, freq_print, avg)
+
+        f = 100
+        idx = np.argmin(np.abs(freq_print - f))
+        ic(f, avg[idx])
+
+        # # Plot transfer function magnitude on top
+        # f1_fused_insitu = np.load(f"data/20251016/flow_data/tf_combined/700_{labels[idxfn]}_fused_insitu_f1.npy")
+        # H1_fused_insitu = np.load(f"data/20251016/flow_data/tf_combined/700_{labels[idxfn]}_fused_insitu_H1.npy")
+        # f2_fused_insitu = np.load(f"data/20251016/flow_data/tf_combined/700_{labels[idxfn]}_fused_insitu_f2.npy")
+        # H2_fused_insitu = np.load(f"data/20251016/flow_data/tf_combined/700_{labels[idxfn]}_fused_insitu_H2.npy")
+        
+        # # Mask to cut off below TPLUS_CUT
+        # tf_mask1 = (1/f1_fused_insitu * (u_tau**2)/nu) >= TPLUS_CUT
+        # tf_mask2 = (1/f2_fused_insitu * (u_tau**2)/nu) >= TPLUS_CUT
+
+        # f1_fused_insitu = f1_fused_insitu[tf_mask1]
+        # H1_fused_insitu = H1_fused_insitu[tf_mask1]
+        # f2_fused_insitu = f2_fused_insitu[tf_mask2]
+        # H2_fused_insitu = H2_fused_insitu[tf_mask2]
+
+
+        # ax[1].loglog(f1_fused_insitu, np.abs(H1_fused_insitu), linestyle='--', color=colours[idxfn])
+        # ax[1].loglog(f2_fused_insitu, np.abs(H2_fused_insitu), linestyle='--', color=colours[idxfn])
+
+    
+    ax.set_xlabel(r"$f$ [Hz]")
+    ax.set_ylabel(r"Model/Data Ratio")
+    ax.set_xlim(1, 1.5e4)
+    ax.grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+    ax.grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+    ax.axhline(1, linestyle='--', linewidth=0.4, alpha=0.7)
+
+    # ax[0].legend(loc='upper left', fontsize=8)
+    fig.savefig('figures/final/ratio.png', dpi=410)
+
 
 
 if __name__ == "__main__":
     # run_all_final()
-    plot_model_comparison()
-    plot_tf_model_comparison()
-    plot_required_tfs()
+    # plot_model_comparison()
+    # plot_tf_model_comparison()
+    # plot_required_tfs()
+    plot_required_ratios()
     

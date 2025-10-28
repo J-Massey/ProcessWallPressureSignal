@@ -4,23 +4,23 @@ import pandas as pd
 # -------------------------------
 # Configuration
 # -------------------------------
-n_tones = 12
-run_length_s = 10  # seconds per tone
+n_tones = 16
+run_length_s = 20  # seconds per tone
 
 # Frequency bands [Hz]
 bands = {
     "Atmospheric (0 psig)": {
         "HR": (700, 3000),
-        "OP": (20, 200)
+        "OP": (50, 200)
     },
-    "50 psig": {
-        "HR": (700, 3000),
-        "OP": (50, 500)
-    },
-    "100 psig": {
-        "HR": (700, 3000),
-        "OP": (100, 800)
-    }
+    # "50 psig": {
+    #     "HR": (700, 3000),
+    #     "OP": (50, 500)
+    # },
+    # "100 psig": {
+    #     "HR": (700, 3000),
+    #     "OP": (50, 800)
+    # }
 }
 
 # -------------------------------
@@ -28,14 +28,10 @@ bands = {
 # -------------------------------
 records = []
 for pressure, band in bands.items():
-    hr_freqs = np.round(np.geomspace(*band["HR"], num=n_tones), 1)
-    op_freqs = np.round(np.geomspace(*band["OP"], num=n_tones), 1)
+    hr_freqs = np.round(np.geomspace(50, 2500, num=n_tones), 0)
     records.append({
-        "Pressure": pressure,
-        "HR band [Hz]": f"{band['HR'][0]}–{band['HR'][1]}",
-        "OP band [Hz]": f"{band['OP'][0]}–{band['OP'][1]}",
+        "Band [Hz]": r"50--2,500",
         "HR tones [Hz]": ", ".join(map(str, hr_freqs)),
-        "OP tones [Hz]": ", ".join(map(str, op_freqs)),
         "Run length [s]": run_length_s
     })
 
