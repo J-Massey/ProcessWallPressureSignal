@@ -88,7 +88,7 @@ def plot_overlay(ctx: PlotContext, case: CalibCase) -> None:
     # far/close anechoic
     for label, base_dir in (("far", CAL_DIR_FAR), ("close", CAL_DIR_CLOSE)):
         for ph in ("1", "2"):
-            tag = f"ph_{ph}_700_{case.psi_g}"
+            tag = f"{ph}_700_{case.psi_g}"
             f, H, _ = ctx.load_triplet(base_dir, tag)
             runs.append((f"PH{ph} {label}", f, H))
 
