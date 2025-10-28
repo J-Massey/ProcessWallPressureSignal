@@ -544,6 +544,17 @@ def _maybe_noise_psd_for_ph(x_insitu: Optional[np.ndarray]) -> Optional[Tuple[np
     fN, Snx = compute_spec(FS, x_insitu, npsg=2**9)
     return fN, Snx
 
+"""
+Plan for the tonal calibration computation:
+- Tonal run length should be 2 minutes--Do we need this long?
+- The tones should focus on the helmholtz resonance(HR) and the outer-peak frequencies (OP)
+- Atm--HR (700-3000) OP(20-200) log-scales
+- 50psig--HR(700-3000) OP(50-500)
+- 100psig--HR(700-3000) OP(100-800)
+"""
+ic(np.round(np.geomspace(700, 3000, num=12), 1), np.round(np.geomspace(20, 200, num=12), 1), '\\',
+   np.round(np.geomspace(50, 500, num=12), 1), np.round(np.geomspace(100, 800, num=12), 1), '\\',
+   np.round(np.geomspace(700, 3000, num=12), 1), np.round(np.geomspace(20, 200, num=12), 1), '\\',)
 
 def calibrate_700_case(
     case: CalibCase,
@@ -675,45 +686,45 @@ def run_all_calibrations(
 # =============================================================================
 # CLI
 # =============================================================================
-if __name__ == "__main__":
-    import argparse
+# if __name__ == "__main__":
+#     import argparse
 
-    parser = argparse.ArgumentParser(description="Compute-only calibration pipeline (no plotting).")
-    parser.add_argument(
-        "--cases",
-        type=str,
-        default="0psi,50psi,100psi",
-        help="Comma-separated list (e.g. 0psi,100psi) or 'all'",
-    )
-    parser.add_argument(
-        "--frf-backend",
-        type=str,
-        default="h1",
-        help=f"FRF backend to use. See --list-frf. Default: h1",
-    )
-    parser.add_argument(
-        "--npsg",
-        type=int,
-        default=2**9,
-        help="nperseg for Welch/CSD (default: 512).",
-    )
-    parser.add_argument(
-        "--poweraware",
-        action="store_true",
-        help="Use power-aware coherence×SNR fusion for anechoic combination.",
-    )
-    parser.add_argument(
-        "--list-frf",
-        action="store_true",
-        help="List available FRF backends and exit.",
-    )
-    args = parser.parse_args()
+#     parser = argparse.ArgumentParser(description="Compute-only calibration pipeline (no plotting).")
+#     parser.add_argument(
+#         "--cases",
+#         type=str,
+#         default="0psi,50psi,100psi",
+#         help="Comma-separated list (e.g. 0psi,100psi) or 'all'",
+#     )
+#     parser.add_argument(
+#         "--frf-backend",
+#         type=str,
+#         default="h1",
+#         help=f"FRF backend to use. See --list-frf. Default: h1",
+#     )
+#     parser.add_argument(
+#         "--npsg",
+#         type=int,
+#         default=2**9,
+#         help="nperseg for Welch/CSD (default: 512).",
+#     )
+#     parser.add_argument(
+#         "--poweraware",
+#         action="store_true",
+#         help="Use power-aware coherence×SNR fusion for anechoic combination.",
+#     )
+#     parser.add_argument(
+#         "--list-frf",
+#         action="store_true",
+#         help="List available FRF backends and exit.",
+#     )
+#     args = parser.parse_args()
 
-    if args.list_frf:
-        print("Available FRF backends:")
-        for k in FRF_REGISTRY:
-            print(f"  - {k}")
-        raise SystemExit(0)
+#     if args.list_frf:
+#         print("Available FRF backends:")
+#         for k in FRF_REGISTRY:
+#             print(f"  - {k}")
+#         raise SystemExit(0)
 
-    cases = None if args.cases.strip().lower() == "all" else [s.strip() for s in args.cases.split(",") if s.strip()]
-    run_all_calibrations(cases=cases, frf_backend=args.frf_backend, npsg=args.npsg, poweraware=args.poweraware)
+#     cases = None if args.cases.strip().lower() == "all" else [s.strip() for s in args.cases.split(",") if s.strip()]
+#     run_all_calibrations(cases=cases, frf_backend=args.frf_backend, npsg=args.npsg, poweraware=args.poweraware)
