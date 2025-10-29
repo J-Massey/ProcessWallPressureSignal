@@ -360,7 +360,7 @@ def plot_model_comparison():
     labels = ['0psig', '50psig', '100psig']
     colours = ['C0', 'C1', 'C2']
 
-    fig, ax = plt.subplots(1, 1, figsize=(7, 3), tight_layout=True)
+    fig, ax = plt.subplots(2, 1, figsize=(9, 5), tight_layout=True)
     for idxfn, fn in enumerate([fn_atm, fn_50psig, fn_100psig]):
         with h5py.File(f'data/{fn}', 'r') as hf:
             ph1_clean = hf['ph1_clean'][:]
@@ -369,26 +369,38 @@ def plot_model_comparison():
             nu = hf.attrs['nu']
             rho = hf.attrs['rho']
             f_cut = hf.attrs['f_cut']
+            cf_2 = hf.attrs['cf_2']
             Re_tau = hf.attrs['Re_tau']
         f_clean, Pyy_ph1_clean = compute_spec(FS, ph1_clean)
         f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean)
         T_plus = 1/f_clean * (u_tau**2)/nu
 
-        g1_c, g2_c, rv_c = channel_model(T_plus, Re_tau, u_tau, 14)
-        channel_fphipp_plus = rv_c*(g1_c+g2_c)
-        
+        g1_b, g2_b, rv_b = bl_model(T_plus, Re_tau, cf_2)
+        bl_fphipp_plus = rv_b*(g1_b+g2_b)
+
         data_fphipp_plus1 = (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4)
         data_fphipp_plus2 = (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4)
-        ax.semilogx(f_clean, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        ax.semilogx(f_clean, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        ax.semilogx(f_clean, channel_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
+        ax[0].semilogx(f_clean, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        ax[0].semilogx(f_clean, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        ax[0].semilogx(f_clean, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
-    ax.set_xlabel(r"$T^+$")
-    ax.set_ylabel(r"${f \phi_{pp}}^+$")
-    ax.set_xlim(1, 1e4)
-    ax.set_ylim(0, 8)
-    ax.grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-    ax.grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+        ax[1].semilogx(T_plus, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        ax[1].semilogx(T_plus, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        ax[1].semilogx(T_plus, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
+
+    ax[0].set_xlabel(r"$f$ [Hz]")
+    ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
+    ax[0].set_xlim(1, 1e4)
+    ax[0].set_ylim(0, 8)
+    ax[0].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+    ax[0].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+
+    ax[1].set_xlabel(r"$T^+$")
+    ax[1].set_ylabel(r"${f \phi_{pp}}^+$")
+    ax[1].set_xlim(1, 1e4)
+    ax[1].set_ylim(0, 8)
+    ax[1].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+    ax[1].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
 
     labels_handles = ['0 psig Data', '0 psig Model',
                       '50 psig Data', '50 psig Model',
@@ -396,7 +408,7 @@ def plot_model_comparison():
     label_colours = ['C0', 'C0', 'C1', 'C1', 'C2', 'C2']
     label_styles = ['solid', 'dashed', 'solid', 'dashed', 'solid', 'dashed']
     custom_lines = [Line2D([0], [0], color=label_colours[i], linestyle=label_styles[i]) for i in range(len(labels_handles))]
-    ax.legend(custom_lines, labels_handles, loc='upper right', fontsize=8)
+    ax[0].legend(custom_lines, labels_handles, loc='upper right', fontsize=8)
     fig.savefig('figures/final/spectra_comparison.png', dpi=410)
 
 def plot_tf_model_comparison():
@@ -639,8 +651,8 @@ def plot_required_ratios():
 
 if __name__ == "__main__":
     # run_all_final()
-    # plot_model_comparison()
+    plot_model_comparison()
     # plot_tf_model_comparison()
     # plot_required_tfs()
-    plot_required_ratios()
+    # plot_required_ratios()
     

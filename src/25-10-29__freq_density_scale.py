@@ -243,7 +243,7 @@ def apply_frf(
     fr = np.fft.rfftfreq(Nfft, d=1.0 / fs)
 
     f[0] = 1
-    mag = np.abs(H) * R / np.sqrt(f) * 8
+    mag = np.abs(H) #* R / np.sqrt(f) * 8
     mag[0] = 0
 
     phi = np.unwrap(np.angle(H))
@@ -420,14 +420,14 @@ def plot_tf_model_ratio():
         H_new_clipped = H_new[f_new < 1_000]
 
         # ax.semilogx(f_new_clipped, H_new_clipped*R/, linestyle='--', color=colours[idxfn], alpha=0.7, lw=0.7)
-        ax.semilogx(f_new_clipped, H_new_clipped*R/np.sqrt(f_new_clipped)*12, linestyle='--', color=colours[idxfn], alpha=0.7, lw=0.7)
+        # ax.semilogx(f_new_clipped, H_new_clipped*R/np.sqrt(f_new_clipped)*12, linestyle='--', color=colours[idxfn], alpha=0.7, lw=0.7)
 
 
     ax.set_xlabel(r"$T^+$")
     ax.set_xlabel(r"$f$ [Hz]")
     ax.set_ylabel(r"Required $|H|$")
     ax.set_xlim(50, 3e3)
-    # ax.set_ylim(0, 7)
+    ax.set_ylim(0, 10)
     ax.grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
     ax.grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
 
@@ -444,5 +444,5 @@ def plot_tf_model_ratio():
 
 if __name__ == "__main__":
     # scale_0psig(['0psig', '50psig', '100psig'])
-    plot_tf_model_comparison()
-    # plot_tf_model_ratio()
+    # plot_tf_model_comparison()
+    plot_tf_model_ratio()
