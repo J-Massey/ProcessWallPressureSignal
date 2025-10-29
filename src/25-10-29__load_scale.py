@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, Iterable, Optional, Tuple
 import inspect
+import os
 
 import numpy as np
 import h5py
@@ -29,6 +30,7 @@ plt.rc("text.latex", preamble=r"\usepackage{mathpazo}")
 FS: float = 50_000.0
 NPERSEG: int = 2**12
 WINDOW: str = "hann"
+BAND: Tuple[float, float] = (100.0, 1000.0)  # <-- scaling band
 
 # Colors (exported for plotting)
 PH1_COLOR = "#c76713"  # orange
@@ -40,12 +42,11 @@ R = 287.05        # J/kg/K
 PSI_TO_PA = 6_894.76
 P_ATM = 101_325.0
 DELTA = 0.035  # m, bl-height of 'channel'
-TDEG = [18, 20, 22]
+TDEG = [18, 20, 22]  # temperatures [°C] for 0/50/100 psig
 
 # =============================================================================
 # Units & optional conversions (kept for compatibility with other workflows)
 # =============================================================================
-
 
 SENSITIVITIES_V_PER_PA: dict[str, float] = {
     'nc': 50e-3,
@@ -88,7 +89,6 @@ def channel_model(Tplus, Re_tau: float, u_tau: float, u_cl) -> np.ndarray:
     g2 = A2 * np.exp(-sig2 * (np.log10(Tplus) - np.log10(mean_To_plus))**2)
     return g1, g2, rv
 
-
 def convert_to_pa(x: np.ndarray, units: str, *, channel_name: str = "unknown") -> np.ndarray:
     """Convert a pressure time series to Pa."""
     u = units.lower()
@@ -109,7 +109,6 @@ def convert_to_pa(x: np.ndarray, units: str, *, channel_name: str = "unknown") -
         return x / (gain * sens)
     raise ValueError(f"Unsupported units '{units}' for channel '{channel_name}'")
 
-
 def air_props_from_gauge(psi_gauge: float, T_K: float):
     """
     Return rho [kg/m^3], mu [Pa·s], nu [m^2/s] from gauge pressure [psi] and temperature [K].
@@ -122,31 +121,6 @@ def air_props_from_gauge(psi_gauge: float, T_K: float):
     rho = p_abs / (R * T_K)
     nu = mu / rho
     return rho, mu, nu
-
-
-def concatenate_signals(frequencies: Iterable[int], pressure: str) -> np.ndarray:
-    """Concatenate multiple 1D arrays into a single 1D array."""
-    f_array = []
-    ratios = [] 
-    for freq in tqdm(frequencies):
-        fn = TONAL_BASE + f"calib_{pressure}.mat"
-        dat = loadmat(fn, squeeze_me=True)
-        nc, ph1, ph2, _ = dat[f"channelData_{freq}"].T
-        nc_pa = convert_to_pa(nc, "V", channel_name="NC")
-        ph1_pa = convert_to_pa(ph2, "V", channel_name="PH1")
-        # Clip the first 
-        # Find the amplitude of the tone in nc_pa
-        f, Phxx = welch(nc_pa, fs=FS, window=WINDOW, nperseg=NPERSEG)
-        tone_idx = np.argmax(Phxx)
-        tone_freq = f[tone_idx]
-        # Find the amplitude of the tone in ph1_pa
-        f, Ncxx = welch(ph1_pa, fs=FS, window=WINDOW, nperseg=NPERSEG)
-        tone_idx = np.argmax(Ncxx)
-        tone_freq = f[tone_idx]
-        ratio = np.sqrt(np.max(Ncxx)) / np.sqrt(np.max(Phxx))
-        ratios.append(ratio)
-        f_array.append(tone_freq)
-    return np.array(f_array), np.array(ratios)
 
 def estimate_frf(
     x: np.ndarray,
@@ -182,98 +156,80 @@ def estimate_frf(
     gamma2 = np.clip(gamma2.real, 0.0, 1.0)
     return f, H, gamma2
 
+def _ensure_dir(path: str | Path):
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
 
-def plot_ratios(pressures):
-    pgs = [0, 50, 100]
-    colours = ['C0', 'C1', 'C2']
+# -----------------------------------------------------------------------------
+# FIX: always enforce the common frequency band on load, even from cached .npy
+# -----------------------------------------------------------------------------
+def _load_or_make_frf(label: str) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Load (f, H) from npy if available; otherwise compute from calib_<label>.mat and save.
+    Always returns arrays band-limited to [100, 3000] Hz so shapes line up.
+    """
+    f_np = Path(TONAL_BASE) / f"wn_frequencies_{label}.npy"
+    H_np = Path(TONAL_BASE) / f"wn_H1_{label}.npy"
 
-    rho0, *_  = air_props_from_gauge(pgs[0], TDEG[0]+273)
+    def _bandmask(f: np.ndarray, H: np.ndarray, lo=100.0, hi=3000.0):
+        f = np.asarray(f).ravel()
+        H = np.asarray(H).astype(complex).ravel()
+        m = (f >= lo) & (f <= hi)
+        if m.sum() == 0:
+            raise ValueError("No frequency points in requested band.")
+        return f[m], H[m]
 
+    if f_np.exists() and H_np.exists():
+        f = np.load(f_np)
+        H = np.load(H_np)
+        # Enforce band on old caches too (robust against mixed save formats)
+        return _bandmask(f, H)
 
-    fig, ax = plt.subplots(figsize=(7, 3.5))
+    dat = loadmat(Path(TONAL_BASE) / f"calib_{label}.mat")
+    ph1, ph2, nc, _ = dat["channelData_WN"].T
+    nc_pa = convert_to_pa(nc, "V", channel_name="NC")
+    ph1_pa = convert_to_pa(ph1, "V", channel_name="PH1")
+    f, H, _ = estimate_frf(ph1_pa, nc_pa, fs=FS)
+    f, H = _bandmask(f, H)                # band-limit before saving
+    _ensure_dir(f_np)
+    np.save(f_np, f); np.save(H_np, H)
+    return f, H
+
+def save_calibs(pressures):
+    """
+    (Optional) regenerate and save band-limited FRFs for all pressures
+    to guarantee identical shapes across cache files.
+    """
     for i, pressure in enumerate(pressures):
-        frequencies = np.arange(100, 3100, 100)
         dat = loadmat(TONAL_BASE + f"calib_{pressure}.mat")
         ph1, ph2, nc, _ = dat["channelData_WN"].T
         nc_pa = convert_to_pa(nc, "V", channel_name="NC")
         ph1_pa = convert_to_pa(ph1, "V", channel_name="PH1")
         f1, H1, _ = estimate_frf(ph1_pa, nc_pa, fs=FS)
-        # save frf
+        # enforce the same band as the loader
+        m = (f1 >= 100.0) & (f1 <= 3000.0)
+        f1 = f1[m]; H1 = H1[m]
         np.save(TONAL_BASE + f"wn_frequencies_{pressure}.npy", f1)
         np.save(TONAL_BASE + f"wn_H1_{pressure}.npy", H1)
-        # mask either side of 10 Hz to 2000 Hz
-        mask = (f1 >= 100) & (f1 <= 3000)
-        f1 = f1[mask]
-        H1 = H1[mask]
-        rho, *_  = air_props_from_gauge(pgs[i], TDEG[i]+273)
-        rho = rho-rho0
-        ax.loglog(f1, (np.abs(H1)), label="FRF from WN", color=colours[i])
 
-        # f_array, ratios = concatenate_signals(frequencies, pressure)
-        # # save fs and ratios to avoid recomputing
-        # np.save(TONAL_BASE + f"tonal_ratios_{pressure}.npy", ratios)
-        # np.save(TONAL_BASE + f"tonal_frequencies_{pressure}.npy", f_array)
-        f_array = np.load(TONAL_BASE + f"tonal_frequencies_{pressure}.npy")
-        ratios = np.load(TONAL_BASE + f"tonal_ratios_{pressure}.npy")
-        ic(f_array.shape, ratios.shape)
-        ax.semilogx(f_array, ratios, "o", color=colours[i], label=pressure)
-        # Fit a spline through the tonal ratios
-        # spline = UnivariateSpline(f_array, ratios, s=0.07)
-        # f_smooth = np.logspace(np.log10(f_array[0]), np.log10(f_array[-1]), 100)
-        # ratios_smooth = spline(f_smooth)
-
-    # ax.semilogx(f_smooth, ratios_smooth, "-", label="Spline fit", color="C1", alpha=0.5)
-    ax.set_xlabel(r"$f$ [Hz]")
-    ax.set_ylabel("Amplitude ratio")
-    ax.set_ylim(0.1, 50)
-    ax.legend()
-    fig.savefig(f"figures/tonal_ratios/all_tonal_pressures.png", dpi=300)
-
-def plot_ratios(pressures):
+def scale_0psig(pressures):
     pgs = [0, 50, 100]
     colours = ['C0', 'C1', 'C2']
 
     rho0, *_  = air_props_from_gauge(pgs[0], TDEG[0]+273)
 
+    f1, H1 = _load_or_make_frf("0psig")
 
     fig, ax = plt.subplots(figsize=(7, 3.5))
     for i, pressure in enumerate(pressures):
-        frequencies = np.arange(100, 3100, 100)
-        dat = loadmat(TONAL_BASE + f"calib_{pressure}.mat")
-        ph1, ph2, nc, _ = dat["channelData_WN"].T
-        nc_pa = convert_to_pa(nc, "V", channel_name="NC")
-        ph1_pa = convert_to_pa(ph1, "V", channel_name="PH1")
-        f1, H1, _ = estimate_frf(ph1_pa, nc_pa, fs=FS)
-        # save frf
-        np.save(TONAL_BASE + f"wn_frequencies_{pressure}.npy", f1)
-        np.save(TONAL_BASE + f"wn_H1_{pressure}.npy", H1)
-        # mask either side of 10 Hz to 2000 Hz
-        mask = (f1 >= 100) & (f1 <= 3000)
-        f1 = f1[mask]
-        H1 = H1[mask]
         rho, *_  = air_props_from_gauge(pgs[i], TDEG[i]+273)
-        # rho = rho-rho0
-        ax.loglog(f1, (np.abs(H1)*rho), label="FRF from WN", color=colours[i])
-
-        # f_array, ratios = concatenate_signals(frequencies, pressure)
-        # # save fs and ratios to avoid recomputing
-        # np.save(TONAL_BASE + f"tonal_ratios_{pressure}.npy", ratios)
-        # np.save(TONAL_BASE + f"tonal_frequencies_{pressure}.npy", f_array)
-        f_array = np.load(TONAL_BASE + f"tonal_frequencies_{pressure}.npy")
-        ratios = np.load(TONAL_BASE + f"tonal_ratios_{pressure}.npy")
-        ic(f_array.shape, ratios.shape)
-        ax.semilogx(f_array, ratios*rho, "o", color=colours[i], label=pressure)
-        # Fit a spline through the tonal ratios
-        # spline = UnivariateSpline(f_array, ratios, s=0.07)
-        # f_smooth = np.logspace(np.log10(f_array[0]), np.log10(f_array[-1]), 100)
-        # ratios_smooth = spline(f_smooth)
-
-    # ax.semilogx(f_smooth, ratios_smooth, "-", label="Spline fit", color="C1", alpha=0.5)
+        Rrho = rho/rho0
+        ax.loglog(f1, np.abs(H1)*Rrho, label=f"{pressure}", color=colours[i])
     ax.set_xlabel(r"$f$ [Hz]")
     ax.set_ylabel("Amplitude ratio")
     ax.set_ylim(0.1, 50)
     ax.legend()
-    fig.savefig(f"figures/tonal_ratios/density_scaled_all_tonal_pressures.png", dpi=300)
+    _ensure_dir("figures/tonal_ratios/scaled_0psig_tf.png")
+    fig.savefig(f"figures/tonal_ratios/scaled_0psig_tf.png", dpi=300)
 
 def compute_spec(fs: float, x: np.ndarray, npsg : int = NPERSEG):
     """Welch PSD with sane defaults and shape guarding. Returns (f [Hz], Pxx [Pa^2/Hz])."""
@@ -300,6 +256,7 @@ def apply_frf(
     H: np.ndarray,
     demean: bool = True,
     zero_dc: bool = True,
+    R: float = 1.0
 ):
     """
     Apply a measured FRF H (x→y) to a time series x to synthesise y.
@@ -314,9 +271,9 @@ def apply_frf(
     X = np.fft.rfft(x, n=Nfft)
     fr = np.fft.rfftfreq(Nfft, d=1.0 / fs)
 
-    mag = np.abs(H)
+    mag = np.abs(H) * R
     phi = np.unwrap(np.angle(H))
-    # Safer OOB behaviour: taper magnitude to zero outside measured band
+    # Safer OOB behaviour: unity gain outside measured band
     mag_i = np.interp(fr, f, mag, left=1.0, right=1.0)
     phi_i = np.interp(fr, f, phi, left=phi[0], right=phi[-1])
     Hi = mag_i * np.exp(1j * phi_i)
@@ -329,6 +286,60 @@ def apply_frf(
     y = np.fft.irfft(X * Hi, n=Nfft)[:N]
     return y
 
+# -----------------------------------------------------------------------------
+# Simple band-limited scaling using a single μ0 (fitted from 50 psig)
+# -----------------------------------------------------------------------------
+def estimate_mu0_from_band(f: np.ndarray, H0: np.ndarray, Hcal: np.ndarray,
+                           R_cal: float, band: Tuple[float, float] = BAND):
+    """
+    Estimate a scalar μ0 using only the given band. Robust to notches via median.
+    μ0 is solved from S = R*(1+μ0)/(1+μ0*R), where S is the median |Hcal|/|H0| in-band.
+    """
+    f = np.asarray(f).ravel()
+    H0 = np.asarray(H0).astype(complex).ravel()
+    Hc = np.asarray(Hcal).astype(complex).ravel()
+    if not (f.shape == H0.shape == Hc.shape):
+        raise ValueError("f, H0, Hcal must have identical 1D shapes.")
+
+    mask = (f >= band[0]) & (f <= band[1])
+    if mask.sum() < 8:
+        raise ValueError("Too few frequency points in selected band.")
+
+    ratio = np.abs(Hc[mask]) / (np.abs(H0[mask]) + 1e-30)
+    ratio = ratio[np.isfinite(ratio)]
+    if ratio.size == 0:
+        raise ValueError("No finite ratios in band.")
+    S_band = np.median(ratio)
+    if np.isclose(S_band, 1.0, atol=1e-6):
+        S_band = 1.0 + 1e-3  # avoid division by zero
+
+    mu0 = (R_cal - S_band) / (R_cal * (S_band - 1.0))
+    return float(mu0), {"S_band": float(S_band), "R_cal": float(R_cal), "n_used": int(mask.sum())}
+
+def predict_tf_in_band(f: np.ndarray, H0: np.ndarray, R_target: float, mu0: float,
+                       band: Tuple[float, float] = BAND):
+    """
+    Return band-limited prediction of FRF at a target density ratio R_target.
+    Phase from H0 is preserved; only amplitude within `band` is scaled.
+    """
+    f = np.asarray(f).ravel()
+    H0 = np.asarray(H0).astype(complex).ravel()
+    if f.shape != H0.shape:
+        raise ValueError("f and H0 must have identical shapes.")
+
+    S_scalar = R_target * (1.0 + mu0) / (1.0 + mu0 * R_target)
+    mag0 = np.abs(H0)
+    phi0 = np.angle(H0)
+
+    scale = np.ones_like(mag0)
+    mask = (f >= band[0]) & (f <= band[1])
+    scale[mask] = S_scalar
+
+    H_pred = (mag0 * scale) * np.exp(1j * phi0)
+    return H_pred, scale
+
+# -----------------------------------------------------------------------------
+
 def plot_tf_model_comparison():
     fn_atm = '0psig_cleaned.h5'
     fn_50psig = '50psig_cleaned.h5'
@@ -336,8 +347,38 @@ def plot_tf_model_comparison():
     labels = ['0psig', '50psig', '100psig']
     colours = ['C0', 'C1', 'C2']
 
+    # --- densities (for R = rho/rho0) ---
+    pgs = [0, 50, 100]
+    rho0, *_  = air_props_from_gauge(pgs[0], TDEG[0]+273)
+    rho50, *_ = air_props_from_gauge(pgs[1], TDEG[1]+273)
+    rho100, *_= air_props_from_gauge(pgs[2], TDEG[2]+273)
+    R50 = rho50 / rho0
+    R100 = rho100 / rho0
+
+    # --- load or compute FRFs (band-limited and shape-consistent) ---
+    f0, H0    = _load_or_make_frf("0psig")
+    f50, H50  = _load_or_make_frf("50psig")  # used to fit μ0
+
+    # FIX: guard for mismatched grids before comparing/resampling
+    if (f0.shape != f50.shape) or (not np.allclose(f0, f50)):
+        # resample complex H50 onto f0
+        H50 = np.interp(f0, f50, H50.real) + 1j*np.interp(f0, f50, H50.imag)
+        f50 = f0  # keep grids consistent downstream
+
+    # --- fit μ0 using only 100–1000 Hz band ---
+    mu0, meta = estimate_mu0_from_band(f0, H0, H50, R_cal=R50, band=BAND)
+    ic(mu0, meta)
+
+    # Pre-build predicted FRFs for the three pressures (band-limited scaling)
+    H_pred_0, _   = predict_tf_in_band(f0, H0, R_target=1.0,  mu0=mu0, band=BAND)
+    H_pred_50, _  = predict_tf_in_band(f0, H0, R_target=R50, mu0=mu0, band=BAND)
+    H_pred_100, _ = predict_tf_in_band(f0, H0, R_target=R100, mu0=mu0, band=BAND)
+    H_for_pressure = {"0psig": H_pred_0, "50psig": H_pred_50, "100psig": H_pred_100}
+
     fig, ax = plt.subplots(1, 1, figsize=(7, 3), tight_layout=True)
-    for idxfn, fn in enumerate([fn_atm, fn_50psig, fn_100psig]):
+
+    for idxfn, (label, fn) in enumerate(zip(labels, [fn_atm, fn_50psig, fn_100psig])):
+        # --- load cleaned time series + metadata ---
         with h5py.File(f'data/{fn}', 'r') as hf:
             ph1_clean = hf['ph1_clean'][:]
             ph2_clean = hf['ph2_clean'][:]
@@ -346,58 +387,56 @@ def plot_tf_model_comparison():
             rho = hf.attrs['rho']
             f_cut = hf.attrs['f_cut']
             Re_tau = hf.attrs['Re_tau']
-            cf_2 = hf.attrs['cf_2']  # default if missing
+            cf_2 = hf.attrs.get('cf_2', 0.0)  # default if missing
+
         f_clean, Pyy_ph1_clean = compute_spec(FS, ph1_clean)
         f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean)
-        T_plus = 1/f_clean * (u_tau**2)/nu
 
+        # --- choose predicted FRF for this pressure (already includes scaling) ---
+        H_use = H_for_pressure[label]
 
-        g1_c, g2_c, rv_c = channel_model(T_plus, Re_tau, u_tau, 14)
-        g1_b, g2_b, rv_b = bl_model(T_plus, Re_tau, cf_2)
-        channel_fphipp_plus = rv_c*(g1_c+g2_c)
-        bl_fphipp_plus = rv_b*(g1_b+g2_b)
+        # Apply FRF (R=1.0 because H_use already carries scaling)
+        ph1_clean_tf = apply_frf(ph1_clean, FS, f0, H_use, R=1.0)
+        ph2_clean_tf = apply_frf(ph2_clean, FS, f0, H_use, R=1.0)
 
-        ax.semilogx(f_clean, channel_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn], lw=0.7)
-        ax.semilogx(f_clean, bl_fphipp_plus, label=f'BL Model {labels[idxfn]}', linestyle='-.', color=colours[idxfn], lw=0.7)
-
-
-        # Get the ratios from above
-
-        f_new = np.load(TONAL_BASE + f"tonal_frequencies_{labels[idxfn]}.npy")
-        H_new = np.load(TONAL_BASE + f"tonal_H1_{labels[idxfn]}.npy")
-
-        ph1_clean_tf = apply_frf(ph1_clean, FS, f_new, H_new)
-        ph2_clean_tf = apply_frf(ph2_clean, FS, f_new, H_new)
         f_clean_tf, Pyy_ph1_clean_tf = compute_spec(FS, ph1_clean_tf)
         f_clean_tf, Pyy_ph2_clean_tf = compute_spec(FS, ph2_clean_tf)
 
-        T_plus_tf = 1/f_clean_tf * (u_tau**2)/nu
         data_fphipp_plus1_tf = (f_clean_tf * Pyy_ph1_clean_tf)/(rho**2 * u_tau**4)
         data_fphipp_plus2_tf = (f_clean_tf * Pyy_ph2_clean_tf)/(rho**2 * u_tau**4)
-        ax.semilogx(f_clean_tf, data_fphipp_plus1_tf, linestyle='-', color=colours[idxfn], alpha=0.7, lw=0.7)
-        ax.semilogx(f_clean_tf, data_fphipp_plus2_tf, linestyle='-', color=colours[idxfn], alpha=0.7, lw=0.7)
 
-    ax.set_xlabel(r"$T^+$")
+        # clip at the helmholtz resonance upper edge
+        mask_plot = f_clean_tf < 1_000
+        f_plot = f_clean_tf[mask_plot]
+        s1 = data_fphipp_plus1_tf[mask_plot]
+        s2 = data_fphipp_plus2_tf[mask_plot]
+
+        ax.semilogx(f_plot, s1, linestyle='-', color=colours[idxfn], alpha=0.7, lw=0.9)
+        ax.semilogx(f_plot, s2, linestyle='-', color=colours[idxfn], alpha=0.7, lw=0.9)
+
+        # Now plot upper and lower bounds from ±10% u_tau error
+        u_tau_bounds = (u_tau * (1 - 0.1), u_tau * (1 + 0.1))
+        s1_u = ((f_clean_tf * Pyy_ph1_clean_tf)/(rho**2 * u_tau_bounds[0]**4))[mask_plot]
+        s2_u = ((f_clean_tf * Pyy_ph2_clean_tf)/(rho**2 * u_tau_bounds[0]**4))[mask_plot]
+        s1_l = ((f_clean_tf * Pyy_ph1_clean_tf)/(rho**2 * u_tau_bounds[-1]**4))[mask_plot]
+        s2_l = ((f_clean_tf * Pyy_ph2_clean_tf)/(rho**2 * u_tau_bounds[-1]**4))[mask_plot]
+
+        ax.fill_between(f_plot, s1_u, s1_l, color=colours[idxfn], alpha=0.25, edgecolor='none')
+        ax.fill_between(f_plot, s2_u, s2_l, color=colours[idxfn], alpha=0.25, edgecolor='none')
+
     ax.set_xlabel(r"$f$ [Hz]")
     ax.set_ylabel(r"${f \phi_{pp}}^+$")
-    ax.set_xlim(1, 1e4)
-    ax.set_ylim(0, 7)
+    ax.set_xlim(50, 1e4)
     ax.grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
     ax.grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
 
-    labels_handles = ['0 psig Data', '0 psig Model',
-                      '50 psig Data', '50 psig Model',
-                      '100 psig Data', '100 psig Model']
-    label_colours = ['C0', 'C0', 'C1', 'C1', 'C2', 'C2']
-    label_styles = ['solid', 'dashed', 'solid', 'dashed', 'solid', 'dashed']
-    custom_lines = [Line2D([0], [0], color=label_colours[i], linestyle=label_styles[i]) for i in range(len(labels_handles))]
+    labels_handles = ['0 psig Data', '50 psig Data', '100 psig Data']
+    custom_lines = [Line2D([0], [0], color=colours[i], linestyle='solid') for i in range(len(labels_handles))]
     ax.legend(custom_lines, labels_handles, loc='upper right', fontsize=8)
+
+    _ensure_dir('figures/tonal_ratios/spectra_comparison_tf_freq.png')
     fig.savefig('figures/tonal_ratios/spectra_comparison_tf_freq.png', dpi=410)
 
-
-
 if __name__ == "__main__":
-    # plot_ratios('50psig')
-    # plot_ratios('100psig')
-    plot_ratios(['0psig', '50psig', '100psig'])
-    # plot_tf_model_comparison()
+    # If *.npy FRFs are missing, they will be generated from calib_*.mat automatically
+    plot_tf_model_comparison()
