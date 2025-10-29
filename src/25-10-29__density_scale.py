@@ -124,29 +124,6 @@ def air_props_from_gauge(psi_gauge: float, T_K: float):
     return rho, mu, nu
 
 
-def concatenate_signals(frequencies: Iterable[int], pressure: str) -> np.ndarray:
-    """Concatenate multiple 1D arrays into a single 1D array."""
-    f_array = []
-    ratios = [] 
-    for freq in tqdm(frequencies):
-        fn = TONAL_BASE + f"calib_{pressure}.mat"
-        dat = loadmat(fn, squeeze_me=True)
-        nc, ph1, ph2, _ = dat[f"channelData_{freq}"].T
-        nc_pa = convert_to_pa(nc, "V", channel_name="NC")
-        ph1_pa = convert_to_pa(ph2, "V", channel_name="PH1")
-        # Clip the first 
-        # Find the amplitude of the tone in nc_pa
-        f, Phxx = welch(nc_pa, fs=FS, window=WINDOW, nperseg=NPERSEG)
-        tone_idx = np.argmax(Phxx)
-        tone_freq = f[tone_idx]
-        # Find the amplitude of the tone in ph1_pa
-        f, Ncxx = welch(ph1_pa, fs=FS, window=WINDOW, nperseg=NPERSEG)
-        tone_idx = np.argmax(Ncxx)
-        tone_freq = f[tone_idx]
-        ratio = np.sqrt(np.max(Ncxx)) / np.sqrt(np.max(Phxx))
-        ratios.append(ratio)
-        f_array.append(tone_freq)
-    return np.array(f_array), np.array(ratios)
 
 def estimate_frf(
     x: np.ndarray,
@@ -182,98 +159,122 @@ def estimate_frf(
     gamma2 = np.clip(gamma2.real, 0.0, 1.0)
     return f, H, gamma2
 
+def scale_with_loading(H0, psig, *, mu0=None, psig_cal=None, S_meas=None,
+                       T_K=None, T0_K=None, patm_psia=14.6959, Z=None, Z0=None,
+                       return_meta=False):
+    """
+    Scale a 0-psig transfer function using the 'loaded' blend:
+        S = |H_P|/|H_0| ≈ R * (1 + mu0) / (1 + mu0 * R),
+    with R = rho/rho0 from the same density model as above.
 
-def plot_ratios(pressures):
+    If mu0 is unknown, estimate it from one calibration measurement (`psig_cal`, `S_meas`):
+        mu0 ≈ (R_cal - S_meas) / (R_cal * (S_meas - 1)),
+    where S_meas is the measured linear amplitude ratio |H_P|/|H_0| at one frequency.
+
+    Parameters
+    ----------
+    H0 : array_like
+        Complex or real frequency response at 0 psig (shape preserved).
+    psig : float
+        Target gauge pressure (psig) to predict.
+    mu0 : float, optional
+        Loading ratio at 0 psig. If not provided, supply `psig_cal` and `S_meas` to estimate it.
+    psig_cal : float, optional
+        Gauge pressure (psig) used for the calibration measurement.
+    S_meas : float, optional
+        Measured linear amplitude ratio at the calibration pressure (not dB).
+    T_K, T0_K, patm_psia, Z, Z0 : see `scale_by_density`.
+    return_meta : bool, default False
+        If True, return (H, meta) with {'R','S','mu0','P_abs_psia','P0_psia'}.
+
+    Returns
+    -------
+    H : ndarray
+        Scaled transfer function at target pressure.
+    (H, meta) : tuple, if return_meta=True
+    """
+    H0 = np.asarray(H0)
+
+    # Internal density-ratio helper (kept local so only two top-level functions are defined)
+    def _R(psig_local, T_K_local, T0_K_local, patm, Z_local, Z0_local):
+        P_abs_local = float(patm) + float(psig_local)
+        P0_local = float(patm)
+
+        if T_K_local is None and T0_K_local is None:
+            TR_local = 1.0
+        elif T_K_local is None or T0_K_local is None:
+            TR_local = 1.0
+        else:
+            if T_K_local <= 0 or T0_K_local <= 0:
+                raise ValueError("Temperatures must be > 0 K.")
+            TR_local = T0_K_local / T_K_local
+
+        if Z_local is None and Z0_local is None:
+            ZR_local = 1.0
+        else:
+            if Z_local is None:
+                Z_local = Z0_local
+            if Z0_local is None:
+                Z0_local = Z_local
+            if Z_local == 0:
+                raise ValueError("Z cannot be zero.")
+            ZR_local = Z0_local / Z_local
+
+        if P_abs_local <= 0 or P0_local <= 0:
+            raise ValueError("Absolute pressures must be positive.")
+        return (P_abs_local / P0_local) * TR_local * ZR_local, P_abs_local, P0_local
+
+    R, P_abs, P0 = _R(psig, T_K, T0_K, patm_psia, Z, Z0)
+
+    # Estimate mu0 if not given
+    if mu0 is None:
+        if psig_cal is None or S_meas is None:
+            raise ValueError("Provide either mu0 OR (psig_cal and S_meas) to estimate mu0.")
+        if S_meas <= 0:
+            raise ValueError("S_meas must be a positive linear ratio (not dB).")
+        R_cal, _, _ = _R(psig_cal, T_K, T0_K, patm_psia, Z, Z0)
+        if abs(S_meas - 1.0) < 1e-12:
+            raise ValueError("S_meas too close to 1.0; cannot estimate mu0 (division by zero).")
+        mu0 = (R_cal - S_meas) / (R_cal * (S_meas - 1.0))
+
+    denom = (1.0 + mu0 * R)
+    if abs(denom) < 1e-12:
+        raise ZeroDivisionError("Denominator (1 + mu0*R) ~ 0; check inputs.")
+    S = R * (1.0 + mu0) / denom
+
+    H = H0 * S
+    if return_meta:
+        return H, {"R": R, "S": S, "mu0": mu0, "P_abs_psia": P_abs, "P0_psia": P0}
+    return H
+
+def scale_0psig(pressures):
     pgs = [0, 50, 100]
     colours = ['C0', 'C1', 'C2']
 
     rho0, *_  = air_props_from_gauge(pgs[0], TDEG[0]+273)
 
+    dat = loadmat(TONAL_BASE + f"calib_0psig.mat")
+    ph1, ph2, nc, _ = dat["channelData_WN"].T
+    nc_pa = convert_to_pa(nc, "V", channel_name="NC")
+    ph1_pa = convert_to_pa(ph1, "V", channel_name="PH1")
+    f1, H1, _ = estimate_frf(ph1_pa, nc_pa, fs=FS)
+    mask = (f1 >= 100) & (f1 <= 3000)
+    f1 = f1[mask]
+    H1 = H1[mask]
+    np.save(TONAL_BASE + f"wn_frequencies_0psig.npy", f1)
+    np.save(TONAL_BASE + f"wn_H1_0psig.npy", H1)
 
     fig, ax = plt.subplots(figsize=(7, 3.5))
     for i, pressure in enumerate(pressures):
-        frequencies = np.arange(100, 3100, 100)
-        dat = loadmat(TONAL_BASE + f"calib_{pressure}.mat")
-        ph1, ph2, nc, _ = dat["channelData_WN"].T
-        nc_pa = convert_to_pa(nc, "V", channel_name="NC")
-        ph1_pa = convert_to_pa(ph1, "V", channel_name="PH1")
-        f1, H1, _ = estimate_frf(ph1_pa, nc_pa, fs=FS)
-        # save frf
-        np.save(TONAL_BASE + f"wn_frequencies_{pressure}.npy", f1)
-        np.save(TONAL_BASE + f"wn_H1_{pressure}.npy", H1)
-        # mask either side of 10 Hz to 2000 Hz
-        mask = (f1 >= 100) & (f1 <= 3000)
-        f1 = f1[mask]
-        H1 = H1[mask]
+        # frequencies = np.arange(100, 3100, 100)
         rho, *_  = air_props_from_gauge(pgs[i], TDEG[i]+273)
-        rho = rho-rho0
-        ax.loglog(f1, (np.abs(H1)), label="FRF from WN", color=colours[i])
-
-        # f_array, ratios = concatenate_signals(frequencies, pressure)
-        # # save fs and ratios to avoid recomputing
-        # np.save(TONAL_BASE + f"tonal_ratios_{pressure}.npy", ratios)
-        # np.save(TONAL_BASE + f"tonal_frequencies_{pressure}.npy", f_array)
-        f_array = np.load(TONAL_BASE + f"tonal_frequencies_{pressure}.npy")
-        ratios = np.load(TONAL_BASE + f"tonal_ratios_{pressure}.npy")
-        ic(f_array.shape, ratios.shape)
-        ax.semilogx(f_array, ratios, "o", color=colours[i], label=pressure)
-        # Fit a spline through the tonal ratios
-        # spline = UnivariateSpline(f_array, ratios, s=0.07)
-        # f_smooth = np.logspace(np.log10(f_array[0]), np.log10(f_array[-1]), 100)
-        # ratios_smooth = spline(f_smooth)
-
-    # ax.semilogx(f_smooth, ratios_smooth, "-", label="Spline fit", color="C1", alpha=0.5)
+        R = rho/rho0
+        ax.loglog(f1, np.abs(H1)*R, label="FRF from WN", color=colours[i])
     ax.set_xlabel(r"$f$ [Hz]")
     ax.set_ylabel("Amplitude ratio")
     ax.set_ylim(0.1, 50)
     ax.legend()
-    fig.savefig(f"figures/tonal_ratios/all_tonal_pressures.png", dpi=300)
-
-def plot_ratios(pressures):
-    pgs = [0, 50, 100]
-    colours = ['C0', 'C1', 'C2']
-
-    rho0, *_  = air_props_from_gauge(pgs[0], TDEG[0]+273)
-
-
-    fig, ax = plt.subplots(figsize=(7, 3.5))
-    for i, pressure in enumerate(pressures):
-        frequencies = np.arange(100, 3100, 100)
-        dat = loadmat(TONAL_BASE + f"calib_{pressure}.mat")
-        ph1, ph2, nc, _ = dat["channelData_WN"].T
-        nc_pa = convert_to_pa(nc, "V", channel_name="NC")
-        ph1_pa = convert_to_pa(ph1, "V", channel_name="PH1")
-        f1, H1, _ = estimate_frf(ph1_pa, nc_pa, fs=FS)
-        # save frf
-        np.save(TONAL_BASE + f"wn_frequencies_{pressure}.npy", f1)
-        np.save(TONAL_BASE + f"wn_H1_{pressure}.npy", H1)
-        # mask either side of 10 Hz to 2000 Hz
-        mask = (f1 >= 100) & (f1 <= 3000)
-        f1 = f1[mask]
-        H1 = H1[mask]
-        rho, *_  = air_props_from_gauge(pgs[i], TDEG[i]+273)
-        # rho = rho-rho0
-        ax.loglog(f1, (np.abs(H1)*rho), label="FRF from WN", color=colours[i])
-
-        # f_array, ratios = concatenate_signals(frequencies, pressure)
-        # # save fs and ratios to avoid recomputing
-        # np.save(TONAL_BASE + f"tonal_ratios_{pressure}.npy", ratios)
-        # np.save(TONAL_BASE + f"tonal_frequencies_{pressure}.npy", f_array)
-        f_array = np.load(TONAL_BASE + f"tonal_frequencies_{pressure}.npy")
-        ratios = np.load(TONAL_BASE + f"tonal_ratios_{pressure}.npy")
-        ic(f_array.shape, ratios.shape)
-        ax.semilogx(f_array, ratios*rho, "o", color=colours[i], label=pressure)
-        # Fit a spline through the tonal ratios
-        # spline = UnivariateSpline(f_array, ratios, s=0.07)
-        # f_smooth = np.logspace(np.log10(f_array[0]), np.log10(f_array[-1]), 100)
-        # ratios_smooth = spline(f_smooth)
-
-    # ax.semilogx(f_smooth, ratios_smooth, "-", label="Spline fit", color="C1", alpha=0.5)
-    ax.set_xlabel(r"$f$ [Hz]")
-    ax.set_ylabel("Amplitude ratio")
-    ax.set_ylim(0.1, 50)
-    ax.legend()
-    fig.savefig(f"figures/tonal_ratios/density_scaled_all_tonal_pressures.png", dpi=300)
+    fig.savefig(f"figures/tonal_ratios/scaled_0psig_tf.png", dpi=300)
 
 def compute_spec(fs: float, x: np.ndarray, npsg : int = NPERSEG):
     """Welch PSD with sane defaults and shape guarding. Returns (f [Hz], Pxx [Pa^2/Hz])."""
@@ -396,7 +397,5 @@ def plot_tf_model_comparison():
 
 
 if __name__ == "__main__":
-    # plot_ratios('50psig')
-    # plot_ratios('100psig')
-    plot_ratios(['0psig', '50psig', '100psig'])
+    scale_0psig(['0psig', '50psig', '100psig'])
     # plot_tf_model_comparison()
