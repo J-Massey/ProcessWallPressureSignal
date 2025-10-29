@@ -429,7 +429,6 @@ def plot_tf_model_comparison():
         ax.semilogx(f_clean, channel_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn], lw=0.7)
         ax.semilogx(f_clean, bl_fphipp_plus, label=f'BL Model {labels[idxfn]}', linestyle='-.', color=colours[idxfn], lw=0.7)
 
-
         # Apply transfer function
         # Plot transfer function magnitude on top
         f1_fused_insitu = np.load(f"data/20251016/flow_data/tf_combined/700_{labels[idxfn]}_fused_insitu_f1.npy")
