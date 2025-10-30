@@ -23,6 +23,11 @@ plt.rcParams["font.size"] = "10.5"
 plt.rc("text", usetex=True)
 plt.rc("text.latex", preamble=r"\usepackage{mathpazo}")
 
+from apply_frf import apply_frf
+from fit_speaker_scales import fit_speaker_scaling_from_files, fit_speaker_scaling_with_stokes
+from models import bl_model
+from clean_raw_data import volts_to_pa, air_props_from_gauge
+
 # =============================================================================
 # Constants & styling (exported so tf_plot.py can import them)
 # =============================================================================
@@ -55,73 +60,6 @@ SENSITIVITIES_V_PER_PA: dict[str, float] = {
 }
 PREAMP_GAIN: dict[str, float] = {"nc": 1.0, "PH1": 1.0, "PH2": 1.0, "NC": 1.0}
 TONAL_BASE = "data/2025-10-28/tonal/"
-
-def bl_model(Tplus, Re_tau: float, cf_2: float) -> np.ndarray:
-    A1 = 2.2
-    sig1 = 3.9
-    mean_Tplus = 20
-    A2 = 1.4 * (np.log10(Re_tau) - 2.2)
-    sig2 = 1.2
-    mean_To = 0.82
-    r1 = 0.5
-    r2 = 7
-    rv = np.exp(r1 * Tplus)/(np.exp(r1*r2) + np.exp(r1 * Tplus)) # correct
-    rv = np.nan_to_num(rv, nan=1)  # replace NaNs with 0
-    mean_To_plus = mean_To * Re_tau * np.sqrt(cf_2)
-    g1 = A1 * np.exp(-sig1 * (np.log10(Tplus) - np.log10(mean_Tplus))**2)
-    g2 = A2 * np.exp(-sig2 * (np.log10(Tplus) - np.log10(mean_To_plus))**2)
-    return g1, g2, rv
-
-def channel_model(Tplus, Re_tau: float, u_tau: float, u_cl) -> np.ndarray:
-    A1 = 2.1*(1 - 100/Re_tau)
-    sig1 = 4.4
-    mean_Tplus = 12
-    A2 = 0.9 * (np.log10(Re_tau) - 2.2)
-    sig2 = 1.0
-    mean_To = 0.6
-    r1 = 0.5
-    r2 = 3
-    rv = np.exp(r1 * Tplus)/(np.exp(r1*r2) + np.exp(r1 * Tplus)) # correct
-    rv = np.nan_to_num(rv, nan=1)  # replace NaNs with 0
-    mean_To_plus = mean_To * Re_tau * u_tau/u_cl
-    g1 = A1 * np.exp(-sig1 * (np.log10(Tplus) - np.log10(mean_Tplus))**2)
-    g2 = A2 * np.exp(-sig2 * (np.log10(Tplus) - np.log10(mean_To_plus))**2)
-    return g1, g2, rv
-
-
-def convert_to_pa(x: np.ndarray, units: str, *, channel_name: str = "unknown") -> np.ndarray:
-    """Convert a pressure time series to Pa."""
-    u = units.lower()
-    x = np.asarray(x, float)
-    if u == "pa":
-        return x
-    if u == "kpa":
-        return x * 1e3
-    if u == "mbar":
-        return x * 100.0
-    if u in ("v", "volt", "volts"):
-        if channel_name not in SENSITIVITIES_V_PER_PA or SENSITIVITIES_V_PER_PA[channel_name] is None:
-            raise ValueError(
-                f"Sensitivity (V/Pa) for channel '{channel_name}' not provided; cannot convert V→Pa."
-            )
-        sens = float(SENSITIVITIES_V_PER_PA[channel_name])  # V/Pa
-        gain = float(PREAMP_GAIN.get(channel_name, 1.0))
-        return x / (gain * sens)
-    raise ValueError(f"Unsupported units '{units}' for channel '{channel_name}'")
-
-
-def air_props_from_gauge(psi_gauge: float, T_K: float):
-    """
-    Return rho [kg/m^3], mu [Pa·s], nu [m^2/s] from gauge pressure [psi] and temperature [K].
-    Sutherland's law for mu; nu = mu/rho.
-    """
-    p_abs = P_ATM + psi_gauge * PSI_TO_PA
-    # Sutherland's
-    mu0, T0, S = 1.716e-5, 273.15, 110.4
-    mu = mu0 * (T_K/T0)**1.5 * (T0 + S)/(T_K + S)
-    rho = p_abs / (R * T_K)
-    nu = mu / rho
-    return rho, mu, nu
 
 
 def estimate_frf(
@@ -164,8 +102,8 @@ def save_calibs(pressures):
         frequencies = np.arange(100, 3100, 100)
         dat = loadmat(TONAL_BASE + f"calib_{pressure}.mat")
         ph1, ph2, nc, _ = dat["channelData_WN"].T
-        nc_pa = convert_to_pa(nc, "V", channel_name="NC")
-        ph1_pa = convert_to_pa(ph1, "V", channel_name="PH1")
+        nc_pa = volts_to_pa(nc, "V", channel_name="NC")
+        ph1_pa = volts_to_pa(ph1, "V", channel_name="PH1")
         f1, H1, _ = estimate_frf(ph1_pa, nc_pa, fs=FS)
         # save frf
         np.save(TONAL_BASE + f"wn_frequencies_{pressure}.npy", f1)
@@ -224,9 +162,7 @@ def save_lumped_scaling_target():
         # R = rho/rho0
         # ic(R)
 
-        g1_c, g2_c, rv_c = channel_model(T_plus, Re_tau, u_tau, 14)
         g1_b, g2_b, rv_b = bl_model(T_plus, Re_tau, cf_2)
-        channel_fphipp_plus = rv_c*(g1_c+g2_c)
         bl_fphipp_plus = rv_b*(g1_b+g2_b)
 
         f_clean_clipped = f_clean[f_clean < 1_000]
@@ -258,390 +194,6 @@ def save_lumped_scaling_target():
             hf.attrs['psig'] = pgs[idxfn]
 
 
-def fit_speaker_scaling_from_files(
-    labels: Tuple[str, ...] = ("0psig", "50psig", "100psig"),
-    *,
-    f_ref: float = 1000.0,
-    rho_ref: Optional[float] = None,
-    fmin: Optional[float] = 100.0,
-    fmax: Optional[float] = 1000.0,
-    invert_target: bool = True,
-):
-    """
-    Fit a power-law multiplier S(f, rho) so that the *calibration* FRF magnitude |H_cal|
-    matches your saved *lumped scaling target* magnitude.
-
-    Files expected (per label L):
-      Target (your save_lumped_scaling_target):
-        TONAL_BASE + f"lumped_scaling_{L}.h5" with datasets:
-           - 'frequencies' (Hz)
-           - 'scaling_ratio'  (dimensionless)
-           - attrs: 'rho' [kg/m^3] (used here)
-        NOTE: if your "target" is model_data_ratio, set invert_target=True (default),
-              because required |H| ≈ 1 / scaling_ratio.
-      Calibration (your save_calibs):
-        TONAL_BASE + f"wn_frequencies_{L}.npy"
-        TONAL_BASE + f"wn_H1_{L}.npy"  (complex FRF; only |H| is used)
-
-    Model in dB:
-        20log10 S = c0 + a * 20log10(rho/rho_ref) + b * 20log10(f/f_ref)
-
-    Returns
-    -------
-    params : (c0_db, a, b)
-    scale  : function (f[Hz], rho[kg/m^3]) -> linear multiplier S(f,rho)
-             (Multiply |H_cal| by this to match the target.)
-    diag   : dict with
-             - 'rho_ref', 'f_ref'
-             - 'rmse_db_global'
-             - 'rmse_db_per_label' {label: RMSE dB}
-             - 'counts_per_label'  {label: N points used}
-    """
-    def _load_target(L: str):
-        path = TONAL_BASE + f"lumped_scaling_{L}.h5"
-        with h5py.File(path, "r") as hf:
-            f = np.asarray(hf["frequencies"][:], float)
-            s = np.asarray(hf["scaling_ratio"][:], float)  # POWER ratio (data/model)
-            rho = float(hf.attrs["rho"]) if "rho" in hf.attrs else np.nan
-        # Convert to required AMPLITUDE magnitude for |H_cal|*S:
-        # start from data/model (power), invert to model/data, then take sqrt.
-        if invert_target:
-            s = 1.0 / np.maximum(s, 1e-16)   # POWER: model/data
-        s = np.sqrt(s)                        # AMPLITUDE: required |H|
-        return f, s, rho
-
-    def _load_cal(L: str):
-        f = np.load(TONAL_BASE + f"wn_frequencies_{L}.npy").astype(float)
-        H = np.load(TONAL_BASE + f"wn_H1_{L}.npy")
-        return f, np.abs(H)
-
-    def _align_band(fa, ya, fb, yb, lo, hi):
-        lo = lo if lo is not None else max(fa.min(), fb.min())
-        hi = hi if hi is not None else min(fa.max(), fb.max())
-        lo = max(lo, fa.min(), fb.min())
-        hi = min(hi, fa.max(), fb.max())
-        if not np.isfinite(lo) or not np.isfinite(hi) or hi <= lo:
-            raise ValueError("No valid overlap between target and calibration frequency bands.")
-        ma = (fa >= lo) & (fa <= hi)
-        mb = (fb >= lo) & (fb <= hi)
-        # choose denser grid to interpolate onto
-        use_a = ma.sum() >= mb.sum()
-        f_common = (fa[ma] if use_a else fb[mb]).astype(float)
-        f_common = np.unique(f_common)
-        ya_i = np.interp(f_common, fa[ma], ya[ma])
-        yb_i = np.interp(f_common, fb[mb], yb[mb])
-        good = (f_common > 0) & np.isfinite(ya_i) & np.isfinite(yb_i) & (ya_i > 0) & (yb_i > 0)
-        return f_common[good], ya_i[good], yb_i[good]
-
-    # 1) Load all datasets
-    f_tgt, tgt_mag, rho_list, f_cal, cal_mag = {}, {}, {}, {}, {}
-    for L in labels:
-        ft, st, rho = _load_target(L)
-        fc, Hc = _load_cal(L)
-        f_tgt[L], tgt_mag[L], rho_list[L] = ft, st, rho
-        f_cal[L], cal_mag[L] = fc, Hc
-
-    # 2) Reference density/frequency
-    rho_vals = np.array([rho_list[L] for L in labels], float)
-    if np.any(~np.isfinite(rho_vals)):
-        raise ValueError("Missing density 'rho' attribute in one or more target .h5 files.")
-    rho_ref_val = float(np.mean(rho_vals)) if rho_ref is None else float(rho_ref)
-    f_ref_val = float(f_ref)
-
-    # 3) Build linear system: y = c0 + a*X1 + b*X2, with y = dB(target) - dB(cal)
-    X_blocks, y_blocks, counts = [], [], {}
-    for L in labels:
-        fC, HC = f_cal[L], cal_mag[L]
-        fT, ST = f_tgt[L], tgt_mag[L]
-        fCmn, STi, HCi = _align_band(fT, ST, fC, HC, fmin, fmax)
-        if fCmn.size < 2:
-            continue
-        y = 20.0 * np.log10(STi) - 20.0 * np.log10(HCi)
-        X1 = 20.0 * np.log10(float(rho_list[L]) / rho_ref_val) * np.ones_like(fCmn)
-        X2 = 20.0 * np.log10(fCmn / f_ref_val)
-        X = np.column_stack([np.ones_like(fCmn), X1, X2])
-        X_blocks.append(X)
-        y_blocks.append(y)
-        counts[L] = int(fCmn.size)
-
-    if not X_blocks:
-        raise ValueError("No usable points after alignment/band-limiting.")
-    X_all = np.vstack(X_blocks)
-    y_all = np.concatenate(y_blocks)
-
-    # 4) Least-squares fit for [c0_db, a, b]
-    beta, *_ = np.linalg.lstsq(X_all, y_all, rcond=None)
-    c0_db, a, b = (float(beta[0]), float(beta[1]), float(beta[2]))
-
-    # 5) Diagnostics
-    rmse_per, resid_all = {}, []
-    for L in labels:
-        fC, HC = f_cal[L], cal_mag[L]
-        fT, ST = f_tgt[L], tgt_mag[L]
-        fCmn, STi, HCi = _align_band(fT, ST, fC, HC, fmin, fmax)
-        if fCmn.size < 2:
-            continue
-        y = 20.0 * np.log10(STi) - 20.0 * np.log10(HCi)
-        yhat = (c0_db
-                + a * (20.0 * np.log10(float(rho_list[L]) / rho_ref_val))
-                + b * (20.0 * np.log10(fCmn / f_ref_val)))
-        r = y - yhat
-        rmse_per[L] = float(np.sqrt(np.mean(r**2)))
-        resid_all.append(r)
-    rmse_global = float(np.sqrt(np.mean(np.concatenate(resid_all)**2)))
-
-    # 6) Scaling function (linear gain)
-    def scale(f: np.ndarray, rho: float) -> np.ndarray:
-        f = np.asarray(f, float)
-        S_db = (c0_db
-                + a * (20.0 * np.log10(float(rho) / rho_ref_val))
-                + b * (20.0 * np.log10(f / f_ref_val)))
-        return 10.0 ** (S_db / 20.0)
-
-    diag = dict(
-        rho_ref=rho_ref_val,
-        f_ref=f_ref_val,
-        rmse_db_global=rmse_global,
-        rmse_db_per_label=rmse_per,
-        counts_per_label=counts,
-        params_db=dict(c0_db=c0_db, a=a, b=b),
-        invert_target=invert_target,
-        band=dict(fmin=fmin, fmax=fmax),
-    )
-    return (c0_db, a, b), scale, diag
-
-def fit_speaker_scaling_with_stokes(
-    labels: tuple[str, ...] = ("0psig", "50psig", "100psig"),
-    *,
-    a_orifice: float,          # [m] orifice radius a
-    L_orifice: float,          # [m] physical length L
-    St_pivot: float = 10.0,    # ~10 per Fig. 4-2/4-3 (transition in profile / R_aN rise)
-    p_shape: float = 2.0,      # sharpness of slope transition
-    f_ref: float = 1000.0,
-    rho_ref: float | None = None,
-    fmin: float = 100.0,
-    fmax: float = 1000.0,
-    invert_target: bool = True,
-):
-    """
-    Fit a Stokes-aware broken-power-law magnitude scaling:
-        20log10 S = c0_db
-                    + a_rho * 20log10(rho/rho_ref)
-                    + b_lo  * 20log10(f_eff/f_ref)
-                    + c_st  * log10(1 + (f_eff/f_b(nu))**p_shape)
-    where f_b(nu) = St_pivot * nu / (2*pi*a^2) and f_eff = f * sqrt(L/(L + 8a/(3pi))).
-
-    Returns:
-      params dict, scale_factory(nu)->callable scale(f, rho), diag
-    """
-    # --- helpers reused from your other fitter ---
-    def _load_target(L: str):
-        path = TONAL_BASE + f"lumped_scaling_{L}.h5"
-        with h5py.File(path, "r") as hf:
-            f = np.asarray(hf["frequencies"][:], float)
-            s = np.asarray(hf["scaling_ratio"][:], float)  # POWER ratio (data/model)
-            rho = float(hf.attrs["rho"])
-            nu  = float(hf.attrs["nu"])
-        if invert_target:
-            s = 1.0 / np.maximum(s, 1e-16)
-        s = np.sqrt(s)   # AMPLITUDE
-        return f, s, rho, nu
-
-    def _load_cal(L: str):
-        f = np.load(TONAL_BASE + f"wn_frequencies_{L}.npy").astype(float)
-        H = np.load(TONAL_BASE + f"wn_H1_{L}.npy")
-        return f, np.abs(H)
-
-    def _align_band(fa, ya, fb, yb, lo, hi):
-        lo = max(lo, fa.min(), fb.min()); hi = min(hi, fa.max(), fb.max())
-        ma = (fa >= lo) & (fa <= hi); mb = (fb >= lo) & (fb <= hi)
-        f_common = (fa[ma] if ma.sum() >= mb.sum() else fb[mb]).astype(float)
-        f_common = np.unique(f_common)
-        ya_i = np.interp(f_common, fa[ma], ya[ma])
-        yb_i = np.interp(f_common, fb[mb], yb[mb])
-        good = (f_common > 0) & np.isfinite(ya_i) & np.isfinite(yb_i) & (ya_i > 0) & (yb_i > 0)
-        return f_common[good], ya_i[good], yb_i[good]
-
-    # --- load ---
-    f_tgt, tgt_mag, rho_L, nu_L, f_cal, cal_mag = {}, {}, {}, {}, {}, {}
-    for L in labels:
-        ft, st, rho, nu = _load_target(L); f_tgt[L], tgt_mag[L], rho_L[L], nu_L[L] = ft, st, rho, nu
-        fc, Hc = _load_cal(L); f_cal[L], cal_mag[L] = fc, Hc
-
-    rho_vals = np.array([rho_L[L] for L in labels], float)
-    rho_ref_val = float(np.mean(rho_vals)) if rho_ref is None else float(rho_ref)
-    f_ref_val = float(f_ref)
-
-    # --- geometry + end correction ---
-    a = float(a_orifice)
-    L = float(L_orifice)
-    delta_e = 8.0 * a / (3.0 * np.pi)        # end correction (radiation added mass)
-    f_warp = np.sqrt(L / (L + delta_e))      # frequency warp factor
-    def f_eff(f): return f * f_warp
-
-    # --- build design matrix across all labels ---
-    X_blocks, y_blocks, counts = [], [], {}
-    for L in labels:
-        fC, HC = f_cal[L], cal_mag[L]
-        fT, ST = f_tgt[L], tgt_mag[L]
-        fCmn, STi, HCi = _align_band(fT, ST, fC, HC, fmin, fmax)
-        if fCmn.size < 2: continue
-
-        # response to fit (in dB): target minus measured cal
-        y = 20.0*np.log10(STi) - 20.0*np.log10(HCi)
-
-        # regressors
-        Xrho = 20.0*np.log10(rho_L[L] / rho_ref_val) * np.ones_like(fCmn)
-        fe   = f_eff(fCmn)
-        Xf   = 20.0*np.log10(fe / f_ref_val)
-        fb   = (St_pivot * nu_L[L]) / (2.0*np.pi*a*a)   # Stokes pivot frequency for this nu
-        Xst  = np.log10(1.0 + (fe / fb)**p_shape)
-
-        X = np.column_stack([np.ones_like(fCmn), Xrho, Xf, Xst])
-        X_blocks.append(X); y_blocks.append(y); counts[L] = int(fCmn.size)
-
-    if not X_blocks:
-        raise ValueError("No usable points after alignment/band-limiting.")
-    X_all = np.vstack(X_blocks); y_all = np.concatenate(y_blocks)
-
-    # --- fit [c0_db, a_rho, b_lo, c_st] ---
-    beta, *_ = np.linalg.lstsq(X_all, y_all, rcond=None)
-    c0_db, a_rho, b_lo, c_st = map(float, beta)
-
-    # --- diagnostics ---
-    rmse_per = {}; resid_all = []
-    for L in labels:
-        fC, HC = f_cal[L], cal_mag[L]
-        fT, ST = f_tgt[L], tgt_mag[L]
-        fCmn, STi, HCi = _align_band(fT, ST, fC, HC, fmin, fmax)
-        if fCmn.size < 2: continue
-        fe = f_eff(fCmn)
-        fb = (St_pivot * nu_L[L]) / (2.0*np.pi*a*a)
-        y  = 20.0*np.log10(STi) - 20.0*np.log10(HCi)
-        yhat = (c0_db
-                + a_rho*20.0*np.log10(rho_L[L]/rho_ref_val)
-                + b_lo *20.0*np.log10(fe/f_ref_val)
-                + c_st *np.log10(1.0 + (fe/fb)**p_shape))
-        r = y - yhat
-        rmse_per[L] = float(np.sqrt(np.mean(r*r))); resid_all.append(r)
-    rmse_global = float(np.sqrt(np.mean(np.concatenate(resid_all)**2)))
-
-    params = dict(c0_db=c0_db, a_rho=a_rho, b_lo=b_lo, c_st=c_st,
-                  p_shape=float(p_shape), St_pivot=float(St_pivot),
-                  a=a, L=L, delta_e=delta_e, rho_ref=rho_ref_val, f_ref=f_ref_val)
-
-    def scale_factory(nu: float):
-        """Bind viscosity so scale(f, rho) matches apply_frf's expected signature."""
-        fb = (St_pivot * float(nu)) / (2.0*np.pi*a*a)
-        def scale(f: np.ndarray, rho: float) -> np.ndarray:
-            f = np.asarray(f, float)
-            fe = f_eff(f)
-            S_db = (c0_db
-                    + a_rho*20.0*np.log10(float(rho)/rho_ref_val)
-                    + b_lo *20.0*np.log10(fe/f_ref_val)
-                    + c_st *np.log10(1.0 + (fe/fb)**p_shape))
-            return 10.0**(S_db/20.0)
-        return scale
-
-    diag = dict(rmse_db_global=rmse_global,
-                rmse_db_per_label=rmse_per,
-                counts_per_label=counts,
-                params_db=params,
-                band=dict(fmin=fmin, fmax=fmax),
-                note="Stokes-aware broken power law with end correction.")
-
-    return params, scale_factory, diag
-
-
-from typing import Optional, Callable, Dict
-
-def apply_frf(
-    x: np.ndarray,
-    fs: float,
-    f: np.ndarray,
-    H: np.ndarray,
-    demean: bool = True,
-    zero_dc: bool = True,
-    R: float = 1.0,
-    *,
-    rho: Optional[float] = None,
-    scale_fn: Optional[Callable[[np.ndarray, float], np.ndarray]] = None,
-    scale_params: Optional[Dict[str, float]] = None,
-):
-    """
-    Apply a measured FRF H (x→y) to a time series x to synthesise y, with optional
-    rho–frequency magnitude scaling S(f, rho) that you fitted earlier.
-
-    If provided, the magnitude used becomes:
-        |H|(f) * S(f, rho) * R
-    where S is either:
-        - scale_fn(f, rho)  (callable returning a linear multiplier), or
-        - computed from scale_params = {'c0_db','a','b','rho_ref','f_ref'}.
-
-    Out-of-band behavior: magnitude is set to unity outside the measured band,
-    phase is linearly extrapolated from endpoints.
-    """
-    x = np.asarray(x, float)
-    fH = np.asarray(f, float).copy()
-    H = np.asarray(H)
-
-    if demean:
-        x = x - x.mean()
-
-    if fH.ndim != 1 or H.shape[-1] != fH.shape[0]:
-        raise ValueError("f and H must have matching lengths (H along last axis).")
-
-    N = x.size
-    Nfft = int(2 ** np.ceil(np.log2(N)))
-    X = np.fft.rfft(x, n=Nfft)
-    fr = np.fft.rfftfreq(Nfft, d=1.0 / fs)
-
-    # Base magnitude/phase from calibration FRF
-    fH[0] = max(fH[0], 1.0)  # avoid log/ratio issues at DC
-    mag = np.abs(H).astype(float)
-    phi = np.unwrap(np.angle(H))
-
-    # Optional rho–frequency scaling
-    if scale_fn is not None or scale_params is not None:
-        if rho is None:
-            raise ValueError("rho must be provided when applying rho–f scaling.")
-        if scale_fn is not None:
-            S = np.asarray(scale_fn(fH, float(rho)), float)
-        else:
-            # scale_params: {'c0_db','a','b','rho_ref','f_ref'}
-            c0_db = float(scale_params["c0_db"])
-            a = float(scale_params["a"])
-            b = float(scale_params["b"])
-            rho_ref = float(scale_params["rho_ref"])
-            f_ref = float(scale_params["f_ref"])
-            S_db = c0_db \
-                 + a * (20.0 * np.log10(float(rho) / rho_ref)) \
-                 + b * (20.0 * np.log10(fH / f_ref))
-            S = 10.0 ** (S_db / 20.0)
-        # keep magnitudes finite & non-negative
-        S = np.clip(S, 0.0, np.inf)
-        mag *= S
-
-    # Optional extra constant factor (kept from your signature)
-    mag *= float(R)
-
-    # Enforce DC handling on the measured grid
-    mag[0] = 0.0
-
-    # Interpolate H onto the FFT grid; unity magnitude outside band
-    mag_i = np.interp(fr, fH, mag, left=1.0, right=1.0)
-    phi_i = np.interp(fr, fH, phi, left=phi[0], right=phi[-1])
-    Hi = mag_i * np.exp(1j * phi_i)
-
-    if zero_dc:
-        Hi[0] = 0.0
-        if Nfft % 2 == 0:
-            Hi[-1] = 0.0
-
-    y = np.fft.irfft(X * Hi, n=Nfft)[:N]
-    return y
-
-
 def plot_target_calib_modeled(
     labels: tuple[str, ...] = ("0psig", "50psig", "100psig"),
     *,
@@ -649,119 +201,145 @@ def plot_target_calib_modeled(
     fmax: float = 1000.0,
     f_ref: float = 1000.0,
     rho_ref: float | None = None,
-    invert_target: bool = True,   # your saved "scaling_ratio" is model/data; required |H| = 1/scaling_ratio
+    invert_target: bool = True,   # saved "scaling_ratio" is model/data → required |H| = 1/scaling_ratio
     to_db: bool = False,          # set True to plot in dB
     colours: list[str] | None = None,
     savepath: str | None = None,
+    # geometry for the Stokes-aware fit (change to your true values):
+    a_orifice: float = 350e-6,    # [m] orifice radius
+    L_orifice: float = 50.0e-6,    # [m] orifice length
 ):
     """
-    Plot target (required |H|), measured calibration |H_cal|, and modeled |H_cal| * S(f,\rho) together.
+    Overlay target |H| (required), measured |H_cal|, and two modeled curves:
+    |H_cal| * S_powerlaw(f,ρ) and |H_cal| * S_stokes(f,ρ;ν).
 
-    Data sources per label L:
-      - Target (from save_lumped_scaling_target):
-           TONAL_BASE + f"lumped_scaling_{L}.h5"
-           datasets: 'frequencies', 'scaling_ratio', attrs: 'rho'
-        If invert_target=True, we plot required |H| = 1/scaling_ratio.
-
-      - Calibration (from save_calibs):
-           TONAL_BASE + f"wn_frequencies_{L}.npy"
-           TONAL_BASE + f"wn_H1_{L}.npy"   (complex; we use |.|)
-
-    The modeled curve uses the fitted scale S(f,\rho) from fit_speaker_scaling_from_files(...).
-
-    NOTE: If you also created an H5 named 'lumped_scaling_{L}.h5' in save_calibs, that will
-          collide with the target filename. This function *ignores* that and only loads
-          calibration from the 'wn_*.npy' files to avoid confusion.
+    The Stokes-aware model uses the viscosity ν saved in 'lumped_scaling_*.h5' for each label.
     """
-    # --- Fit rho–f scaling from your files (uses same target/cal scheme) ---
-    (c0_db, a, b), scale, diag = fit_speaker_scaling_from_files(
-        labels=labels,
-        fmin=fmin, fmax=fmax,
-        f_ref=f_ref, rho_ref=rho_ref,
-        invert_target=invert_target
-    )
-    params, make_scale, diag = fit_speaker_scaling_with_stokes(
-        labels=('0psig','50psig','100psig'),
-        a_orifice=700e-6,   # <-- put your orifice radius here
-        L_orifice=5.0e-4,    # <-- and your orifice length
-        fmin=100.0, fmax=1000.0, invert_target=True
+
+    # ----------------------------
+    # 1) Fit both scaling models
+    # ----------------------------
+    # (a) your baseline power-law (ρ, f) model
+    (c0_db, a_rho, b_f), scale_powerlaw, diag_pw = fit_speaker_scaling_from_files(
+        labels=labels, fmin=fmin, fmax=fmax, f_ref=f_ref, rho_ref=rho_ref, invert_target=invert_target
     )
 
-    # --- helpers ---
-    def as_db(x):
+    # (b) Stokes-aware broken-power-law model (needs geometry)
+    params_stk, make_scale_stk, diag_stk = fit_speaker_scaling_with_stokes(
+        labels=labels,
+        a_orifice=a_orifice,
+        L_orifice=L_orifice,
+        fmin=fmin,
+        fmax=fmax,
+        f_ref=f_ref,
+        rho_ref=rho_ref,
+        invert_target=invert_target,
+    )
+
+    # ----------------------------
+    # 2) helpers & styling
+    # ----------------------------
+    def as_db(x: np.ndarray) -> np.ndarray:
         x = np.asarray(x, float)
         return 20.0 * np.log10(np.maximum(x, 1e-16))
 
     if colours is None:
-        colours = ['C0', 'C1', 'C2', 'C3', 'C4']  # auto-extend if more labels
+        colours = ['C0', 'C1', 'C2', 'C3', 'C4']
 
     fig, ax = plt.subplots(1, 1, figsize=(7, 3), tight_layout=True)
 
-    rmse_txt = []  # collect per-label RMSE (dB) for title/legend text
-    psigs = [0, 50, 100]
+    # store RMSE (dB) per label & per model
+    rmse_pw, rmse_stk = {}, {}
 
+    # ----------------------------
+    # 3) loop over labels
+    # ----------------------------
     for i, L in enumerate(labels):
         color = colours[i % len(colours)]
 
-        # --- load target ---
+        # --- load target (required |H|)
         with h5py.File(TONAL_BASE + f"lumped_scaling_{L}.h5", "r") as hf:
             f_tgt = np.asarray(hf["frequencies"][:], float)
-            s_ratio = np.asarray(hf["scaling_ratio"][:], float)
+            s_ratio = np.asarray(hf["scaling_ratio"][:], float)  # (model/data) in POWER
             rho = float(hf.attrs["rho"]) if "rho" in hf.attrs else np.nan
-        if invert_target:
-            tgt_mag = 1.0 / np.maximum(s_ratio, 1e-16)  # required |H|
-        else:
-            tgt_mag = s_ratio
-
-        # band-limit target
+            nu = float(hf.attrs["nu"]) if "nu" in hf.attrs else np.nan  # preferred for Stokes
+        tgt_mag = 1.0 / np.maximum(s_ratio, 1e-16) if invert_target else s_ratio  # required |H| (AMPLITUDE)
         mt = (f_tgt >= fmin) & (f_tgt <= fmax)
         f_tgt, tgt_mag = f_tgt[mt], tgt_mag[mt]
 
-        # --- load measured calibration ---
+        # --- load measured calibration |H_cal|
         f_cal = np.load(TONAL_BASE + f"wn_frequencies_{L}.npy").astype(float)
         H_cal = np.load(TONAL_BASE + f"wn_H1_{L}.npy")
         cal_mag = np.abs(H_cal)
-
         mc = (f_cal >= fmin) & (f_cal <= fmax)
         f_cal, cal_mag = f_cal[mc], cal_mag[mc]
 
-        # --- modeled calibration: |H_cal| * S(f, rho) ---
-        _, _, nu = air_props_from_gauge(psigs[i], TDEG[i] + 273)
-        S = scale(f_cal, rho)
-        S = make_scale(nu)
-        modeled_mag = cal_mag * S
+        # --- build modeled curves
+        # power-law model uses (f, rho) directly
+        S_pw = scale_powerlaw(f_cal, rho)
+        modeled_pw = cal_mag * S_pw
 
-        # --- plot ---
+        # stokes-aware model: first bind ν to get a (f, ρ)->S callable
+        if not np.isfinite(nu):  # very unlikely, but safe fallback
+            # Try to estimate ν from your helper using rough gauge/temperature if available
+            # (here we just raise; you can compute ν via air_props_from_gauge(...) if you prefer).
+            raise ValueError(f"Missing 'nu' attribute in lumped_scaling_{L}.h5; please save it in save_lumped_scaling_target().")
+
+        scale_stk = make_scale_stk(nu)                  # bind ν
+        S_stk = scale_stk(f_cal, rho)                   # evaluate at (f, ρ)
+        modeled_stk = cal_mag * S_stk
+
+        # --- plot (target, measured, both models)
         if to_db:
-            ax.semilogx(f_tgt, as_db(tgt_mag), color=color, lw=1.4, label=f"{L} target")
-            ax.semilogx(f_cal, as_db(cal_mag), color=color, lw=1.0, ls="--", alpha=0.9, label=f"{L} cal (meas)")
-            ax.semilogx(f_cal, as_db(modeled_mag), color=color, lw=1.0, ls="-.", alpha=0.9, label=f"{L} calxS")
+            ax.semilogx(f_tgt, as_db(tgt_mag), color=color, lw=1.6)                     # target
+            ax.semilogx(f_cal, as_db(cal_mag), color=color, lw=1.0, ls="--", alpha=0.9) # measured cal
+            ax.semilogx(f_cal, as_db(modeled_pw), color=color, lw=1.0, ls=":", alpha=0.95)   # power-law modeled
+            ax.semilogx(f_cal, as_db(modeled_stk), color=color, lw=1.0, ls="-.", alpha=0.95) # Stokes modeled
         else:
-            ax.semilogx(f_tgt, tgt_mag, color=color, lw=1.4, label=f"{L} target")
-            ax.semilogx(f_cal, cal_mag, color=color, lw=1.0, ls="--", alpha=0.9, label=f"{L} cal (meas)")
-            ax.semilogx(f_cal, modeled_mag, color=color, lw=1.0, ls="-.", alpha=0.9, label=f"{L} calxS")
+            ax.semilogx(f_tgt, tgt_mag, color=color, lw=1.6)
+            ax.semilogx(f_cal, cal_mag, color=color, lw=1.0, ls="--", alpha=0.9)
+            ax.semilogx(f_cal, modeled_pw, color=color, lw=1.0, ls=":", alpha=0.95)
+            ax.semilogx(f_cal, modeled_stk, color=color, lw=1.0, ls="-.", alpha=0.95)
 
-        # --- RMSE (in dB) between modeled and target on target grid ---
-        # interpolate modeled onto target grid
-        modeled_on_tgt = np.interp(f_tgt, f_cal, modeled_mag)
-        e_db = as_db(tgt_mag) - as_db(modeled_on_tgt)
-        rmse = float(np.sqrt(np.mean(e_db**2)))
-        rmse_txt.append(f"{L}: {rmse:.2f} dB")
+        # --- RMSE on the target grid (in dB) for both models
+        pw_on_tgt  = np.interp(f_tgt, f_cal, modeled_pw)
+        stk_on_tgt = np.interp(f_tgt, f_cal, modeled_stk)
+        e_pw  = as_db(tgt_mag) - as_db(pw_on_tgt)
+        e_stk = as_db(tgt_mag) - as_db(stk_on_tgt)
+        rmse_pw[L]  = float(np.sqrt(np.mean(e_pw**2)))
+        rmse_stk[L] = float(np.sqrt(np.mean(e_stk**2)))
 
+    # ----------------------------
+    # 4) axes & legends
+    # ----------------------------
     ax.set_xlabel(r"$f$ [Hz]")
     ax.set_ylabel("Magnitude (dB)" if to_db else "Magnitude")
     ax.set_xlim(fmin, fmax)
     ax.grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
     ax.grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
-    ax.legend(loc="best", fontsize=8, ncol=1)
 
-    # title_params = f"fit: c0={c0_db:.2f} dB, a={a:.3f}, b={b:.3f}  |  " \
-    #                f"ρ_ref={diag['rho_ref']:.3g} kg/m3, f_ref={diag['f_ref']:.0f} Hz"
-    # ax.set_title(title_params + "\n" + "RMSE (modeled vs target): " + ", ".join(rmse_txt), fontsize=9)
+    # Legend 1: styles (one entry per curve type)
+    style_handles = [
+        Line2D([0], [0], color='k', lw=1.6, ls='-',  label="target |H| (required)"),
+        Line2D([0], [0], color='k', lw=1.0, ls='--', label="|H_cal| (meas)"),
+        Line2D([0], [0], color='k', lw=1.0, ls=':',  label="cal x S_powerlaw"),
+        Line2D([0], [0], color='k', lw=1.0, ls='-.', label="cal x S_stokes"),
+    ]
+    leg1 = ax.legend(handles=style_handles, loc="upper left", fontsize=8, framealpha=0.9)
+
+    # Legend 2: colors (one entry per label)
+    color_handles = [Line2D([0], [0], color=colours[i % len(colours)], lw=1.6, label=labels[i]) for i in range(len(labels))]
+    leg2 = ax.legend(handles=color_handles, loc="lower right", fontsize=8, framealpha=0.9)
+    ax.add_artist(leg1)
+
+    # Optional: print compact RMSE summary to console
+    print("RMSE (dB) power-law:", rmse_pw)
+    print("RMSE (dB) Stokes   :", rmse_stk)
 
     if savepath:
         fig.savefig(savepath, dpi=350)
     return fig, ax
+
 
 
 def plot_tf_model_comparison_stokes():
@@ -798,6 +376,7 @@ def plot_tf_model_comparison_stokes():
     rho0, *_  = air_props_from_gauge(pgs[0], TDEG[0]+273)
 
     fig, ax = plt.subplots(1, 1, figsize=(7, 3), tight_layout=True)
+    u_tau_uncertainty = [0.2, 0.1, 0.05]
 
     # --- main loop over datasets ---
     for i, L in enumerate(labels):
@@ -812,11 +391,12 @@ def plot_tf_model_comparison_stokes():
             nu = float(hf.attrs['nu'])
             rho = float(hf.attrs['rho'])
             # f_cut = hf.attrs.get('f_cut', np.nan)  # unused here
-            # Re_tau = hf.attrs.get('Re_tau', np.nan)
-            # cf_2   = hf.attrs.get('cf_2',   np.nan)
+            Re_tau = hf.attrs.get('Re_tau', np.nan)
+            cf_2   = hf.attrs.get('cf_2',   np.nan)
         f_cal = np.load(TONAL_BASE + f"wn_frequencies_{L}.npy").astype(float)
         H_cal = np.load(TONAL_BASE + f"wn_H1_{L}.npy")
         scale0 = make_scale(nu)
+
 
         # Load measured calibration FRF (frequency + complex H)
 
@@ -828,6 +408,11 @@ def plot_tf_model_comparison_stokes():
         # --- PSDs ---
         f1, Pyy1 = compute_spec(FS, ph1_filt)
         f2, Pyy2 = compute_spec(FS, ph2_filt)
+
+        # Load and plot models
+        g1_b, g2_b, rv_b = bl_model(1/f1*u_tau**2/nu, Re_tau, cf_2)
+        ax.semilogx(f1, (g1_b+g2_b) * rv_b, linestyle='--', color='k', alpha=0.8, lw=0.8)
+
         # unify grids (Welch outputs match with identical settings)
         if not np.allclose(f1, f2):
             # If extremely picky, interpolate one onto the other; here we pick f1
@@ -849,7 +434,7 @@ def plot_tf_model_comparison_stokes():
         ax.semilogx(f_plot, y2_plot, linestyle='-', color=colours[i], alpha=0.8, lw=0.8)
 
         # ±10% u_tau uncertainty bands (repeat for each channel)
-        u_low, u_high = u_tau*(1 - 0.1), u_tau*(1 + 0.1)
+        u_low, u_high = u_tau*(1 - u_tau_uncertainty[i]), u_tau*(1 + u_tau_uncertainty[i])
         y1_upper = ((f_sp * Pyy1) / (rho**2 * u_low**4))[band]
         y1_lower = ((f_sp * Pyy1) / (rho**2 * u_high**4))[band]
         y2_upper = ((f_sp * Pyy2) / (rho**2 * u_low**4))[band]
@@ -956,7 +541,7 @@ def plot_tf_model_comparison():
         ax.semilogx(f_plot, y2_plot, linestyle='-', color=colours[i], alpha=0.8, lw=0.8)
 
         # ±10% u_tau uncertainty bands (repeat for each channel)
-        u_low, u_high = u_tau*(1 - 0.1), u_tau*(1 + 0.1)
+        u_low, u_high = u_tau*(1 - tau_uncertainty[i]), u_tau*(1 + tau_uncertainty[i])
         y1_upper = ((f_sp * Pyy1) / (rho**2 * u_low**4))[band]
         y1_lower = ((f_sp * Pyy1) / (rho**2 * u_high**4))[band]
         y2_upper = ((f_sp * Pyy2) / (rho**2 * u_low**4))[band]
@@ -989,12 +574,12 @@ def plot_tf_model_comparison():
 
 if __name__ == "__main__":
     # scale_0psig(['0psig', '50psig', '100psig'])
-    plot_tf_model_comparison()
+    # plot_tf_model_comparison()
     plot_tf_model_comparison_stokes()
-    # plot_target_calib_modeled(
-    #     labels=('0psig', '50psig', '100psig'),
-    #     fmin=100.0,
-    #     fmax=1000.0,
-    #     to_db=True,
-    #     savepath='figures/tonal_ratios/target_calib_modeled_comparison_db.png',
-    # )
+    plot_target_calib_modeled(
+        labels=('0psig', '50psig', '100psig'),
+        fmin=100.0,
+        fmax=1000.0,
+        to_db=True,
+        savepath='figures/tonal_ratios/target_calib_modeled_comparison_db.png',
+    )
