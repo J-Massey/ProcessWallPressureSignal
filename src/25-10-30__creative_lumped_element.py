@@ -191,56 +191,6 @@ def save_scaling_target():
             hf.attrs['nu'] = nu
             hf.attrs['psig'] = pgs[idxfn]
 
-def plot_TFs_and_ratios():
-
-    psigs = [0, 50, 100]
-    labels = [f"{psig}psig" for psig in psigs]
-    ratios = []
-    freqs = []
-    for i, fn in enumerate(labels):
-        with h5py.File(TONAL_BASE + f"lumped_scaling_{labels[i]}.h5", 'r') as hf:
-            freq = hf['frequencies'][:]
-            scaling_ratio = hf['scaling_ratio'][:]
-            rho = hf.attrs['rho']
-            u_tau = hf.attrs['u_tau']
-            nu = hf.attrs['nu']
-            psig = hf.attrs['psig']
-
-        freqs.append(freq)
-        ratios.append(scaling_ratio)
-    freqs = np.array(freqs)
-    ratios = np.array(ratios)
-
-    fig, ax = plt.subplots(1, 1, figsize=(7, 3), tight_layout=True)
-
-    #mask frequency between 100 and 1000 Hz
-    freq_mask = (freqs.mean(axis=0) > 100) & (freqs.mean(axis=0) < 1000)
-
-    ax.semilogx(freqs.mean(axis=0)[freq_mask], ratios[0][freq_mask]/ratios[1][freq_mask], color='C0', label='R1')
-    ax.semilogx(freqs.mean(axis=0)[freq_mask], ratios[1][freq_mask]/ratios[2][freq_mask], color='C1', label='R2')
-
-    tf_freqs, tf_ratios = [], []
-    for i, fn in enumerate(labels):
-        with h5py.File(TONAL_BASE + f"calibs_{labels[i]}.h5", 'r') as hf:
-            ic(hf.keys())
-            f1 = hf['frequencies'][:]
-            H1 = hf['H1'][:]
-            tf_freqs.append(f1)
-            tf_ratios.append(H1)
-
-    tf_freqs = np.array(tf_freqs)
-    tf_ratios = np.array(tf_ratios)
-    #mask frequency between 100 and 1000 Hz
-    freq_mask = (tf_freqs.mean(axis=0) > 100) & (tf_freqs.mean(axis=0) < 1000)
-
-    ax.semilogx(tf_freqs.mean(axis=0)[freq_mask], tf_ratios[0][freq_mask]/tf_ratios[1][freq_mask], color='C2', ls='--', label='R1')
-    ax.semilogx(tf_freqs.mean(axis=0)[freq_mask], tf_ratios[1][freq_mask]/tf_ratios[2][freq_mask], color='C3', ls='--', label='R2')
-
-    ax.set_xlabel("Frequency [Hz]")
-    ax.set_ylabel("Scaling Ratio")
-    ax.legend()
-    plt.savefig("figures/ratios/ratios.png")
-
 
 def plot_target_calib_modeled(
     labels: tuple[str, ...] = ("0psig", "50psig", "100psig"),
