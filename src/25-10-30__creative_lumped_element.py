@@ -390,127 +390,6 @@ def plot_target_calib_modeled(
 
 
 
-def plot_tf_model_comparison_stokes():
-    """
-    Apply the (rho, f)-scaled calibration FRF to measured time series and plot
-    pre-multiplied, normalized spectra:  f * Pyy / (rho^2 * u_tau^4).
-    """
-    # --- fit rho–f scaling once from your saved target + calibration ---
-    labels = ['0psig', '50psig', '100psig']
-    # (c0_db, a, b), scale, diag = fit_speaker_scaling_from_files(
-    #     labels=tuple(labels),
-    #     fmin=100.0, fmax=1000.0,   # fitting band
-    #     f_ref=1000.0,
-    #     invert_target=True         # your "scaling_ratio" -> required |H| = 1/scaling_ratio
-    # )
-    params, make_scale, diag = fit_speaker_scaling_with_stokes(
-        labels=('0psig','50psig','100psig'),
-        a_orifice=350e-6,   # <-- put your orifice radius here
-        L_orifice=262e-6,    # <-- and your orifice length
-        fmin=100.0, fmax=1000.0, invert_target=True
-    )
-
-
-    # files per label
-    fn_map = {
-        '0psig': '0psig_cleaned.h5',
-        '50psig': '50psig_cleaned.h5',
-        '100psig': '100psig_cleaned.h5',
-    }
-    colours = ['C0', 'C1', 'C2']
-
-    # (rho0 only used if you want to compare densities directly elsewhere)
-    pgs = [0, 50, 100]
-    rho0, *_  = air_props_from_gauge(pgs[0], TDEG[0]+273)
-
-    fig, ax = plt.subplots(1, 1, figsize=(7, 3), tight_layout=True)
-    u_tau_uncertainty = [0.2, 0.1, 0.05]
-
-    # --- main loop over datasets ---
-    for i, L in enumerate(labels):
-        fn = fn_map[L]
-        color = colours[i]
-
-        # Load cleaned signals and attributes
-        with h5py.File(f'data/{fn}', 'r') as hf:
-            ph1_clean = hf['ph1_clean'][:]
-            ph2_clean = hf['ph2_clean'][:]
-            u_tau = float(hf.attrs['u_tau'])
-            nu = float(hf.attrs['nu'])
-            rho = float(hf.attrs['rho'])
-            # f_cut = hf.attrs.get('f_cut', np.nan)  # unused here
-            Re_tau = hf.attrs.get('Re_tau', np.nan)
-            cf_2   = hf.attrs.get('cf_2',   np.nan)
-        f_cal = np.load(TONAL_BASE + f"wn_frequencies_{L}.npy").astype(float)
-        H_cal = np.load(TONAL_BASE + f"wn_H1_{L}.npy")
-        scale0 = make_scale(nu)
-
-
-        # Load measured calibration FRF (frequency + complex H)
-
-        # --- apply FRF with fitted rho–f magnitude scaling ---
-        # (uses your updated apply_frf that accepts scale_fn and rho)
-        ph1_filt = apply_frf(ph1_clean, FS, f_cal, H_cal, rho=rho, scale_fn=scale0)
-        ph2_filt = apply_frf(ph2_clean, FS, f_cal, H_cal, rho=rho, scale_fn=scale0)
-
-        # --- PSDs ---
-        f1, Pyy1 = compute_spec(FS, ph1_filt)
-        f2, Pyy2 = compute_spec(FS, ph2_filt)
-
-        # Load and plot models
-        g1_b, g2_b, rv_b = bl_model(1/f1*u_tau**2/nu, Re_tau, cf_2)
-        ax.semilogx(f1, (g1_b+g2_b) * rv_b, linestyle='--', color='k', alpha=0.8, lw=0.8)
-
-        # unify grids (Welch outputs match with identical settings)
-        if not np.allclose(f1, f2):
-            # If extremely picky, interpolate one onto the other; here we pick f1
-            Pyy2 = np.interp(f1, f2, Pyy2)
-        f_sp = f1
-
-        # --- pre-multiplied, normalized spectra ---
-        Y1_pm = (f_sp * Pyy1) / (rho**2 * u_tau**4)
-        Y2_pm = (f_sp * Pyy2) / (rho**2 * u_tau**4)
-
-        # clip to display band (avoid Helmholtz etc.)
-        band = (f_sp >= 50.0) & (f_sp < 1000.0)
-        f_plot = f_sp[band]
-        y1_plot = Y1_pm[band]
-        y2_plot = Y2_pm[band]
-
-        # plot PH1 & PH2 for this label
-        ax.semilogx(f_plot, y1_plot, linestyle='-', color=colours[i], alpha=0.8, lw=0.8)
-        ax.semilogx(f_plot, y2_plot, linestyle='-', color=colours[i], alpha=0.8, lw=0.8)
-
-        # ±10% u_tau uncertainty bands (repeat for each channel)
-        u_low, u_high = u_tau*(1 - u_tau_uncertainty[i]), u_tau*(1 + u_tau_uncertainty[i])
-        y1_upper = ((f_sp * Pyy1) / (rho**2 * u_low**4))[band]
-        y1_lower = ((f_sp * Pyy1) / (rho**2 * u_high**4))[band]
-        y2_upper = ((f_sp * Pyy2) / (rho**2 * u_low**4))[band]
-        y2_lower = ((f_sp * Pyy2) / (rho**2 * u_high**4))[band]
-        ax.fill_between(f_plot, y1_upper, y1_lower, color=colours[i], alpha=0.25, edgecolor='none')
-        ax.fill_between(f_plot, y2_upper, y2_lower, color=colours[i], alpha=0.25, edgecolor='none')
-
-    # --- axes, legend, save ---
-    ax.set_xlabel(r"$f$ [Hz]")
-    ax.set_ylabel(r"${f \,\phi_{pp}}^+$")
-    ax.set_xlim(50, 1_000)
-    ax.set_ylim(0, 10)
-    ax.grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-    ax.grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
-
-    labels_handles = ['0 psig Data', '50 psig Data', '100 psig Data']
-    label_colours = ['C0', 'C1', 'C2']
-    label_styles = ['solid',  'solid', 'solid']
-    custom_lines = [Line2D([0], [0], color=label_colours[i], linestyle=label_styles[i]) for i in range(len(labels_handles))]
-    ax.legend(custom_lines, labels_handles, loc='upper right', fontsize=8)
-
-    # title_params = f"scaled FRF: c0={c0_db:.2f} dB, a={a:.3f}, b={b:.3f} | " \
-    #                f"ρ_ref={diag['rho_ref']:.3g} kg/m³, f_ref={diag['f_ref']:.0f} Hz"
-    # ax.set_title(title_params, fontsize=9)
-
-    fig.savefig('figures/tonal_ratios/spectra_comparison_tf_freq_scaled.png', dpi=410)
-
-
 def plot_tf_model_comparison():
     """
     Apply the (rho, f)-scaled calibration FRF to measured time series and plot
@@ -631,8 +510,8 @@ if __name__ == "__main__":
     #     to_db=True,
     #     savepath='figures/tonal_ratios/target_calib_modeled_comparison_db.png',
     # )
-    # psigs = [0, 50, 100]
-    # labels = [f"{psig}psig" for psig in psigs]
-    # save_calibs(labels)
-    # save_scaling_target()
+    psigs = [0, 50, 100]
+    labels = [f"{psig}psig" for psig in psigs]
+    save_calibs(labels)
+    save_scaling_target()
     plot_TFs_and_ratios()

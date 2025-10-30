@@ -225,7 +225,7 @@ def run_all_final():
         mat_path='data/20251024/final/atm.mat',
         psi_gauge=0.0,
         T_K=273.15 + TDEG[0],
-        u_tau=0.58,
+        u_tau=0.537,
         out_stub='0psig',
         plot_flag=True
     )
@@ -235,7 +235,7 @@ def run_all_final():
         mat_path='data/20251024/final/50psig.mat',
         psi_gauge=50.0,
         T_K=273.15 + TDEG[1],
-        u_tau=0.47,
+        u_tau=0.522,
         out_stub='50psig',
         plot_flag=True
     )
@@ -245,7 +245,7 @@ def run_all_final():
         mat_path='data/20251024/final/100psig.mat',
         psi_gauge=100.0,
         T_K=273.15 + TDEG[2],
-        u_tau=0.4,
+        u_tau=0.506,
         out_stub='100psig',
         plot_flag=True
     )
