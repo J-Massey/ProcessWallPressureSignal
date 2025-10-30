@@ -54,16 +54,16 @@ def fit_speaker_scaling_from_files(
             s = np.asarray(hf["scaling_ratio"][:], float)  # POWER ratio (data/model)
             rho = float(hf.attrs["rho"]) if "rho" in hf.attrs else np.nan
         # Convert to required AMPLITUDE magnitude for |H_cal|*S:
-        # start from data/model (power), invert to model/data, then take sqrt.
+        # start from data/model (power), invert to model/data.
         if invert_target:
             s = 1.0 / np.maximum(s, 1e-16)   # POWER: model/data
-        s = np.sqrt(s)                        # AMPLITUDE: required |H|
         return f, s, rho
 
     def _load_cal(L: str):
-        f = np.load(TONAL_BASE + f"wn_frequencies_{L}.npy").astype(float)
-        H = np.load(TONAL_BASE + f"wn_H1_{L}.npy")
-        return f, np.abs(H)
+        with h5py.File(TONAL_BASE + f"calibs_{L}.h5", 'r') as hf:
+            f1 = np.asarray(hf["frequencies"][:], float)
+            H1 = np.asarray(hf["H1"][:], float)
+        return f1, np.abs(H1)
 
     def _align_band(fa, ya, fb, yb, lo, hi):
         lo = lo if lo is not None else max(fa.min(), fb.min())
@@ -114,31 +114,12 @@ def fit_speaker_scaling_from_files(
         y_blocks.append(y)
         counts[L] = int(fCmn.size)
 
-    if not X_blocks:
-        raise ValueError("No usable points after alignment/band-limiting.")
     X_all = np.vstack(X_blocks)
     y_all = np.concatenate(y_blocks)
 
     # 4) Least-squares fit for [c0_db, a, b]
     beta, *_ = np.linalg.lstsq(X_all, y_all, rcond=None)
     c0_db, a, b = (float(beta[0]), float(beta[1]), float(beta[2]))
-
-    # 5) Diagnostics
-    rmse_per, resid_all = {}, []
-    for L in labels:
-        fC, HC = f_cal[L], cal_mag[L]
-        fT, ST = f_tgt[L], tgt_mag[L]
-        fCmn, STi, HCi = _align_band(fT, ST, fC, HC, fmin, fmax)
-        if fCmn.size < 2:
-            continue
-        y = 20.0 * np.log10(STi) - 20.0 * np.log10(HCi)
-        yhat = (c0_db
-                + a * (20.0 * np.log10(float(rho_list[L]) / rho_ref_val))
-                + b * (20.0 * np.log10(fCmn / f_ref_val)))
-        r = y - yhat
-        rmse_per[L] = float(np.sqrt(np.mean(r**2)))
-        resid_all.append(r)
-    rmse_global = float(np.sqrt(np.mean(np.concatenate(resid_all)**2)))
 
     # 6) Scaling function (linear gain)
     def scale(f: np.ndarray, rho: float) -> np.ndarray:
@@ -151,8 +132,6 @@ def fit_speaker_scaling_from_files(
     diag = dict(
         rho_ref=rho_ref_val,
         f_ref=f_ref_val,
-        rmse_db_global=rmse_global,
-        rmse_db_per_label=rmse_per,
         counts_per_label=counts,
         params_db=dict(c0_db=c0_db, a=a, b=b),
         invert_target=invert_target,

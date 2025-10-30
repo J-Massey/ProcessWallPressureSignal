@@ -51,9 +51,9 @@ TDEG = [18, 20, 22]
 TPLUS_CUT = 10  # picked so that we cut at half the inner peak
 
 CHAIN_SENS_V_PER_PA = {
-    'ph1': 50.9e-3,  # V/Pa
-    'ph2': 51.7e-3,  # V/Pa
-    'nc':  52.4e-3,  # V/Pa
+    'PH1': 50.9e-3,  # V/Pa
+    'PH2': 51.7e-3,  # V/Pa
+    'NC':  52.4e-3,  # V/Pa
 }
 
 
@@ -108,7 +108,7 @@ def compute_spec(fs: float, x: np.ndarray, npsg : int = NPERSEG):
     return f, Pxx
 
 
-def analyse_run(
+def clean_raw(
     mat_path: str,
     psi_gauge: float,   # psig for this run
     T_K: float,         # Kelvin for this run
@@ -129,9 +129,9 @@ def analyse_run(
     ph1_V, ph2_V, nkd_V = X[:,0], X[:,1], X[:,2]
 
     # --- Volts -> Pa using fixed chain sensitivities ---
-    ph1 = volts_to_pa(ph1_V, 'ph1', f_cut)
-    ph2 = volts_to_pa(ph2_V, 'ph2', f_cut)
-    nkd = volts_to_pa(nkd_V, 'nc', f_cut)
+    ph1 = volts_to_pa(ph1_V, 'PH1', f_cut)
+    ph2 = volts_to_pa(ph2_V, 'PH2', f_cut)
+    nkd = volts_to_pa(nkd_V, 'NC', f_cut)
 
     # --- take out the mean ---
     ph1 -= np.mean(ph1)
@@ -217,3 +217,38 @@ def analyse_run(
     # return useful bits if you want to overlay/compare
     return dict(f=f, P_ph1=P_ph1, P_ph2=P_ph2, P_nkd=P_nkd,
                 rho=rho, nu=nu, Re_tau=Re_tau, f_cut=f_cut)
+
+
+def run_all_final():
+    # --- ATM ---
+    clean_raw(
+        mat_path='data/20251024/final/atm.mat',
+        psi_gauge=0.0,
+        T_K=273.15 + TDEG[0],
+        u_tau=0.58,
+        out_stub='0psig',
+        plot_flag=True
+    )
+
+    # --- 50 psig ---
+    clean_raw(
+        mat_path='data/20251024/final/50psig.mat',
+        psi_gauge=50.0,
+        T_K=273.15 + TDEG[1],
+        u_tau=0.47,
+        out_stub='50psig',
+        plot_flag=True
+    )
+
+    # --- 100 psig ---
+    clean_raw(
+        mat_path='data/20251024/final/100psig.mat',
+        psi_gauge=100.0,
+        T_K=273.15 + TDEG[2],
+        u_tau=0.4,
+        out_stub='100psig',
+        plot_flag=True
+    )
+
+if __name__ == "__main__":
+    run_all_final()
