@@ -271,19 +271,6 @@ def plot_target_calib_modeled(
     (c0_db, a_rho, b_f), scale_powerlaw, diag_pw = fit_speaker_scaling_from_files(
         labels=labels, fmin=fmin, fmax=fmax, f_ref=f_ref, rho_ref=rho_ref, invert_target=invert_target
     )
-
-    # (b) Stokes-aware broken-power-law model (needs geometry)
-    params_stk, make_scale_stk, diag_stk = fit_speaker_scaling_with_stokes(
-        labels=labels,
-        a_orifice=a_orifice,
-        L_orifice=L_orifice,
-        fmin=fmin,
-        fmax=fmax,
-        f_ref=f_ref,
-        rho_ref=rho_ref,
-        invert_target=invert_target,
-    )
-
     # ----------------------------
     # 2) helpers & styling
     # ----------------------------
@@ -333,29 +320,21 @@ def plot_target_calib_modeled(
             # (here we just raise; you can compute ν via air_props_from_gauge(...) if you prefer).
             raise ValueError(f"Missing 'nu' attribute in lumped_scaling_{L}.h5; please save it in save_lumped_scaling_target().")
 
-        scale_stk = make_scale_stk(nu)                  # bind ν
-        S_stk = scale_stk(f_cal, rho)                   # evaluate at (f, ρ)
-        modeled_stk = cal_mag * S_stk
 
         # --- plot (target, measured, both models)
         if to_db:
             ax.semilogx(f_tgt, as_db(tgt_mag), color=color, lw=1.6)                     # target
             ax.semilogx(f_cal, as_db(cal_mag), color=color, lw=1.0, ls="--", alpha=0.9) # measured cal
             ax.semilogx(f_cal, as_db(modeled_pw), color=color, lw=1.0, ls=":", alpha=0.95)   # power-law modeled
-            ax.semilogx(f_cal, as_db(modeled_stk), color=color, lw=1.0, ls="-.", alpha=0.95) # Stokes modeled
         else:
             ax.semilogx(f_tgt, tgt_mag, color=color, lw=1.6)
             ax.semilogx(f_cal, cal_mag, color=color, lw=1.0, ls="--", alpha=0.9)
             ax.semilogx(f_cal, modeled_pw, color=color, lw=1.0, ls=":", alpha=0.95)
-            ax.semilogx(f_cal, modeled_stk, color=color, lw=1.0, ls="-.", alpha=0.95)
 
         # --- RMSE on the target grid (in dB) for both models
         pw_on_tgt  = np.interp(f_tgt, f_cal, modeled_pw)
-        stk_on_tgt = np.interp(f_tgt, f_cal, modeled_stk)
         e_pw  = as_db(tgt_mag) - as_db(pw_on_tgt)
-        e_stk = as_db(tgt_mag) - as_db(stk_on_tgt)
         rmse_pw[L]  = float(np.sqrt(np.mean(e_pw**2)))
-        rmse_stk[L] = float(np.sqrt(np.mean(e_stk**2)))
 
     # ----------------------------
     # 4) axes & legends
@@ -371,7 +350,6 @@ def plot_target_calib_modeled(
         Line2D([0], [0], color='k', lw=1.6, ls='-',  label="target |H| (required)"),
         Line2D([0], [0], color='k', lw=1.0, ls='--', label="|H_cal| (meas)"),
         Line2D([0], [0], color='k', lw=1.0, ls=':',  label="cal x S_powerlaw"),
-        Line2D([0], [0], color='k', lw=1.0, ls='-.', label="cal x S_stokes"),
     ]
     leg1 = ax.legend(handles=style_handles, loc="upper left", fontsize=8, framealpha=0.9)
 
@@ -415,9 +393,10 @@ def plot_tf_model_comparison():
 
     # (rho0 only used if you want to compare densities directly elsewhere)
     pgs = [0, 50, 100]
-    rho0, *_  = air_props_from_gauge(pgs[0], TDEG[0]+273)
+    
+    u_tau_uncertainty = [0.2, 0.1, 0.05]
 
-    fig, ax = plt.subplots(1, 1, figsize=(7, 3), tight_layout=True)
+    fig, ax = plt.subplots(3, 1, figsize=(7, 4), tight_layout=True, sharex=True, sharey=True)
 
     # --- main loop over datasets ---
     for i, L in enumerate(labels):
@@ -432,10 +411,16 @@ def plot_tf_model_comparison():
             nu = float(hf.attrs['nu'])
             rho = float(hf.attrs['rho'])
             # f_cut = hf.attrs.get('f_cut', np.nan)  # unused here
-            # Re_tau = hf.attrs.get('Re_tau', np.nan)
+            Re_tau = hf.attrs.get('Re_tau', np.nan)
             # cf_2   = hf.attrs.get('cf_2',   np.nan)
         f_cal = np.load(TONAL_BASE + f"wn_frequencies_{L}.npy").astype(float)
         H_cal = np.load(TONAL_BASE + f"wn_H1_{L}.npy")
+
+        # Plot bl model
+        T_plus = (u_tau**2 / nu) / f_cal
+        g1, g2, rv = bl_model(T_plus, Re_tau, 2*(u_tau**2)/14.0**2)
+        ax[i].semilogx(f_cal, (g1+g2)*rv, color=colours[i], lw=0.6, ls='--')
+        ic(Re_tau)
 
         # Load measured calibration FRF (frequency + complex H)
 
@@ -464,31 +449,33 @@ def plot_tf_model_comparison():
         y2_plot = Y2_pm[band]
 
         # plot PH1 & PH2 for this label
-        ax.semilogx(f_plot, y1_plot, linestyle='-', color=colours[i], alpha=0.8, lw=0.8)
-        ax.semilogx(f_plot, y2_plot, linestyle='-', color=colours[i], alpha=0.8, lw=0.8)
+        ax[i].semilogx(f_plot, y1_plot, linestyle='-', color=colours[i], alpha=0.8, lw=0.8)
+        ax[i].semilogx(f_plot, y2_plot, linestyle='-', color=colours[i], alpha=0.8, lw=0.8)
+
+
 
         # ±10% u_tau uncertainty bands (repeat for each channel)
-        u_low, u_high = u_tau*(1 - tau_uncertainty[i]), u_tau*(1 + tau_uncertainty[i])
+        u_low, u_high = u_tau*(1 - u_tau_uncertainty[i]), u_tau*(1 + u_tau_uncertainty[i])
         y1_upper = ((f_sp * Pyy1) / (rho**2 * u_low**4))[band]
         y1_lower = ((f_sp * Pyy1) / (rho**2 * u_high**4))[band]
         y2_upper = ((f_sp * Pyy2) / (rho**2 * u_low**4))[band]
         y2_lower = ((f_sp * Pyy2) / (rho**2 * u_high**4))[band]
-        ax.fill_between(f_plot, y1_upper, y1_lower, color=colours[i], alpha=0.25, edgecolor='none')
-        ax.fill_between(f_plot, y2_upper, y2_lower, color=colours[i], alpha=0.25, edgecolor='none')
+        ax[i].fill_between(f_plot, y1_upper, y1_lower, color=colours[i], alpha=0.25, edgecolor='none')
+        ax[i].fill_between(f_plot, y2_upper, y2_lower, color=colours[i], alpha=0.25, edgecolor='none')
+        ax[i].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+        ax[i].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
 
     # --- axes, legend, save ---
-    ax.set_xlabel(r"$f$ [Hz]")
-    ax.set_ylabel(r"${f \,\phi_{pp}}^+$")
-    ax.set_xlim(50, 1_000)
-    ax.set_ylim(0, 10)
-    ax.grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-    ax.grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+    ax[2].set_xlabel(r"$f$ [Hz]")
+    ax[1].set_ylabel(r"${f \,\phi_{pp}}^+$")
+    ax[0].set_xlim(50, 1_000)
+    ax[0].set_ylim(0, 4)
 
-    labels_handles = ['0 psig Data', '50 psig Data', '100 psig Data']
-    label_colours = ['C0', 'C1', 'C2']
-    label_styles = ['solid',  'solid', 'solid']
+    labels_handles = ['0 psig Data', '50 psig Data', '100 psig Data', 'Model']
+    label_colours = ['C0', 'C1', 'C2', 'k']
+    label_styles = ['solid',  'solid', 'solid', 'dashed']
     custom_lines = [Line2D([0], [0], color=label_colours[i], linestyle=label_styles[i]) for i in range(len(labels_handles))]
-    ax.legend(custom_lines, labels_handles, loc='upper right', fontsize=8)
+    ax[0].legend(custom_lines, labels_handles, loc='upper left', fontsize=8)
 
     # title_params = f"scaled FRF: c0={c0_db:.2f} dB, a={a:.3f}, b={b:.3f} | " \
     #                f"ρ_ref={diag['rho_ref']:.3g} kg/m³, f_ref={diag['f_ref']:.0f} Hz"
@@ -501,17 +488,17 @@ def plot_tf_model_comparison():
 
 if __name__ == "__main__":
     # scale_0psig(['0psig', '50psig', '100psig'])
-    # plot_tf_model_comparison()
+    plot_tf_model_comparison()
     # plot_tf_model_comparison_stokes()
-    # plot_target_calib_modeled(
-    #     labels=('0psig', '50psig', '100psig'),
-    #     fmin=100.0,
-    #     fmax=1000.0,
-    #     to_db=True,
-    #     savepath='figures/tonal_ratios/target_calib_modeled_comparison_db.png',
-    # )
-    psigs = [0, 50, 100]
-    labels = [f"{psig}psig" for psig in psigs]
-    save_calibs(labels)
-    save_scaling_target()
-    plot_TFs_and_ratios()
+    plot_target_calib_modeled(
+        labels=('0psig', '50psig', '100psig'),
+        fmin=100.0,
+        fmax=1000.0,
+        to_db=True,
+        savepath='figures/tonal_ratios/target_calib_modeled_comparison_db.png',
+    )
+    # psigs = [0, 50, 100]
+    # labels = [f"{psig}psig" for psig in psigs]
+    # save_calibs(labels)
+    # save_scaling_target()
+    # plot_TFs_and_ratios()
