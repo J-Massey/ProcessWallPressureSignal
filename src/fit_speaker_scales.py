@@ -62,7 +62,7 @@ def fit_speaker_scaling_from_files(
     def _load_cal(L: str):
         with h5py.File(TONAL_BASE + f"calibs_{L}.h5", 'r') as hf:
             f1 = np.asarray(hf["frequencies"][:], float)
-            H1 = np.asarray(hf["H1"][:], float)
+            H1 = np.asarray(hf["H_fused"][:], complex)
         return f1, np.abs(H1)
 
     def _align_band(fa, ya, fb, yb, lo, hi):
@@ -70,8 +70,6 @@ def fit_speaker_scaling_from_files(
         hi = hi if hi is not None else min(fa.max(), fb.max())
         lo = max(lo, fa.min(), fb.min())
         hi = min(hi, fa.max(), fb.max())
-        if not np.isfinite(lo) or not np.isfinite(hi) or hi <= lo:
-            raise ValueError("No valid overlap between target and calibration frequency bands.")
         ma = (fa >= lo) & (fa <= hi)
         mb = (fb >= lo) & (fb <= hi)
         # choose denser grid to interpolate onto
@@ -93,8 +91,6 @@ def fit_speaker_scaling_from_files(
 
     # 2) Reference density/frequency
     rho_vals = np.array([rho_list[L] for L in labels], float)
-    if np.any(~np.isfinite(rho_vals)):
-        raise ValueError("Missing density 'rho' attribute in one or more target .h5 files.")
     rho_ref_val = float(np.mean(rho_vals)) if rho_ref is None else float(rho_ref)
     f_ref_val = float(f_ref)
 

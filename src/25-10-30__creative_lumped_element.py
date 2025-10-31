@@ -24,15 +24,16 @@ plt.rc("text", usetex=True)
 plt.rc("text.latex", preamble=r"\usepackage{mathpazo}")
 
 from apply_frf import apply_frf
-from fit_speaker_scales import fit_speaker_scaling_from_files, fit_speaker_scaling_with_stokes
+from fit_speaker_scales import fit_speaker_scaling_from_files
 from models import bl_model
 from clean_raw_data import volts_to_pa, air_props_from_gauge
+from fuse_anechoic import combine_anechoic_calibrations
 
 # =============================================================================
 # Constants & styling (exported so tf_plot.py can import them)
 # =============================================================================
 FS: float = 50_000.0
-NPERSEG: int = 2**12
+NPERSEG: int = 2**10
 WINDOW: str = "hann"
 
 # Colors (exported for plotting)
@@ -105,11 +106,28 @@ def save_calibs(pressures):
         ph1, ph2, nc, _ = dat["channelData_WN"].T
         nc_pa = volts_to_pa(nc, "NC", f_cut[i])
         ph1_pa = volts_to_pa(ph1, "PH1", f_cut[i])
-        f1, H1, _ = estimate_frf(ph1_pa, nc_pa, fs=FS)
+        f1, H1, g2_1 = estimate_frf(ph1_pa, nc_pa, fs=FS)
+        # add calibration for ph2
+        dat = loadmat(TONAL_BASE + f"calib_{pressure}.mat")
+        ph1, ph2, nc, _ = dat["channelData_WN"].T
+        nc_pa = volts_to_pa(nc, "NC", f_cut[i])
+        ph2_pa = volts_to_pa(ph2, "PH2", f_cut[i])
+        f2, H2, g2_2 = estimate_frf(ph2_pa, nc_pa, fs=FS)
+        # Fuse the two transfer functions
+        f_fused, H_fused, g2_fused = combine_anechoic_calibrations(
+            f1, H1, g2_1,
+            f2, H2, g2_2,
+            gmin=0.4,
+            smooth_oct=1/6,
+            points_per_oct=32,
+            eps=1e-12
+        )
         # save frf
         with h5py.File(TONAL_BASE + f"calibs_{pressure}.h5", 'w') as hf:
             hf.create_dataset('frequencies', data=f1)
             hf.create_dataset('H1', data=H1)
+            hf.create_dataset('H2', data=H2)
+            hf.create_dataset('H_fused', data=H_fused)
             hf.attrs['psig'] = pressure
 
 
@@ -203,17 +221,7 @@ def plot_target_calib_modeled(
     to_db: bool = False,          # set True to plot in dB
     colours: list[str] | None = None,
     savepath: str | None = None,
-    # geometry for the Stokes-aware fit (change to your true values):
-    a_orifice: float = 350e-6,    # [m] orifice radius
-    L_orifice: float = 50.0e-6,    # [m] orifice length
 ):
-    """
-    Overlay target |H| (required), measured |H_cal|, and two modeled curves:
-    |H_cal| * S_powerlaw(f,ρ) and |H_cal| * S_stokes(f,ρ;ν).
-
-    The Stokes-aware model uses the viscosity ν saved in 'lumped_scaling_*.h5' for each label.
-    """
-
     # ----------------------------
     # 1) Fit both scaling models
     # ----------------------------
@@ -221,6 +229,7 @@ def plot_target_calib_modeled(
     (c0_db, a_rho, b_f), scale_powerlaw, diag_pw = fit_speaker_scaling_from_files(
         labels=labels, fmin=fmin, fmax=fmax, f_ref=f_ref, rho_ref=rho_ref, invert_target=invert_target
     )
+    ic(c0_db, a_rho, b_f)
     # ----------------------------
     # 2) helpers & styling
     # ----------------------------
@@ -253,8 +262,9 @@ def plot_target_calib_modeled(
         f_tgt, tgt_mag = f_tgt[mt], tgt_mag[mt]
 
         # --- load measured calibration |H_cal|
-        f_cal = np.load(TONAL_BASE + f"wn_frequencies_{L}.npy").astype(float)
-        H_cal = np.load(TONAL_BASE + f"wn_H1_{L}.npy")
+        with h5py.File(TONAL_BASE + f"calibs_{L}.h5", "r") as hf:
+            f_cal = np.asarray(hf["frequencies"][:], float)
+            H_cal = np.asarray(hf["H_fused"][:], complex)
         cal_mag = np.abs(H_cal)
         mc = (f_cal >= fmin) & (f_cal <= fmax)
         f_cal, cal_mag = f_cal[mc], cal_mag[mc]
@@ -262,24 +272,12 @@ def plot_target_calib_modeled(
         # --- build modeled curves
         # power-law model uses (f, rho) directly
         S_pw = scale_powerlaw(f_cal, rho)
+
         modeled_pw = cal_mag * S_pw
-
-        # stokes-aware model: first bind ν to get a (f, ρ)->S callable
-        if not np.isfinite(nu):  # very unlikely, but safe fallback
-            # Try to estimate ν from your helper using rough gauge/temperature if available
-            # (here we just raise; you can compute ν via air_props_from_gauge(...) if you prefer).
-            raise ValueError(f"Missing 'nu' attribute in lumped_scaling_{L}.h5; please save it in save_lumped_scaling_target().")
-
-
         # --- plot (target, measured, both models)
-        if to_db:
-            ax.semilogx(f_tgt, as_db(tgt_mag), color=color, lw=1.6)                     # target
-            ax.semilogx(f_cal, as_db(cal_mag), color=color, lw=1.0, ls="--", alpha=0.9) # measured cal
-            ax.semilogx(f_cal, as_db(modeled_pw), color=color, lw=1.0, ls=":", alpha=0.95)   # power-law modeled
-        else:
-            ax.semilogx(f_tgt, tgt_mag, color=color, lw=1.6)
-            ax.semilogx(f_cal, cal_mag, color=color, lw=1.0, ls="--", alpha=0.9)
-            ax.semilogx(f_cal, modeled_pw, color=color, lw=1.0, ls=":", alpha=0.95)
+        ax.semilogx(f_tgt, as_db(tgt_mag), color=color, lw=1.6)                     # target
+        ax.semilogx(f_cal, as_db(cal_mag), color=color, lw=1.0, ls="--", alpha=0.9) # measured cal
+        ax.semilogx(f_cal, as_db(modeled_pw), color=color, lw=1.0, ls=":", alpha=0.95)   # power-law modeled
 
         # --- RMSE on the target grid (in dB) for both models
         pw_on_tgt  = np.interp(f_tgt, f_cal, modeled_pw)
@@ -310,7 +308,6 @@ def plot_target_calib_modeled(
 
     # Optional: print compact RMSE summary to console
     print("RMSE (dB) power-law:", rmse_pw)
-    print("RMSE (dB) Stokes   :", rmse_stk)
 
     if savepath:
         fig.savefig(savepath, dpi=350)
