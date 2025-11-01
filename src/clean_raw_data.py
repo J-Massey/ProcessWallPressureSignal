@@ -199,7 +199,7 @@ def clean_raw(
     ph2_clean = wiener_cancel_background_torch(ph2, nkd, FS).cpu().numpy()
     torch.cuda.empty_cache()
     
-    with h5py.File(f'data/{out_stub}_cleaned.h5', 'w') as hf:
+    with h5py.File(f'data/final_cleaned/{out_stub}_cleaned.h5', 'w') as hf:
         hf.create_dataset('ph1_clean', data=ph1_clean)
         hf.create_dataset('ph2_clean', data=ph2_clean)
         hf.attrs['rho']   = rho
