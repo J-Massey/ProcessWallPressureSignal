@@ -10,7 +10,7 @@ import numpy as np
 def fit_speaker_scaling_from_files(
     labels: Tuple[str, ...] = ("0psig", "50psig", "100psig"),
     *,
-    f_ref: float = 1000.0,
+    f_ref: float = 700.0,
     rho_ref: Optional[float] = None,
     fmin: Optional[float] = 100.0,
     fmax: Optional[float] = 1000.0,

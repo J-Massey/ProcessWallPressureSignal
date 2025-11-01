@@ -215,7 +215,7 @@ def plot_target_calib_modeled(
     *,
     fmin: float = 100.0,
     fmax: float = 1000.0,
-    f_ref: float = 1000.0,
+    f_ref: float = 500.0,
     rho_ref: float | None = None,
     invert_target: bool = True,   # saved "scaling_ratio" is model/data → required |H| = 1/scaling_ratio
     to_db: bool = False,          # set True to plot in dB
@@ -325,7 +325,7 @@ def plot_tf_model_comparison():
     (c0_db, a, b), scale, diag = fit_speaker_scaling_from_files(
         labels=tuple(labels),
         fmin=100.0, fmax=1000.0,   # fitting band
-        f_ref=1000.0,
+        f_ref=500.0,
         invert_target=True         # your "scaling_ratio" -> required |H| = 1/scaling_ratio
     )
 
@@ -435,7 +435,6 @@ def plot_tf_model_comparison():
 
 if __name__ == "__main__":
     # scale_0psig(['0psig', '50psig', '100psig'])
-    plot_tf_model_comparison()
     # plot_tf_model_comparison_stokes()
     plot_target_calib_modeled(
         labels=('0psig', '50psig', '100psig'),
@@ -444,6 +443,7 @@ if __name__ == "__main__":
         to_db=True,
         savepath='figures/tonal_ratios/target_calib_modeled_comparison_db.png',
     )
+    plot_tf_model_comparison()
     # psigs = [0, 50, 100]
     # labels = [f"{psig}psig" for psig in psigs]
     # save_calibs(labels)
