@@ -113,7 +113,7 @@ def clean_raw(
     psi_gauge: float,   # psig for this run
     T_K: float,         # Kelvin for this run
     u_tau: float,       # m/s for this run (your measured/estimated)
-    field="channelData_LP",
+    field="channelData",
     out_stub="run",
     plot_flag=True
 ):
@@ -125,6 +125,7 @@ def clean_raw(
 
     # --- load ---
     dat = sio.loadmat(mat_path)
+    ic(dat.keys())
     X = dat[field]  # shape [N, >=3], columns: 0=PH1,1=PH2,2=NKD as per your code
     ph1_V, ph2_V, nkd_V = X[:,0], X[:,1], X[:,2]
 
@@ -222,31 +223,60 @@ def clean_raw(
 def run_all_final():
     # --- ATM ---
     clean_raw(
-        mat_path='data/20251024/final/atm.mat',
+        mat_path='data/20251031/close/0psig.mat',
         psi_gauge=0.0,
         T_K=273.15 + TDEG[0],
         u_tau=0.537,
-        out_stub='0psig',
+        out_stub='0psig_close',
         plot_flag=True
     )
 
     # --- 50 psig ---
     clean_raw(
-        mat_path='data/20251024/final/50psig.mat',
+        mat_path='data/20251031/close/50psig.mat',
         psi_gauge=50.0,
         T_K=273.15 + TDEG[1],
         u_tau=0.522,
-        out_stub='50psig',
+        out_stub='50psig_close',
         plot_flag=True
     )
 
     # --- 100 psig ---
     clean_raw(
-        mat_path='data/20251024/final/100psig.mat',
+        mat_path='data/20251031/close/100psig.mat',
         psi_gauge=100.0,
         T_K=273.15 + TDEG[2],
         u_tau=0.506,
-        out_stub='100psig',
+        out_stub='100psig_close',
+        plot_flag=True
+    )
+
+    clean_raw(
+        mat_path='data/20251031/far/0psig.mat',
+        psi_gauge=0.0,
+        T_K=273.15 + TDEG[0],
+        u_tau=0.537,
+        out_stub='0psig_far',
+        plot_flag=True
+    )
+
+    # --- 50 psig ---
+    clean_raw(
+        mat_path='data/20251031/far/50psig.mat',
+        psi_gauge=50.0,
+        T_K=273.15 + TDEG[1],
+        u_tau=0.522,
+        out_stub='50psig_far',
+        plot_flag=True
+    )
+
+    # --- 100 psig ---
+    clean_raw(
+        mat_path='data/20251031/far/100psig.mat',
+        psi_gauge=100.0,
+        T_K=273.15 + TDEG[2],
+        u_tau=0.506,
+        out_stub='100psig_far',
         plot_flag=True
     )
 
