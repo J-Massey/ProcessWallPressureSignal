@@ -89,10 +89,10 @@ def air_props_from_gauge(psi_gauge: float, T_K: float):
     return rho, mu, nu
 
 def save_hdf5():
-    with h5py.File("data/2025-10-30/tau_w_spectra.h5", "w") as f:
-        for fn, psig in zip(['data/2025-10-30/atm_tauw.mat',
-                             'data/2025-10-30/50psi_tauw.mat',
-                             'data/2025-10-30/100psi_tauw.mat'], [0, 50, 100]):
+    with h5py.File("data/20251030/tau_w_spectra.h5", "w") as f:
+        for fn, psig in zip(['data/20251030/atm_tauw.mat',
+                             'data/20251030/50psi_tauw.mat',
+                             'data/20251030/100psi_tauw.mat'], [0, 50, 100]):
             s1, s2 = load_file(fn)
             f_grp = f.create_group(f"{psig}psi")
             f_grp['tau_w_1'] = s1
@@ -110,9 +110,9 @@ def save_hdf5():
 
 
 def _plot_tauw():
-    fns = ['data/2025-10-30/atm_tauw.mat',
-           'data/2025-10-30/50psi_tauw.mat',
-           'data/2025-10-30/100psi_tauw.mat']
+    fns = ['data/20251030/atm_tauw.mat',
+           'data/20251030/50psi_tauw.mat',
+           'data/20251030/100psi_tauw.mat']
     psigs = [0, 50, 100]
     fig, ax = plt.subplots(1, 1, figsize=(7, 2.4), sharex=True)
     for fn in fns:
@@ -152,9 +152,9 @@ def _plot_tauw_speed_frequency():
 
     # ---------------- Config ----------------
     spacing = 0.035 * 3  # [m] sensor spacing
-    fns   = ['data/2025-10-30/atm_tauw.mat',
-             'data/2025-10-30/50psi_tauw.mat',
-             'data/2025-10-30/100psi_tauw.mat']
+    fns   = ['data/20251030/atm_tauw.mat',
+             'data/20251030/50psi_tauw.mat',
+             'data/20251030/100psi_tauw.mat']
     psigs = [0, 50, 100]
 
     # Frequency / speed grids
@@ -321,9 +321,9 @@ def _plot_tauw_speed_frequency_welch():
 
     # ---------------- Config ----------------
     spacing = 0.035 * 3  # [m] sensor spacing
-    fns   = ['data/2025-10-30/atm_tauw.mat',
-             'data/2025-10-30/50psi_tauw.mat',
-             'data/2025-10-30/100psi_tauw.mat']
+    fns   = ['data/20251030/atm_tauw.mat',
+             'data/20251030/50psi_tauw.mat',
+             'data/20251030/100psi_tauw.mat']
     psigs = [0, 50, 100]
 
     # Frequency / speed grids
@@ -437,9 +437,159 @@ def _plot_tauw_speed_frequency_welch():
         plt.savefig(f"figures/tau_w/spectra_speed{psig}.png", dpi=600)
         plt.close(fig)
 
+def _plot_speed_vs_Tplus_from_csd():
+    """
+    Raw two-sensor speed estimation from the CSD phase:
+      For each Welch frequency f, compute alias speeds U_m(f) that satisfy the
+      measured cross-phase, then plot (T+, c+=U/u_tau) colored by the CSD.
+
+    color_mode:
+      - 'absG12'   : |G12(f)| (log color scale)
+      - 'fraction' : 2|G12|/(S11+S22) in [0,1]
+      - 'coh'      : gamma^2 = |G12|^2/(S11*S22) in [0,1]
+    """
+    import os
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import LogNorm, Normalize
+    from scipy.signal import welch, csd
+
+    EPS = 1e-30
+    TWOPI = 2.0 * np.pi
+
+    # --- Config ---
+    spacing = 0.035 * 3  # [m] sensor separation d
+    fns   = ['data/20251030/atm_tauw.mat',
+             'data/20251030/50psi_tauw.mat',
+             'data/20251030/100psi_tauw.mat']
+    psigs = [0, 50, 100]
+
+    fmin, fmax = 10.0, 700.0
+    Umin, Umax = 2.0, 17.0          # [m/s] display range for speeds
+    gamma_min = 0.05                # coherence gate (to keep noisy bins out)
+    color_mode = 'absG12'           # 'absG12', 'fraction', or 'coh'
+    s_marker = 8                    # scatter marker size
+    alpha = 0.8
+
+    os.makedirs("figures/tau_w", exist_ok=True)
+
+    for fn, psig in zip(fns, psigs):
+        # --- Load & condition ---
+        s1, s2 = load_file(fn)
+        s1 = np.asarray(s1, float); s1 -= s1.mean()
+        s2 = np.asarray(s2, float); s2 -= s2.mean()
+
+        # --- Welch spectra ---
+        f, S11 = welch(s1, fs=FS, window=WINDOW, nperseg=NPERSEG,
+                       detrend='constant', return_onesided=True, scaling='density')
+        _, S22 = welch(s2, fs=FS, window=WINDOW, nperseg=NPERSEG,
+                       detrend='constant', return_onesided=True, scaling='density')
+        _, G12 = csd(s1, s2, fs=FS, window=WINDOW, nperseg=NPERSEG,
+                     detrend='constant', return_onesided=True, scaling='density')
+
+        # Select band
+        band = (f >= fmin) & (f <= fmax)
+        f, S11, S22, G12 = f[band], S11[band], S22[band], G12[band]
+
+        # Coherence & gate
+        coh = (np.abs(G12)**2) / (S11 * S22 + EPS)
+        good = (coh >= gamma_min)
+        f, S11, S22, G12, coh = f[good], S11[good], S22[good], G12[good], coh[good]
+
+        # Inner units for x/y
+        idx = psigs.index(psig)
+        _, _, nu = air_props_from_gauge(psig, TDEG[idx] + 273.15)
+        u_tau = u_taus[idx]
+        Tplus = (u_tau**2) / (nu * f)   # (Nf,)
+
+        # Build point cloud (T+, c+) with color from CSD
+        xs, ys, cs = [], [], []
+
+        # Precompute color value per f (same for every alias of that f)
+        if color_mode == 'absG12':
+            cval = np.abs(G12)                      # positive, wide dynamic range
+            cbar_label = r'$|G_{12}(f)|$ (arb.)'
+            use_log = True
+        elif color_mode == 'fraction':
+            cval = np.clip(2.0*np.abs(G12)/(S11+S22+EPS), 0.0, 1.0)
+            cbar_label = 'Coherent power fraction'
+            use_log = False
+        elif color_mode == 'coh':
+            cval = np.clip(coh, 0.0, 1.0)
+            cbar_label = r'$\gamma^2(f)$'
+            use_log = False
+        else:
+            raise ValueError("color_mode must be 'absG12', 'fraction', or 'coh'")
+
+        # For each f, compute alias speeds U_m in [Umin, Umax] and add scatter points
+        for i, (fi, phi, cv) in enumerate(zip(f, np.angle(G12), cval)):
+            # denominators that yield speeds within bounds:
+            dmin = TWOPI * fi * spacing / Umax  # smallest denom
+            dmax = TWOPI * fi * spacing / Umin  # largest denom
+            m_min = int(np.ceil((dmin - phi) / TWOPI))
+            m_max = int(np.floor((dmax - phi) / TWOPI))
+            if m_max < m_min:
+                continue
+
+            for m in range(m_min, m_max + 1):
+                denom = phi + TWOPI * m
+                if np.abs(denom) < 1e-12:
+                    continue  # avoid infinite speed
+                U = (TWOPI * fi * spacing) / denom
+                if U <= 0 or U < Umin or U > Umax:
+                    continue
+                xs.append(Tplus[i])
+                ys.append(U / u_tau)   # c+ = U / u_tau
+                cs.append(cv)
+
+        # --- Plot ---
+        fig, ax = plt.subplots(1, 1, figsize=(7.5, 3.0))
+        xs = np.asarray(xs); ys = np.asarray(ys); cs = np.asarray(cs)
+
+        if color_mode == 'absG12':
+            # log-normalize by robust percentiles to avoid a few outliers dominating
+            lo = np.percentile(cs[cs > 0], 5)
+            hi = np.percentile(cs, 95)
+            lo = max(lo, 1e-16)
+            norm = LogNorm(vmin=lo, vmax=hi)
+            cmap = 'viridis'
+        else:
+            norm = Normalize(vmin=0.0, vmax=1.0)
+            cmap = 'viridis'
+
+        sc = ax.scatter(xs, ys, c=cs, s=s_marker, cmap=cmap, norm=norm, alpha=alpha, edgecolors='none')
+
+        cb = fig.colorbar(sc, ax=ax, pad=0.01)
+        cb.set_label(cbar_label)
+        if color_mode != 'absG12':
+            cb.set_ticks([0, 0.2, 0.4, 0.6, 0.8, 1])
+
+        # Optional alias-free boundary: c+ > 2 d+/T+
+        d_plus = spacing * u_tau / nu
+        T_line = np.logspace(np.log10(max(xs.min(), 200)), np.log10(min(xs.max(), 1e4)), 300)
+        ax.plot(T_line, 2.0 * d_plus / T_line, 'k--', lw=0.9, label=r'alias-free $c^+>2d^+/T^+$')
+
+        ax.set_xscale('log'); ax.set_yscale('log')
+        ax.set_xlim(300, 7000)
+        ax.set_ylim(Umin / u_tau, Umax / u_tau)
+
+        ax.set_xlabel(r'$T^+ = u_\tau^2/(\nu f)$')
+        ax.set_ylabel(r'$c^+=U/u_\tau$')
+        ax.set_title(rf'Raw CSD-inferred speeds vs $T^+$ ($d={spacing:.3f}$ m, {psig} psig)')
+        ax.legend(loc='upper right', frameon=False)
+        ax.grid(True, which='both', ls=':', lw=0.6)
+        fig.tight_layout()
+
+        out = f"figures/tau_w/speed_vs_Tplus_raw_{color_mode}_{psig}.png"
+        plt.savefig(out, dpi=600)
+        plt.close(fig)
+        print(f"[OK] saved {out}")
+
+
 
 if __name__ == "__main__":
-    save_hdf5()
-    _plot_tauw()
+    # save_hdf5()
+    # _plot_tauw()
     # _plot_tauw_speed_frequency()
-    _plot_tauw_speed_frequency_welch()
+    # _plot_tauw_speed_frequency_welch()
+    _plot_speed_vs_Tplus_from_csd()
