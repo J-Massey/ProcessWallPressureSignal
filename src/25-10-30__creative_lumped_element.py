@@ -101,7 +101,7 @@ def save_calibs(pressures):
     f_cut = [2_100, 4_700, 14_100]
     for i, pressure in enumerate(pressures):
         frequencies = np.arange(100, 3100, 100)
-        dat = loadmat(TONAL_BASE + f"calib_{pressure}.mat")
+        dat = loadmat(TONAL_BASE + f"calib_{pressure}_1.mat")
         ph1, ph2, nc, _ = dat["channelData_WN"].T
         nc_pa = volts_to_pa(nc, "NC", f_cut[i])
         ph1_pa = volts_to_pa(ph1, "PH1", f_cut[i])
@@ -110,6 +110,7 @@ def save_calibs(pressures):
         with h5py.File(TONAL_BASE + f"calibs_{pressure}.h5", 'w') as hf:
             hf.create_dataset('frequencies', data=f1)
             hf.create_dataset('H1', data=H1)
+            
             hf.attrs['psig'] = pressure
 
 
@@ -488,17 +489,17 @@ def plot_tf_model_comparison():
 
 if __name__ == "__main__":
     # scale_0psig(['0psig', '50psig', '100psig'])
-    plot_tf_model_comparison()
-    # plot_tf_model_comparison_stokes()
-    plot_target_calib_modeled(
-        labels=('0psig', '50psig', '100psig'),
-        fmin=100.0,
-        fmax=1000.0,
-        to_db=True,
-        savepath='figures/tonal_ratios/target_calib_modeled_comparison_db.png',
-    )
-    # psigs = [0, 50, 100]
-    # labels = [f"{psig}psig" for psig in psigs]
-    # save_calibs(labels)
-    # save_scaling_target()
-    # plot_TFs_and_ratios()
+    # plot_tf_model_comparison()
+    # # plot_tf_model_comparison_stokes()
+    # plot_target_calib_modeled(
+    #     labels=('0psig', '50psig', '100psig'),
+    #     fmin=100.0,
+    #     fmax=1000.0,
+    #     to_db=True,
+    #     savepath='figures/tonal_ratios/target_calib_modeled_comparison_db.png',
+    # )
+    psigs = [0, 50, 100]
+    labels = [f"{psig}psig" for psig in psigs]
+    save_calibs(labels)
+    save_scaling_target()
+    plot_TFs_and_ratios()
