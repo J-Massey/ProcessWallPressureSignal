@@ -131,10 +131,7 @@ def save_calibs(pressures):
             hf.create_dataset('H_fused', data=H_fused)
             hf.attrs['psig'] = pressure
 
-
-
 if __name__ == "__main__":
-    
     psigs = [0, 50, 100]
     labels = [f"{psig}psig" for psig in psigs]
     save_calibs(labels)

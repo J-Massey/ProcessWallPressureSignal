@@ -31,7 +31,7 @@ import numpy as np
 from dataclasses import dataclass
 from typing import Dict, Tuple
 from scipy.optimize import least_squares
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 
 # ---------------------------------------------------------------------
@@ -73,7 +73,7 @@ def _lem_mag_diaph(f: np.ndarray, fD: float, QD: float) -> np.ndarray:
 # Fit one target (amplitude) curve in [FMIN, FMAX]
 # ---------------------------------------------------------------------
 def fit_lem_target(f_tgt: np.ndarray, S_tgt: np.ndarray,
-                   fmin: float = FMIN, fmax: float = FMAX) -> Tuple[Dict[str, float], float, int]:
+                   fmin: float = FMIN, fmax: float = FMAX, invert_in_fit: bool = True) -> Tuple[Dict[str, float], float, int]:
     """
     Returns: (params_dict, rmse_db, n_used)
       params_dict = {'g_db':..., 'fD':..., 'QD':...}
@@ -86,9 +86,8 @@ def fit_lem_target(f_tgt: np.ndarray, S_tgt: np.ndarray,
 
     band = (f_tgt >= float(fmin)) & (f_tgt <= float(fmax))
     fB, SB = f_tgt[band], S_tgt[band]
-    if fB.size < 8:
-        raise ValueError("Not enough target points in the fit band.")
-
+    if invert_in_fit:
+        SB = 1.0 / np.maximum(SB, 1e-16)   # <--- use required magnitude
     y_db = 20.0 * np.log10(np.maximum(SB, 1e-16))
 
     def unpack(theta):
@@ -103,16 +102,22 @@ def fit_lem_target(f_tgt: np.ndarray, S_tgt: np.ndarray,
         y_hat = g_db + 20.0 * np.log10(np.maximum(H, 1e-16))
         return (y_db - y_hat)
 
-    # Initial guess (flat, simple)
+    # Initial guess (robust, guaranteed feasible)
     H0 = _lem_mag_diaph(fB, 500.0, 10.0)
-    g0 = float(np.median(y_db - 20.0 * np.log10(np.maximum(H0, 1e-16))))
-    x0 = np.array([g0, np.log(500.0), np.log(10.0)], float)
+    g0_raw = float(np.median(y_db - 20.0 * np.log10(np.maximum(H0, 1e-16))))
 
-    # Bounds: g∈[-60,60] dB; fD∈[150,3000] Hz; QD∈[1,300]
-    lb = np.array([-60.0, np.log(150.0),  np.log(1.0)],   float)
-    ub = np.array([+60.0, np.log(3000.0), np.log(300.0)], float)
+    # Bounds: relax gain a bit to avoid infeasible seeds on odd targets
+    lb = np.array([-80.0, np.log(150.0),  np.log(1.0)],    float)
+    ub = np.array([+80.0, np.log(3000.0), np.log(300.0)],  float)
+
+    # Seed safely inside bounds
+    eps = 1e-6
+    g0 = float(np.clip(g0_raw, lb[0] + eps, ub[0] - eps))
+    x0 = np.array([g0, np.log(500.0), np.log(10.0)], float)
+    x0 = np.minimum(np.maximum(x0, lb + eps), ub - eps)
 
     sol = least_squares(resid, x0, bounds=(lb, ub), method="trf")
+
     g_db, fD, QD = unpack(sol.x)
 
     # RMSE in dB
@@ -129,7 +134,7 @@ def fit_lem_target(f_tgt: np.ndarray, S_tgt: np.ndarray,
 def main():
     os.makedirs(TARGET_BASE, exist_ok=True)
     out_path = os.path.join(TARGET_BASE, "lem_params.h5")
-    ts = datetime.utcnow().isoformat() + "Z"
+    ts = datetime.now(timezone.utc).isoformat()
 
     with h5py.File(out_path, "w") as hf_out:
         hf_out.attrs["note"] = "Diaphragm-only LEM fit on target amplitude in 100–1000 Hz"

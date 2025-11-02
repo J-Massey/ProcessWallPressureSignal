@@ -24,7 +24,7 @@ plt.rc("text", usetex=True)
 plt.rc("text.latex", preamble=r"\usepackage{mathpazo}")
 
 from apply_frf import apply_frf
-from fit_speaker_scales import fit_speaker_scaling_from_files
+from fit_speaker_scales import fit_speaker_scaling_from_files_with_positions
 from models import bl_model
 from clean_raw_data import volts_to_pa, air_props_from_gauge
 from fuse_anechoic import combine_anechoic_calibrations
@@ -226,7 +226,7 @@ def plot_target_calib_modeled(
     # 1) Fit both scaling models
     # ----------------------------
     # (a) your baseline power-law (ρ, f) model
-    (c0_db, a_rho, b_f), scale_powerlaw, diag_pw = fit_speaker_scaling_from_files(
+    (c0_db, a_rho, b_f), scale_powerlaw, diag_pw = fit_speaker_scaling_from_files_with_positions(
         labels=labels, fmin=fmin, fmax=fmax, f_ref=f_ref, rho_ref=rho_ref, invert_target=invert_target
     )
     ic(c0_db, a_rho, b_f)
@@ -252,7 +252,7 @@ def plot_target_calib_modeled(
         color = colours[i % len(colours)]
 
         # --- load target (required |H|)
-        with h5py.File(TONAL_BASE + f"lumped_scaling_{L}.h5", "r") as hf:
+        with h5py.File(TONAL_BASE + f"target_{L}.h5", "r") as hf:
             f_tgt = np.asarray(hf["frequencies"][:], float)
             s_ratio = np.asarray(hf["scaling_ratio"][:], float)  # (model/data) in POWER
             rho = float(hf.attrs["rho"]) if "rho" in hf.attrs else np.nan
@@ -322,7 +322,7 @@ def plot_tf_model_comparison():
     """
     # --- fit rho–f scaling once from your saved target + calibration ---
     labels = ['0psig', '50psig', '100psig']
-    (c0_db, a, b), scale, diag = fit_speaker_scaling_from_files(
+    (c0_db, a, b), scale, diag = fit_speaker_scaling_from_files_with_positions(
         labels=tuple(labels),
         fmin=100.0, fmax=1000.0,   # fitting band
         f_ref=500.0,
@@ -433,17 +433,19 @@ def plot_tf_model_comparison():
 
 
 
+
 if __name__ == "__main__":
     # scale_0psig(['0psig', '50psig', '100psig'])
     # plot_tf_model_comparison_stokes()
     plot_target_calib_modeled(
         labels=('0psig', '50psig', '100psig'),
+
         fmin=100.0,
         fmax=1000.0,
         to_db=True,
         savepath='figures/tonal_ratios/target_calib_modeled_comparison_db.png',
     )
-    plot_tf_model_comparison()
+    # plot_tf_model_comparison()
     # psigs = [0, 50, 100]
     # labels = [f"{psig}psig" for psig in psigs]
     # save_calibs(labels)

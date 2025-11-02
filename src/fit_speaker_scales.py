@@ -14,7 +14,9 @@ def fit_speaker_scaling_from_files_with_positions(
     fmin: float = 100.0,
     fmax: float = 1000.0,
     invert_target: bool = True,
-    TONAL_BASE: str = "data/2025-10-28/tonal/",
+    TARGET_BASE: str = "data/final_target/",
+    CLEANED_BASE: str = "data/final_cleaned/",
+    CALIB_BASE: str = "data/final_calibrations/",
     calibs_fmt: str = "{label}_{pos}.h5",   # <-- matches your '0psig_close.h5'
     dataset_name: str = "H_fused",          # complex FRF in the calib files
     add_label_offsets: bool = False         # rarely needed
@@ -31,7 +33,7 @@ def fit_speaker_scaling_from_files_with_positions(
 
     # --- loaders
     def _load_target(L: str):
-        path = f"{TONAL_BASE}lumped_scaling_{L}.h5"
+        path = f"{TARGET_BASE}target_{L}.h5"
         with h5py.File(path, "r") as hf:
             f = np.asarray(hf["frequencies"][:], float)
             s = np.asarray(hf["scaling_ratio"][:], float)  # already AMPLITUDE (you took sqrt)
@@ -42,7 +44,7 @@ def fit_speaker_scaling_from_files_with_positions(
         return f, s, rho
 
     def _load_cal(L: str, pos: str):
-        path = f"{TONAL_BASE}{calibs_fmt.format(label=L, pos=pos)}"
+        path = f"{CALIB_BASE}{calibs_fmt.format(label=L, pos=pos)}"
         with h5py.File(path, "r") as hf:
             f = np.asarray(hf["frequencies"][:], float)
             H = np.asarray(hf[dataset_name][:])          # complex
