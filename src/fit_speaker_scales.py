@@ -10,7 +10,7 @@ import numpy as np
 def fit_speaker_scaling_from_files(
     labels: Tuple[str, ...] = ("0psig", "50psig", "100psig"),
     *,
-    f_ref: float = 1000.0,
+    f_ref: float = 700.0,
     rho_ref: Optional[float] = None,
     fmin: Optional[float] = 100.0,
     fmax: Optional[float] = 1000.0,
@@ -47,8 +47,11 @@ def fit_speaker_scaling_from_files(
              - 'counts_per_label'  {label: N points used}
     """
     TONAL_BASE = "data/2025-10-28/tonal/"
+    CALIB_BASE = "data/final_calibration/"
+    TARGET_BASE = "data/final_target/"
+    CLEANED_BASE = "data/final_cleaned/"
     def _load_target(L: str):
-        path = TONAL_BASE + f"lumped_scaling_{L}.h5"
+        path = TARGET_BASE + f"target_{L}_close.h5"
         with h5py.File(path, "r") as hf:
             f = np.asarray(hf["frequencies"][:], float)
             s = np.asarray(hf["scaling_ratio"][:], float)  # POWER ratio (data/model)
@@ -60,7 +63,7 @@ def fit_speaker_scaling_from_files(
         return f, s, rho
 
     def _load_cal(L: str):
-        with h5py.File(TONAL_BASE + f"calibs_{L}.h5", 'r') as hf:
+        with h5py.File(CALIB_BASE + f"calibs_{L}.h5", 'r') as hf:
             f1 = np.asarray(hf["frequencies"][:], float)
             H1 = np.asarray(hf["H_fused"][:], complex)
         return f1, np.abs(H1)

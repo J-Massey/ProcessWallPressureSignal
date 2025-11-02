@@ -61,6 +61,9 @@ SENSITIVITIES_V_PER_PA: dict[str, float] = {
 }
 PREAMP_GAIN: dict[str, float] = {"nc": 1.0, "PH1": 1.0, "PH2": 1.0, "NC": 1.0}
 TONAL_BASE = "data/2025-10-28/tonal/"
+CALIB_BASE = "data/final_calibration/"
+TARGET_BASE = "data/final_target/"
+CLEANED_BASE = "data/final_cleaned/"
 
 
 def estimate_frf(
@@ -102,13 +105,13 @@ def save_calibs(pressures):
     f_cut = [2_100, 4_700, 14_100]
     for i, pressure in enumerate(pressures):
         frequencies = np.arange(100, 3100, 100)
-        dat = loadmat(TONAL_BASE + f"calib_{pressure}.mat")
+        dat = loadmat(CALIB_BASE + f"calib_{pressure}_1.mat")
         ph1, ph2, nc, _ = dat["channelData_WN"].T
         nc_pa = volts_to_pa(nc, "NC", f_cut[i])
         ph1_pa = volts_to_pa(ph1, "PH1", f_cut[i])
         f1, H1, g2_1 = estimate_frf(ph1_pa, nc_pa, fs=FS)
         # add calibration for ph2
-        dat = loadmat(TONAL_BASE + f"calib_{pressure}.mat")
+        dat = loadmat(CALIB_BASE + f"calib_{pressure}_2.mat")
         ph1, ph2, nc, _ = dat["channelData_WN"].T
         nc_pa = volts_to_pa(nc, "NC", f_cut[i])
         ph2_pa = volts_to_pa(ph2, "PH2", f_cut[i])
@@ -123,7 +126,7 @@ def save_calibs(pressures):
             eps=1e-12
         )
         # save frf
-        with h5py.File(TONAL_BASE + f"calibs_{pressure}.h5", 'w') as hf:
+        with h5py.File(CALIB_BASE + f"calibs_{pressure}.h5", 'w') as hf:
             hf.create_dataset('frequencies', data=f1)
             hf.create_dataset('H1', data=H1)
             hf.create_dataset('H2', data=H2)
@@ -149,10 +152,11 @@ def compute_spec(fs: float, x: np.ndarray, npsg : int = NPERSEG):
     )
     return f, Pxx
 
+
 def save_scaling_target():
-    fn_atm = '0psig_cleaned.h5'
-    fn_50psig = '50psig_cleaned.h5'
-    fn_100psig = '100psig_cleaned.h5'
+    fn_atm = '0psig_close_cleaned.h5'
+    fn_50psig = '50psig_close_cleaned.h5'
+    fn_100psig = '100psig_close_cleaned.h5'
     labels = ['0psig', '50psig', '100psig']
     colours = ['C0', 'C1', 'C2']
 
@@ -162,7 +166,7 @@ def save_scaling_target():
 
     fig, ax = plt.subplots(1, 1, figsize=(7, 3), tight_layout=True)
     for idxfn, fn in enumerate([fn_atm, fn_50psig, fn_100psig]):
-        with h5py.File(f'data/{fn}', 'r') as hf:
+        with h5py.File(CLEANED_BASE+f'{fn}', 'r') as hf:
             ph1_clean = hf['ph1_clean'][:]
             ph2_clean = hf['ph2_clean'][:]
             u_tau = hf.attrs['u_tau']
@@ -201,7 +205,7 @@ def save_scaling_target():
         model_data_ratio2 = np.sqrt(data_fphipp_plus2_tf_m / bl_fphipp_plus)
 
         model_ratio_avg = (model_data_ratio1 + model_data_ratio2) / 2
-        with h5py.File(TONAL_BASE + f"lumped_scaling_{labels[idxfn]}.h5", 'w') as hf:
+        with h5py.File(TARGET_BASE + f"lumped_scaling_{labels[idxfn]}.h5", 'w') as hf:
             hf.create_dataset('frequencies', data=f_clean)
             hf.create_dataset('scaling_ratio', data=model_ratio_avg)
             hf.attrs['rho'] = rho
@@ -215,7 +219,7 @@ def plot_target_calib_modeled(
     *,
     fmin: float = 100.0,
     fmax: float = 1000.0,
-    f_ref: float = 1000.0,
+    f_ref: float = 700.0,
     rho_ref: float | None = None,
     invert_target: bool = True,   # saved "scaling_ratio" is model/data → required |H| = 1/scaling_ratio
     to_db: bool = False,          # set True to plot in dB
@@ -227,9 +231,8 @@ def plot_target_calib_modeled(
     # ----------------------------
     # (a) your baseline power-law (ρ, f) model
     (c0_db, a_rho, b_f), scale_powerlaw, diag_pw = fit_speaker_scaling_from_files(
-        labels=labels, fmin=fmin, fmax=fmax, f_ref=f_ref, rho_ref=rho_ref, invert_target=invert_target
+        # labels=labels, fmin=fmin, fmax=fmax, f_ref=f_ref, rho_ref=rho_ref, invert_target=invert_target
     )
-    ic(c0_db, a_rho, b_f)
     # ----------------------------
     # 2) helpers & styling
     # ----------------------------
@@ -252,17 +255,16 @@ def plot_target_calib_modeled(
         color = colours[i % len(colours)]
 
         # --- load target (required |H|)
-        with h5py.File(TONAL_BASE + f"lumped_scaling_{L}.h5", "r") as hf:
+        with h5py.File(TARGET_BASE + f"target_{L}_close.h5", "r") as hf:
             f_tgt = np.asarray(hf["frequencies"][:], float)
             s_ratio = np.asarray(hf["scaling_ratio"][:], float)  # (model/data) in POWER
             rho = float(hf.attrs["rho"]) if "rho" in hf.attrs else np.nan
-            nu = float(hf.attrs["nu"]) if "nu" in hf.attrs else np.nan  # preferred for Stokes
         tgt_mag = 1.0 / np.maximum(s_ratio, 1e-16) if invert_target else s_ratio  # required |H| (AMPLITUDE)
         mt = (f_tgt >= fmin) & (f_tgt <= fmax)
         f_tgt, tgt_mag = f_tgt[mt], tgt_mag[mt]
 
         # --- load measured calibration |H_cal|
-        with h5py.File(TONAL_BASE + f"calibs_{L}.h5", "r") as hf:
+        with h5py.File(CALIB_BASE + f"calibs_{L}.h5", "r") as hf:
             f_cal = np.asarray(hf["frequencies"][:], float)
             H_cal = np.asarray(hf["H_fused"][:], complex)
         cal_mag = np.abs(H_cal)
@@ -325,24 +327,19 @@ def plot_tf_model_comparison():
     (c0_db, a, b), scale, diag = fit_speaker_scaling_from_files(
         labels=tuple(labels),
         fmin=100.0, fmax=1000.0,   # fitting band
-        f_ref=1000.0,
+        f_ref=700.0,
         invert_target=True         # your "scaling_ratio" -> required |H| = 1/scaling_ratio
     )
 
-
     # files per label
     fn_map = {
-        '0psig': '0psig_cleaned.h5',
-        '50psig': '50psig_cleaned.h5',
-        '100psig': '100psig_cleaned.h5',
+        '0psig': '0psig_far_cleaned.h5',
+        '50psig': '50psig_far_cleaned.h5',
+        '100psig': '100psig_far_cleaned.h5',
     }
     colours = ['C0', 'C1', 'C2']
-
-    # (rho0 only used if you want to compare densities directly elsewhere)
-    pgs = [0, 50, 100]
     
     u_tau_uncertainty = [0.2, 0.1, 0.05]
-
     fig, ax = plt.subplots(3, 1, figsize=(7, 4), tight_layout=True, sharex=True, sharey=True)
 
     # --- main loop over datasets ---
@@ -351,17 +348,17 @@ def plot_tf_model_comparison():
         color = colours[i]
 
         # Load cleaned signals and attributes
-        with h5py.File(f'data/{fn}', 'r') as hf:
+        with h5py.File(CLEANED_BASE +f'{fn}', 'r') as hf:
             ph1_clean = hf['ph1_clean'][:]
             ph2_clean = hf['ph2_clean'][:]
             u_tau = float(hf.attrs['u_tau'])
             nu = float(hf.attrs['nu'])
             rho = float(hf.attrs['rho'])
-            # f_cut = hf.attrs.get('f_cut', np.nan)  # unused here
             Re_tau = hf.attrs.get('Re_tau', np.nan)
-            # cf_2   = hf.attrs.get('cf_2',   np.nan)
-        f_cal = np.load(TONAL_BASE + f"wn_frequencies_{L}.npy").astype(float)
-        H_cal = np.load(TONAL_BASE + f"wn_H1_{L}.npy")
+        
+        with h5py.File(CALIB_BASE + f"calibs_{L}.h5", "r") as hf:
+            f_cal = np.asarray(hf["frequencies"][:], float)
+            H_cal = np.asarray(hf["H_fused"][:], complex)
 
         # Plot bl model
         T_plus = (u_tau**2 / nu) / f_cal
@@ -379,10 +376,6 @@ def plot_tf_model_comparison():
         # --- PSDs ---
         f1, Pyy1 = compute_spec(FS, ph1_filt)
         f2, Pyy2 = compute_spec(FS, ph2_filt)
-        # unify grids (Welch outputs match with identical settings)
-        if not np.allclose(f1, f2):
-            # If extremely picky, interpolate one onto the other; here we pick f1
-            Pyy2 = np.interp(f1, f2, Pyy2)
         f_sp = f1
 
         # --- pre-multiplied, normalized spectra ---
@@ -399,9 +392,6 @@ def plot_tf_model_comparison():
         ax[i].semilogx(f_plot, y1_plot, linestyle='-', color=colours[i], alpha=0.8, lw=0.8)
         ax[i].semilogx(f_plot, y2_plot, linestyle='-', color=colours[i], alpha=0.8, lw=0.8)
 
-
-
-        # ±10% u_tau uncertainty bands (repeat for each channel)
         u_low, u_high = u_tau*(1 - u_tau_uncertainty[i]), u_tau*(1 + u_tau_uncertainty[i])
         y1_upper = ((f_sp * Pyy1) / (rho**2 * u_low**4))[band]
         y1_lower = ((f_sp * Pyy1) / (rho**2 * u_high**4))[band]
@@ -424,28 +414,22 @@ def plot_tf_model_comparison():
     custom_lines = [Line2D([0], [0], color=label_colours[i], linestyle=label_styles[i]) for i in range(len(labels_handles))]
     ax[0].legend(custom_lines, labels_handles, loc='upper left', fontsize=8)
 
-    # title_params = f"scaled FRF: c0={c0_db:.2f} dB, a={a:.3f}, b={b:.3f} | " \
-    #                f"ρ_ref={diag['rho_ref']:.3g} kg/m³, f_ref={diag['f_ref']:.0f} Hz"
-    # ax.set_title(title_params, fontsize=9)
-
-    fig.savefig('figures/tonal_ratios/spectra_comparison_tf_freq_scaled.png', dpi=410)
+    fig.savefig('figures/final/spectra_comparison_tf_freq_scaled.png', dpi=410)
 
 
 
 
 if __name__ == "__main__":
-    # scale_0psig(['0psig', '50psig', '100psig'])
-    plot_tf_model_comparison()
-    # plot_tf_model_comparison_stokes()
     plot_target_calib_modeled(
         labels=('0psig', '50psig', '100psig'),
         fmin=100.0,
         fmax=1000.0,
         to_db=True,
-        savepath='figures/tonal_ratios/target_calib_modeled_comparison_db.png',
+        savepath='figures/final/target_calib_modeled_comparison_db.png',
     )
+    # plot_tf_model_comparison()
     # psigs = [0, 50, 100]
     # labels = [f"{psig}psig" for psig in psigs]
     # save_calibs(labels)
-    # save_scaling_target()
+    save_scaling_target()
     # plot_TFs_and_ratios()
