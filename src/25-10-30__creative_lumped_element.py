@@ -1,15 +1,8 @@
 # tf_compute.py
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Callable, Dict, Iterable, Optional, Tuple
-import inspect
-
 import numpy as np
 import h5py
-from scipy.io import loadmat
-from scipy.signal import welch, csd, get_window, iirnotch, sosfiltfilt
 from scipy.interpolate import UnivariateSpline
 
 from icecream import ic
@@ -26,8 +19,9 @@ plt.rc("text.latex", preamble=r"\usepackage{mathpazo}")
 from apply_frf import apply_frf
 from fit_speaker_scales import fit_speaker_scaling_from_files
 from models import bl_model
-from clean_raw_data import volts_to_pa, air_props_from_gauge
-from fuse_anechoic import combine_anechoic_calibrations
+from clean_raw_data import air_props_from_gauge
+from save_calibs import save_calibs
+from save_scaling_target import compute_spec, save_scaling_target
 
 # =============================================================================
 # Constants & styling (exported so tf_plot.py can import them)
@@ -64,154 +58,6 @@ TONAL_BASE = "data/2025-10-28/tonal/"
 CALIB_BASE = "data/final_calibration/"
 TARGET_BASE = "data/final_target/"
 CLEANED_BASE = "data/final_cleaned/"
-
-
-def estimate_frf(
-    x: np.ndarray,
-    y: np.ndarray,
-    fs: float,
-    window: str = WINDOW,
-    npsg: int = NPERSEG,
-):
-    """
-    Estimate H1 FRF and magnitude-squared coherence using Welch/CSD.
-
-    Returns
-    -------
-    f : array_like [Hz]
-    H : array_like (complex) = S_yx / S_xx  (x → y)
-    gamma2 : array_like in [0, 1]
-    """
-    x = np.asarray(x, float)
-    y = np.asarray(y, float)
-    nseg = int(min(npsg, x.size, y.size))
-    if nseg < 8:
-        raise ValueError(f"Signal too short for FRF: n={min(x.size, y.size)}")
-    nov = int(min(npsg // 2, nseg // 2))
-    w = get_window(window, nseg, fftbins=True)
-
-    f, Sxx = welch(x, fs=fs, window=w, nperseg=nseg, noverlap=nov, detrend=False)
-    _, Syy = welch(y, fs=fs, window=w, nperseg=nseg, noverlap=nov, detrend=False)
-    # SciPy convention: csd(x, y) = E{ X * conj(Y) }
-    _, Sxy = csd(x, y, fs=fs, window=w, nperseg=nseg, noverlap=nov, detrend=False)  # x→y
-
-    H = np.conj(Sxy) / Sxx               # H1 = Syx / Sxx = conj(Sxy)/Sxx
-    gamma2 = (np.abs(Sxy) ** 2) / (Sxx * Syy)
-    gamma2 = np.clip(gamma2.real, 0.0, 1.0)
-    return f, H, gamma2
-
-
-def save_calibs(pressures):
-    f_cut = [2_100, 4_700, 14_100]
-    for i, pressure in enumerate(pressures):
-        frequencies = np.arange(100, 3100, 100)
-        dat = loadmat(CALIB_BASE + f"calib_{pressure}_1.mat")
-        ph1, ph2, nc, _ = dat["channelData_WN"].T
-        nc_pa = volts_to_pa(nc, "NC", f_cut[i])
-        ph1_pa = volts_to_pa(ph1, "PH1", f_cut[i])
-        f1, H1, g2_1 = estimate_frf(ph1_pa, nc_pa, fs=FS)
-        # add calibration for ph2
-        dat = loadmat(CALIB_BASE + f"calib_{pressure}_2.mat")
-        ph1, ph2, nc, _ = dat["channelData_WN"].T
-        nc_pa = volts_to_pa(nc, "NC", f_cut[i])
-        ph2_pa = volts_to_pa(ph2, "PH2", f_cut[i])
-        f2, H2, g2_2 = estimate_frf(ph2_pa, nc_pa, fs=FS)
-        # Fuse the two transfer functions
-        f_fused, H_fused, g2_fused = combine_anechoic_calibrations(
-            f1, H1, g2_1,
-            f2, H2, g2_2,
-            gmin=0.4,
-            smooth_oct=1/6,
-            points_per_oct=32,
-            eps=1e-12
-        )
-        # save frf
-        with h5py.File(CALIB_BASE + f"calibs_{pressure}.h5", 'w') as hf:
-            hf.create_dataset('frequencies', data=f1)
-            hf.create_dataset('H1', data=H1)
-            hf.create_dataset('H2', data=H2)
-            hf.create_dataset('H_fused', data=H_fused)
-            hf.attrs['psig'] = pressure
-
-
-def compute_spec(fs: float, x: np.ndarray, npsg : int = NPERSEG):
-    """Welch PSD with sane defaults and shape guarding. Returns (f [Hz], Pxx [Pa^2/Hz])."""
-    x = np.asarray(x, float)
-    nseg = int(min(npsg, x.size))
-    nov = nseg // 2
-    w = get_window(WINDOW, nseg, fftbins=True)
-    f, Pxx = welch(
-        x,
-        fs=fs,
-        window=w,
-        nperseg=nseg,
-        noverlap=nov,
-        detrend="constant",
-        scaling="density",
-        return_onesided=True,
-    )
-    return f, Pxx
-
-
-def save_scaling_target():
-    fn_atm = '0psig_close_cleaned.h5'
-    fn_50psig = '50psig_close_cleaned.h5'
-    fn_100psig = '100psig_close_cleaned.h5'
-    labels = ['0psig', '50psig', '100psig']
-    colours = ['C0', 'C1', 'C2']
-
-    pgs = [0, 50, 100]
-    rho0, *_  = air_props_from_gauge(pgs[0], TDEG[0]+273)
-    R = 1, 2, 4
-
-    fig, ax = plt.subplots(1, 1, figsize=(7, 3), tight_layout=True)
-    for idxfn, fn in enumerate([fn_atm, fn_50psig, fn_100psig]):
-        with h5py.File(CLEANED_BASE+f'{fn}', 'r') as hf:
-            ph1_clean = hf['ph1_clean'][:]
-            ph2_clean = hf['ph2_clean'][:]
-            u_tau = hf.attrs['u_tau']
-            nu = hf.attrs['nu']
-            rho = hf.attrs['rho']
-            f_cut = hf.attrs['f_cut']
-            Re_tau = hf.attrs['Re_tau']
-            cf_2 = hf.attrs['cf_2']  # default if missing
-        f_clean, Pyy_ph1_clean = compute_spec(FS, ph1_clean)
-        f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean)
-        T_plus = 1/f_clean * (u_tau**2)/nu
-
-        # R = rho/rho0
-        # ic(R)
-
-        g1_b, g2_b, rv_b = bl_model(T_plus, Re_tau, cf_2)
-        bl_fphipp_plus = rv_b*(g1_b+g2_b)
-
-        f_clean_clipped = f_clean[f_clean < 1_000]
-        bl_fphipp_plus = bl_fphipp_plus[f_clean < 1_000]
-
-        f_clean_tf, Pyy_ph1_clean_tf = compute_spec(FS, ph1_clean)
-        f_clean_tf, Pyy_ph2_clean_tf = compute_spec(FS, ph2_clean)
-
-        T_plus_tf = 1/f_clean_tf * (u_tau**2)/nu
-
-        data_fphipp_plus1_tf = (f_clean_tf * Pyy_ph1_clean_tf)/(rho**2 * u_tau**4)
-        data_fphipp_plus2_tf = (f_clean_tf * Pyy_ph2_clean_tf)/(rho**2 * u_tau**4)
-
-        # clip at the helmholtz resonance
-        f_clean = f_clean_tf[f_clean_tf < 1_000]
-        data_fphipp_plus1_tf_m = data_fphipp_plus1_tf[f_clean_tf < 1_000]
-        data_fphipp_plus2_tf_m = data_fphipp_plus2_tf[f_clean_tf < 1_000]
-
-        model_data_ratio1 = np.sqrt(data_fphipp_plus1_tf_m / bl_fphipp_plus)
-        model_data_ratio2 = np.sqrt(data_fphipp_plus2_tf_m / bl_fphipp_plus)
-
-        model_ratio_avg = (model_data_ratio1 + model_data_ratio2) / 2
-        with h5py.File(TARGET_BASE + f"lumped_scaling_{labels[idxfn]}.h5", 'w') as hf:
-            hf.create_dataset('frequencies', data=f_clean)
-            hf.create_dataset('scaling_ratio', data=model_ratio_avg)
-            hf.attrs['rho'] = rho
-            hf.attrs['u_tau'] = u_tau
-            hf.attrs['nu'] = nu
-            hf.attrs['psig'] = pgs[idxfn]
 
 
 def plot_target_calib_modeled(
@@ -348,14 +194,18 @@ def plot_tf_model_comparison():
         color = colours[i]
 
         # Load cleaned signals and attributes
-        with h5py.File(CLEANED_BASE +f'{fn}', 'r') as hf:
-            ph1_clean = hf['ph1_clean'][:]
-            ph2_clean = hf['ph2_clean'][:]
+        with h5py.File(CLEANED_BASE +f'{L}_far_cleaned.h5', 'r') as hf:
+            ph1_clean_far = hf['ph1_clean'][:]
+            ph2_clean_far = hf['ph2_clean'][:]
             u_tau = float(hf.attrs['u_tau'])
             nu = float(hf.attrs['nu'])
             rho = float(hf.attrs['rho'])
             Re_tau = hf.attrs.get('Re_tau', np.nan)
-        
+
+        with h5py.File(CLEANED_BASE +f'{L}_close_cleaned.h5', 'r') as hf:
+            ph1_clean_close = hf['ph1_clean'][:]
+            ph2_clean_close = hf['ph2_clean'][:]
+
         with h5py.File(CALIB_BASE + f"calibs_{L}.h5", "r") as hf:
             f_cal = np.asarray(hf["frequencies"][:], float)
             H_cal = np.asarray(hf["H_fused"][:], complex)
@@ -370,35 +220,45 @@ def plot_tf_model_comparison():
 
         # --- apply FRF with fitted rho–f magnitude scaling ---
         # (uses your updated apply_frf that accepts scale_fn and rho)
-        ph1_filt = apply_frf(ph1_clean, FS, f_cal, H_cal, rho=rho, scale_fn=scale)
-        ph2_filt = apply_frf(ph2_clean, FS, f_cal, H_cal, rho=rho, scale_fn=scale)
+        ph1_filt_far = apply_frf(ph1_clean_far, FS, f_cal, H_cal, rho=rho, scale_fn=scale)
+        ph2_filt_far = apply_frf(ph2_clean_far, FS, f_cal, H_cal, rho=rho, scale_fn=scale)
+        ph1_filt_close = apply_frf(ph1_clean_close, FS, f_cal, H_cal, rho=rho, scale_fn=scale)
+        ph2_filt_close = apply_frf(ph2_clean_close, FS, f_cal, H_cal, rho=rho, scale_fn=scale)
 
         # --- PSDs ---
-        f1, Pyy1 = compute_spec(FS, ph1_filt)
-        f2, Pyy2 = compute_spec(FS, ph2_filt)
+        f1, Pyy1_far = compute_spec(FS, ph1_filt_far)
+        f2, Pyy2_far = compute_spec(FS, ph2_filt_far)
+        f1, Pyy1_close = compute_spec(FS, ph1_filt_close)
+        f2, Pyy2_close = compute_spec(FS, ph2_filt_close)
         f_sp = f1
 
         # --- pre-multiplied, normalized spectra ---
-        Y1_pm = (f_sp * Pyy1) / (rho**2 * u_tau**4)
-        Y2_pm = (f_sp * Pyy2) / (rho**2 * u_tau**4)
+        Y1_pm_far = (f_sp * Pyy1_far) / (rho**2 * u_tau**4)
+        Y2_pm_far = (f_sp * Pyy2_far) / (rho**2 * u_tau**4)
+        Y1_pm_close = (f_sp * Pyy1_close) / (rho**2 * u_tau**4)
+        Y2_pm_close = (f_sp * Pyy2_close) / (rho**2 * u_tau**4)
 
         # clip to display band (avoid Helmholtz etc.)
         band = (f_sp >= 50.0) & (f_sp < 1000.0)
         f_plot = f_sp[band]
-        y1_plot = Y1_pm[band]
-        y2_plot = Y2_pm[band]
+        y1_plot_far = Y1_pm_far[band]
+        y2_plot_far = Y2_pm_far[band]
+        y1_plot_close = Y1_pm_close[band]
+        y2_plot_close = Y2_pm_close[band]
 
         # plot PH1 & PH2 for this label
-        ax[i].semilogx(f_plot, y1_plot, linestyle='-', color=colours[i], alpha=0.8, lw=0.8)
-        ax[i].semilogx(f_plot, y2_plot, linestyle='-', color=colours[i], alpha=0.8, lw=0.8)
+        ax[i].semilogx(f_plot, y1_plot_far, linestyle='-', color=colours[i], alpha=0.8, lw=0.8)
+        ax[i].semilogx(f_plot, y2_plot_far, linestyle='-', color=colours[i], alpha=0.8, lw=0.8)
+        ax[i].semilogx(f_plot, y1_plot_close, linestyle='-', color=colours[i], alpha=0.8, lw=0.8)
+        ax[i].semilogx(f_plot, y2_plot_close, linestyle='-', color=colours[i], alpha=0.8, lw=0.8)
 
-        u_low, u_high = u_tau*(1 - u_tau_uncertainty[i]), u_tau*(1 + u_tau_uncertainty[i])
-        y1_upper = ((f_sp * Pyy1) / (rho**2 * u_low**4))[band]
-        y1_lower = ((f_sp * Pyy1) / (rho**2 * u_high**4))[band]
-        y2_upper = ((f_sp * Pyy2) / (rho**2 * u_low**4))[band]
-        y2_lower = ((f_sp * Pyy2) / (rho**2 * u_high**4))[band]
-        ax[i].fill_between(f_plot, y1_upper, y1_lower, color=colours[i], alpha=0.25, edgecolor='none')
-        ax[i].fill_between(f_plot, y2_upper, y2_lower, color=colours[i], alpha=0.25, edgecolor='none')
+        # u_low, u_high = u_tau*(1 - u_tau_uncertainty[i]), u_tau*(1 + u_tau_uncertainty[i])
+        # y1_upper = ((f_sp * Pyy1) / (rho**2 * u_low**4))[band]
+        # y1_lower = ((f_sp * Pyy1) / (rho**2 * u_high**4))[band]
+        # y2_upper = ((f_sp * Pyy2) / (rho**2 * u_low**4))[band]
+        # y2_lower = ((f_sp * Pyy2) / (rho**2 * u_high**4))[band]
+        # ax[i].fill_between(f_plot, y1_upper, y1_lower, color=colours[i], alpha=0.25, edgecolor='none')
+        # ax[i].fill_between(f_plot, y2_upper, y2_lower, color=colours[i], alpha=0.25, edgecolor='none')
         ax[i].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
         ax[i].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
 
@@ -410,7 +270,7 @@ def plot_tf_model_comparison():
 
     labels_handles = ['0 psig Data', '50 psig Data', '100 psig Data', 'Model']
     label_colours = ['C0', 'C1', 'C2', 'k']
-    label_styles = ['solid',  'solid', 'solid', 'dashed']
+    label_styles = ['solid',  'solid', 'solid', 'dashdot']
     custom_lines = [Line2D([0], [0], color=label_colours[i], linestyle=label_styles[i]) for i in range(len(labels_handles))]
     ax[0].legend(custom_lines, labels_handles, loc='upper left', fontsize=8)
 
@@ -420,16 +280,16 @@ def plot_tf_model_comparison():
 
 
 if __name__ == "__main__":
-    plot_target_calib_modeled(
-        labels=('0psig', '50psig', '100psig'),
-        fmin=100.0,
-        fmax=1000.0,
-        to_db=True,
-        savepath='figures/final/target_calib_modeled_comparison_db.png',
-    )
-    # plot_tf_model_comparison()
+    # plot_target_calib_modeled(
+    #     labels=('0psig', '50psig', '100psig'),
+    #     fmin=100.0,
+    #     fmax=1000.0,
+    #     to_db=True,
+    #     savepath='figures/final/target_calib_modeled_comparison_db.png',
+    # )
+    plot_tf_model_comparison()
     # psigs = [0, 50, 100]
     # labels = [f"{psig}psig" for psig in psigs]
-    # save_calibs(labels)
-    save_scaling_target()
+    # save_calibs(labels, calib_base=CALIB_BASE, fs=FS, f_cuts=[2_100, 4_700, 14_100])
+    # save_scaling_target(fs=FS, cleaned_base=CLEANED_BASE, target_base=TARGET_BASE)
     # plot_TFs_and_ratios()
