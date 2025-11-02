@@ -27,6 +27,8 @@ from apply_frf import apply_frf
 from fit_speaker_scales import fit_speaker_scaling_from_files, fit_speaker_scaling_with_stokes
 from models import bl_model
 from clean_raw_data import volts_to_pa, air_props_from_gauge
+from fuse_anechoic import combine_anechoic_calibrations
+
 
 # =============================================================================
 # Constants & styling (exported so tf_plot.py can import them)
@@ -105,12 +107,28 @@ def save_calibs(pressures):
         ph1, ph2, nc, _ = dat["channelData_WN"].T
         nc_pa = volts_to_pa(nc, "NC", f_cut[i])
         ph1_pa = volts_to_pa(ph1, "PH1", f_cut[i])
-        f1, H1, _ = estimate_frf(ph1_pa, nc_pa, fs=FS)
+        f1, H1, g2_1 = estimate_frf(ph1_pa, nc_pa, fs=FS)
+        # add calibration for ph2
+        dat = loadmat(TONAL_BASE + f"calib_{pressure}_2.mat")
+        ph1, ph2, nc, _ = dat["channelData_WN"].T
+        nc_pa = volts_to_pa(nc, "NC", f_cut[i])
+        ph2_pa = volts_to_pa(ph2, "PH2", f_cut[i])
+        f2, H2, g2_2 = estimate_frf(ph2_pa, nc_pa, fs=FS)
+        # Fuse the two transfer functions
+        f_fused, H_fused, g2_fused = combine_anechoic_calibrations(
+            f1, H1, g2_1,
+            f2, H2, g2_2,
+            gmin=0.4,
+            smooth_oct=1/6,
+            points_per_oct=32,
+            eps=1e-12
+        )
         # save frf
         with h5py.File(TONAL_BASE + f"calibs_{pressure}.h5", 'w') as hf:
             hf.create_dataset('frequencies', data=f1)
             hf.create_dataset('H1', data=H1)
-            
+            hf.create_dataset('H2', data=H2)
+            hf.create_dataset('H_fused', data=H_fused)
             hf.attrs['psig'] = pressure
 
 
