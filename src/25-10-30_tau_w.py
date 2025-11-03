@@ -600,6 +600,7 @@ def _plot_speed_vs_Tplus_from_csd():
             plt.savefig(out, dpi=600)
             plt.close(fig)
             print(f"[OK] saved {out}")
+            ic(u_tau**2/nu/1000)
 
 
 

@@ -78,24 +78,34 @@ RAW_MEAS_BASE = 'data/20251031/'
 # with h5py.File("data/final_pressure/SU_2pt_pressure.h5", 'r') as h:
 for psig in psigs:
     dat_close = sio.loadmat(RAW_MEAS_BASE + f"close/{psig}psig.mat")
+    ic(dat_close.keys())
     noflow_close = dat_close['channelData_noflow'].squeeze().astype(float)
-    nc, ph1, ph2, _ = noflow_close.T
-    ic(nc.shape, ph1.shape, ph2.shape)
+    flow_close = dat_close['channelData'].squeeze().astype(float)
+    ph1_nf, ph2_nf, nc_nf, _ = noflow_close.T
+    ph1_f, ph2_f, nc_f, _ = flow_close.T
 
     fig, axs = plt.subplots(2,1, figsize=(6,4), tight_layout=True, sharex=True)
     ax = axs[0]
-    for label, sig, colour in [('NC', nc, nc_colour), ('PH1', ph1, ph1_colour), ('PH2', ph2, ph2_colour)]:
-        f, Pxx = compute_spec(FS, sig)
-        ax.loglog(f, np.sqrt(Pxx), label=label, color=colour)
-        # now apply frf
+    for label, sig, colour in [
+        ('NC nf', nc_nf, nc_colour), ('PH1 nf', ph1_nf, ph1_colour), ('PH2 nf', ph2_nf, ph2_colour),
+                               ]:
+        f, Pxx_nf = compute_spec(FS, sig)
+        ax.loglog(f, np.sqrt(Pxx_nf), label=label, color=colour)
+    for label, sig, colour in [
+        ('NC', nc_f, nc_colour), ('PH1', ph1_f, ph1_colour), ('PH2', ph2_f, ph2_colour)
+                               ]:
+        f, Pxx_f = compute_spec(FS, sig)
+        ax.loglog(f, np.sqrt(Pxx_f), color='grey')
 
     ax.set_ylabel("PSD")
     ax.set_title(f"{psig} psig")
     ax.legend()
     ax.grid(True, which="both", ls="--", lw=0.5)
 
-    f1, H1, _ = _estimate_frf(ph1, nc, fs=FS)
-    f2, H2, _ = _estimate_frf(ph2, nc, fs=FS)
+    ax.set_ylim(2e-5, 1e-2)
+
+    f1, H1, _ = _estimate_frf(ph1_nf, nc_nf, fs=FS)
+    f2, H2, _ = _estimate_frf(ph2_nf, nc_nf, fs=FS)
 
     ax = axs[1]
     ax.semilogx(f1, np.abs(H1), label='PH1 FRF', color=ph1_colour)
@@ -108,23 +118,23 @@ for psig in psigs:
     ax = axs[0]
     # Plot the wn and the TF in the calibration
     dat = sio.loadmat(f"data/final_calibration/calib_{psig}psig_1.mat")
-    ph1, _, nc1, _ = dat["channelData_WN"].T
+    ph1_nf, _, nc1, _ = dat["channelData_WN"].T
     dat = sio.loadmat(f"data/final_calibration/calib_{psig}psig_2.mat")
-    _, ph2, nc2, _ = dat["channelData_WN"].T
+    _, ph2_nf, nc2, _ = dat["channelData_WN"].T
 
-    for label, sig, colour in [('NC', nc2, nc_colour), ('PH1', ph1, ph1_colour), ('PH2', ph2, ph2_colour)]:
+    for label, sig, colour in [('NC wn', nc2, nc_colour), ('PH1 wn', ph1_nf, ph1_colour), ('PH2 wn', ph2_nf, ph2_colour)]:
         f, Pxx = compute_spec(FS, sig)
         ax.loglog(f, np.sqrt(Pxx), label=label, color=colour, ls='--')
 
     ax.legend()
     # Plot the actual semi-anechoic transfer
-    f1, H1, _ = _estimate_frf(ph1, nc1, fs=FS)
-    f2, H2, _ = _estimate_frf(ph2, nc2, fs=FS)
+    f1, H1, _ = _estimate_frf(ph1_nf, nc1, fs=FS)
+    f2, H2, _ = _estimate_frf(ph2_nf, nc2, fs=FS)
     ax = axs[1]
     ax.semilogx(f1, np.abs(H1), label='PH1 FRF (calib)', color=ph1_colour, ls='--')
     ax.semilogx(f2, np.abs(H2), label='PH2 FRF (calib)', color=ph2_colour, ls='--')
 
-    ax.set_ylim(0.5, 1.1)
+    ax.set_ylim(0.1, 1.1)
 
     ax.legend()
 
