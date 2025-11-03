@@ -440,15 +440,14 @@ def _plot_tauw_speed_frequency_welch():
 def _plot_speed_vs_Tplus_from_csd():
     """
     Raw two-sensor speed estimation from the CSD phase:
-      For each Welch frequency f, compute alias speeds U_m(f) that satisfy the
-      measured cross-phase, then plot (T+, c+=U/u_tau) colored by the CSD.
+    For each Welch frequency f, compute alias speeds U_m(f) that satisfy the
+    measured cross-phase, then plot (T+, c+=U/u_tau) colored by the chosen CSD-derived measure.
 
     color_mode:
       - 'absG12'   : |G12(f)| (log color scale)
       - 'fraction' : 2|G12|/(S11+S22) in [0,1]
       - 'coh'      : gamma^2 = |G12|^2/(S11*S22) in [0,1]
     """
-    import os
     import numpy as np
     import matplotlib.pyplot as plt
     from matplotlib.colors import LogNorm, Normalize
@@ -458,132 +457,149 @@ def _plot_speed_vs_Tplus_from_csd():
     TWOPI = 2.0 * np.pi
 
     # --- Config ---
-    spacing = 0.035 * 3  # [m] sensor separation d
-    fns   = ['data/20251030/atm_tauw.mat',
-             'data/20251030/50psi_tauw.mat',
-             'data/20251030/100psi_tauw.mat']
+    spacing_far   = 0.035 * 3.2   # [m]
+    fn = 'data/20251030/SU_2pt_tau_w.h5'
+
     psigs = [0, 50, 100]
 
-    fmin, fmax = 10.0, 700.0
-    Umin, Umax = 2.0, 17.0          # [m/s] display range for speeds
-    gamma_min = 0.05                # coherence gate (to keep noisy bins out)
-    color_mode = 'absG12'           # 'absG12', 'fraction', or 'coh'
-    s_marker = 8                    # scatter marker size
-    alpha = 0.8
+    fmin, fmax = 2.0, 500.0
+    Umin, Umax = 0.5, 500.0          # [m/s]
+    gamma_min  = 0.0                 # coherence gate (set >0 to thin clutter)
+    color_mode = 'absG12'               # 'absG12' | 'fraction' | 'coh'
+    s_marker   = 8
+    alpha      = 0.8
 
-    os.makedirs("figures/tau_w", exist_ok=True)
-
-    for fn, psig in zip(fns, psigs):
-        # --- Load & condition ---
-        s1, s2 = load_file(fn)
-        s1 = np.asarray(s1, float); s1 -= s1.mean()
-        s2 = np.asarray(s2, float); s2 -= s2.mean()
-
-        # --- Welch spectra ---
-        f, S11 = welch(s1, fs=FS, window=WINDOW, nperseg=NPERSEG,
-                       detrend='constant', return_onesided=True, scaling='density')
-        _, S22 = welch(s2, fs=FS, window=WINDOW, nperseg=NPERSEG,
-                       detrend='constant', return_onesided=True, scaling='density')
-        _, G12 = csd(s1, s2, fs=FS, window=WINDOW, nperseg=NPERSEG,
-                     detrend='constant', return_onesided=True, scaling='density')
-
-        # Select band
-        band = (f >= fmin) & (f <= fmax)
-        f, S11, S22, G12 = f[band], S11[band], S22[band], G12[band]
-
-        # Coherence & gate
-        coh = (np.abs(G12)**2) / (S11 * S22 + EPS)
-        good = (coh >= gamma_min)
-        f, S11, S22, G12, coh = f[good], S11[good], S22[good], G12[good], coh[good]
-
-        # Inner units for x/y
-        idx = psigs.index(psig)
-        _, _, nu = air_props_from_gauge(psig, TDEG[idx] + 273.15)
-        u_tau = u_taus[idx]
-        Tplus = (u_tau**2) / (nu * f)   # (Nf,)
-
-        # Build point cloud (T+, c+) with color from CSD
+    def _alias_points(fvec, Tplus, phi_wrapped, cval, spacing, keep_mask, u_tau):
+        """Enumerate alias speeds for one baseline. Returns xs, ys(c+), cs."""
         xs, ys, cs = [], [], []
+        idxs = np.nonzero(keep_mask)[0]
+        for i in idxs:
+            fi  = fvec[i]
+            phi = phi_wrapped[i]
+            cv  = cval[i]
 
-        # Precompute color value per f (same for every alias of that f)
-        if color_mode == 'absG12':
-            cval = np.abs(G12)                      # positive, wide dynamic range
-            cbar_label = r'$|G_{12}(f)|$ (arb.)'
-            use_log = True
-        elif color_mode == 'fraction':
-            cval = np.clip(2.0*np.abs(G12)/(S11+S22+EPS), 0.0, 1.0)
-            cbar_label = 'Coherent power fraction'
-            use_log = False
-        elif color_mode == 'coh':
-            cval = np.clip(coh, 0.0, 1.0)
-            cbar_label = r'$\gamma^2(f)$'
-            use_log = False
-        else:
-            raise ValueError("color_mode must be 'absG12', 'fraction', or 'coh'")
-
-        # For each f, compute alias speeds U_m in [Umin, Umax] and add scatter points
-        for i, (fi, phi, cv) in enumerate(zip(f, np.angle(G12), cval)):
-            # denominators that yield speeds within bounds:
-            dmin = TWOPI * fi * spacing / Umax  # smallest denom
-            dmax = TWOPI * fi * spacing / Umin  # largest denom
-            m_min = int(np.ceil((dmin - phi) / TWOPI))
-            m_max = int(np.floor((dmax - phi) / TWOPI))
+            # denominators that yield positive U within [Umin, Umax]
+            Dmin = TWOPI * fi * spacing / Umax    # smallest positive denom
+            Dmax = TWOPI * fi * spacing / Umin    # largest  positive denom
+            m_min = int(np.ceil( (Dmin - phi) / TWOPI ))
+            m_max = int(np.floor((Dmax - phi) / TWOPI ))
             if m_max < m_min:
                 continue
 
             for m in range(m_min, m_max + 1):
                 denom = phi + TWOPI * m
-                if np.abs(denom) < 1e-12:
-                    continue  # avoid infinite speed
+                if denom <= 0:      # ensure positive speed
+                    continue
                 U = (TWOPI * fi * spacing) / denom
-                if U <= 0 or U < Umin or U > Umax:
+                if not (Umin <= U <= Umax):
                     continue
                 xs.append(Tplus[i])
-                ys.append(U / u_tau)   # c+ = U / u_tau
+                ys.append(U / u_tau)   # c+ = U/u_tau
                 cs.append(cv)
+        return np.asarray(xs), np.asarray(ys), np.asarray(cs)
 
-        # --- Plot ---
-        fig, ax = plt.subplots(1, 1, figsize=(7.5, 3.0))
-        xs = np.asarray(xs); ys = np.asarray(ys); cs = np.asarray(cs)
+    with h5py.File(fn, 'r') as f:
+        # grp = f['corrected_data']
 
-        if color_mode == 'absG12':
-            # log-normalize by robust percentiles to avoid a few outliers dominating
-            lo = np.percentile(cs[cs > 0], 5)
-            hi = np.percentile(cs, 95)
-            lo = max(lo, 1e-16)
-            norm = LogNorm(vmin=lo, vmax=hi)
-            cmap = 'viridis'
-        else:
-            norm = Normalize(vmin=0.0, vmax=1.0)
-            cmap = 'viridis'
+        for psig in psigs:
+            # --- Load & condition ---
+            s1_far   = f[f'{psig}psi/tau_w_1'][:].astype(float)
+            s2_far   = f[f'{psig}psi/tau_w_2'][:].astype(float)
+            s1_far  -= s1_far.mean();   s2_far  -= s2_far.mean()
 
-        sc = ax.scatter(xs, ys, c=cs, s=s_marker, cmap=cmap, norm=norm, alpha=alpha, edgecolors='none')
+            # --- Welch spectra (both baselines) ---
+            f_far,   S11_far   = welch(s1_far,   fs=FS, window=WINDOW, nperseg=NPERSEG,
+                                       detrend='constant', return_onesided=True, scaling='density')
+            _,       S22_far   = welch(s2_far,   fs=FS, window=WINDOW, nperseg=NPERSEG,
+                                       detrend='constant', return_onesided=True, scaling='density')
+            _,       G12_far   = csd  (s1_far, s2_far, fs=FS, window=WINDOW, nperseg=NPERSEG,
+                                       detrend='constant', return_onesided=True, scaling='density')
+            fvec = f_far
 
-        cb = fig.colorbar(sc, ax=ax, pad=0.01)
-        cb.set_label(cbar_label)
-        if color_mode != 'absG12':
-            cb.set_ticks([0, 0.2, 0.4, 0.6, 0.8, 1])
+            # --- Band-limit both baselines identically ---
+            band = (fvec >= fmin) & (fvec <= fmax)
+            fvec      = fvec[band]
+            S11_far   = S11_far[band];   S22_far   = S22_far[band];   G12_far   = G12_far[band]
 
-        # Optional alias-free boundary: c+ > 2 d+/T+
-        d_plus = spacing * u_tau / nu
-        T_line = np.logspace(np.log10(max(xs.min(), 200)), np.log10(min(xs.max(), 1e4)), 300)
-        ax.plot(T_line, 2.0 * d_plus / T_line, 'k--', lw=0.9, label=r'alias-free $c^+>2d^+/T^+$')
+            # --- Coherence & gating (per baseline) ---
+            coh_far   = np.clip((np.abs(G12_far  )**2) / (S11_far  * S22_far  + EPS), 0.0, 1.0)
+            keep_far   = (coh_far   >= gamma_min)
 
-        ax.set_xscale('log'); ax.set_yscale('log')
-        ax.set_xlim(300, 7000)
-        ax.set_ylim(Umin / u_tau, Umax / u_tau)
+            # --- Inner units for x/y ---
+            idx = psigs.index(psig)
+            _, _, nu = air_props_from_gauge(psig, TDEG[idx] + 273.15)
+            u_tau = u_taus[idx]
+            Tplus = (u_tau**2) / (nu * fvec)   # (Nf,)
 
-        ax.set_xlabel(r'$T^+ = u_\tau^2/(\nu f)$')
-        ax.set_ylabel(r'$c^+=U/u_\tau$')
-        ax.set_title(rf'Raw CSD-inferred speeds vs $T^+$ ($d={spacing:.3f}$ m, {psig} psig)')
-        ax.legend(loc='upper right', frameon=False)
-        ax.grid(True, which='both', ls=':', lw=0.6)
-        fig.tight_layout()
+            # --- Choose color value per baseline ---
+            if color_mode == 'absG12':
+                cval_far   = np.abs(G12_far)
+                cbar_label = r'$|G_{12}(f)|$ (arb.)'
+            elif color_mode == 'fraction':
+                cval_far   = np.clip(2.0*np.abs(G12_far  )/(S11_far  + S22_far  + EPS), 0.0, 1.0)
+                cbar_label = 'Coherent power fraction'
+            elif color_mode == 'coh':
+                cval_far   = coh_far
+                cbar_label = r'$\gamma^2(f)$'
+            else:
+                raise ValueError("color_mode must be 'absG12', 'fraction', or 'coh'")
 
-        out = f"figures/tau_w/speed_vs_Tplus_raw_{color_mode}_{psig}.png"
-        plt.savefig(out, dpi=600)
-        plt.close(fig)
-        print(f"[OK] saved {out}")
+            # --- Alias points for each baseline (use WRAPPED phase) ---
+            phi_far_wrapped   = np.angle(G12_far)
+
+            xs_far, ys_far, cs_far = _alias_points(fvec, Tplus, phi_far_wrapped,
+                                                   cval_far, spacing_far, keep_far, u_tau)
+
+            # --- Plot ---
+            fig, ax = plt.subplots(1, 1, figsize=(7.5, 3.0))
+
+            # Shared color normalization across both scatters
+            if color_mode == 'absG12':
+                if np.any(cs_far > 0):
+                    lo = max(np.percentile(cs_far[cs_far > 0], 5), 1e-16)
+                    hi = np.percentile(cs_far, 95)
+                else:
+                    lo, hi = 1e-16, 1.0
+                norm = LogNorm(vmin=lo, vmax=hi)
+                cmap = 'viridis'
+            else:
+                norm = Normalize(vmin=0.0, vmax=1.0)
+                cmap = 'viridis'
+
+            sc_far   = ax.scatter(xs_far,   ys_far,   c=cs_far,   s=s_marker, cmap=cmap, norm=norm,
+                                  alpha=alpha, edgecolors='none', label=rf'far, $d={spacing_far:.3f}$ m',
+                                  marker='o')
+
+            cb = fig.colorbar(sc_far, ax=ax, pad=0.01)
+            cb.set_label(cbar_label)
+            if color_mode != 'absG12':
+                cb.set_ticks([0, 0.2, 0.4, 0.6, 0.8, 1])
+
+            # --- Alias-free boundaries for both baselines: c+ = 2 d+ / T+ ---
+            T_line = np.logspace(np.log10((u_tau**2)/(nu*fmax)),
+                                 np.log10((u_tau**2)/(nu*fmin)), 300)
+            dplus_far   = spacing_far   * u_tau / nu
+            ax.plot(T_line, 2.0 * dplus_far   / T_line,   'k--', lw=0.9, label='alias-free (far)')
+
+            # Scales and limits tied to your f-band
+            ax.set_xscale('log'); ax.set_yscale('log')
+            x_lo = (u_tau**2) / (nu * fmax)
+            x_hi = (u_tau**2) / (nu * fmin)
+            ax.set_xlim(x_lo, x_hi)
+            ax.set_xlim(20, 40_000)
+            ax.set_ylim(Umin / u_tau, Umax / u_tau)
+
+            ax.set_xlabel(r'$T^+ = u_\tau^2/(\nu f)$')
+            ax.set_ylabel(r'$c^+=U/u_\tau$')
+            ax.set_title(rf'Raw CSD-inferred speeds vs $T^+$ ({psig} psig)')
+            ax.legend(loc='upper right', frameon=False)
+            ax.grid(True, which='both', ls=':', lw=0.6)
+            fig.tight_layout()
+
+            out = f"figures/tau_w/speed_vs_Tplus_raw_{color_mode}_{psig}.png"
+            plt.savefig(out, dpi=600)
+            plt.close(fig)
+            print(f"[OK] saved {out}")
 
 
 
@@ -591,5 +607,5 @@ if __name__ == "__main__":
     save_hdf5()
     # _plot_tauw()
     # _plot_tauw_speed_frequency()
-    _plot_tauw_speed_frequency_welch()
+    # _plot_tauw_speed_frequency_welch()
     _plot_speed_vs_Tplus_from_csd()

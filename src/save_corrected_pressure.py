@@ -171,7 +171,7 @@ def save_corrected_pressure():
     labels = ['0psig', '50psig', '100psig']
     (c0_db, a, b), scale, diag = fit_speaker_scaling_from_files(
         labels=tuple(labels),
-        fmin=100.0, fmax=1000.0,   # fitting band
+        fmin=10.0, fmax=1000.0,   # fitting band
         f_ref=700.0,
         invert_target=True         # your "scaling_ratio" -> required |H| = 1/scaling_ratio
     )
