@@ -11,6 +11,7 @@ import torch
 from tqdm import tqdm
 
 from wiener_filter_torch import wiener_cancel_background_torch
+from apply_frf import apply_frf
 
 from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
@@ -24,7 +25,7 @@ plt.rc("text.latex", preamble=r"\usepackage{mathpazo}")
 # Constants & defaults
 ############################
 FS = 50_000.0
-NPERSEG = 2**14
+NPERSEG = 2**12
 WINDOW = "hann"
 TRIM_CAL_SECS = 5  # seconds trimmed from the start of calibration runs (0 to disable)
 
@@ -70,12 +71,11 @@ def volts_to_pa(x_volts: np.ndarray, channel: str, f_cut: float) -> np.ndarray:
     return x_volts / sens
 
 
-def correct_pressure_sensitivity(p, psig):
+def correct_pressure_sensitivity(p, psig, alpha: float = 0.012):
     """
     Correct pressure sensor sensitivity based on gauge pressure [psig].
     Returns corrected pressure signal [Pa].
     """
-    alpha = 0.01 # dB/kPa
     p_corr = p * 10**(psig * PSI_TO_PA / 1000 * alpha / 20)
     return p_corr
 
@@ -160,6 +160,10 @@ def plot_model_comparison():
     fig, ax = plt.subplots(2, 1, figsize=(9, 5), tight_layout=True)
 
     for idxfn, fn in enumerate(labels):
+        with h5py.File("data/final_calibration/" +f'calibs_{fn}.h5', 'r') as hf:
+            H_fused = hf['H_fused'][:].squeeze().astype(complex)
+            f_cal = hf['frequencies'][:].squeeze().astype(float)
+        ic(H_fused.shape, f_cal.shape)
             # Load cleaned signals and attributes
         with h5py.File("data/final_cleaned/" +f'{fn}_far_cleaned.h5', 'r') as hf:
             ph1_clean_far = hf['ph1_clean'][:]
@@ -171,6 +175,8 @@ def plot_model_comparison():
             rho = float(hf.attrs['rho'])
             Re_tau = hf.attrs.get('Re_tau', np.nan)
             cf_2 = hf.attrs.get('cf_2', np.nan)
+        ph1_clean_far = apply_frf(ph1_clean_far, FS, f_cal, H_fused)
+        ph2_clean_far = apply_frf(ph2_clean_far, FS, f_cal, H_fused)
         f_clean, Pyy_ph1_clean = compute_spec(FS, ph1_clean_far)
         f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean_far)
         T_plus = 1/f_clean * (u_tau**2)/nu
@@ -180,26 +186,28 @@ def plot_model_comparison():
 
         data_fphipp_plus1 = (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4)
         data_fphipp_plus2 = (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4)
-        ax[0].semilogx(f_clean, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        ax[0].semilogx(f_clean, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn], ls='-.')
+        ax[0].semilogx(f_clean, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn], ls='-.')
+        ax[0].semilogx(f_clean, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
         # ax[0].semilogx(f_clean, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
-        ax[1].semilogx(T_plus, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        ax[1].semilogx(T_plus, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn], ls='-.')
+        ax[1].semilogx(T_plus, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn], ls='-.')
+        ax[1].semilogx(T_plus, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
         # ax[1].semilogx(T_plus, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
         with h5py.File("data/final_cleaned/" +f'{fn}_close_cleaned.h5', 'r') as hf:
-            ph1_clean_far = hf['ph1_clean'][:]
-            ph1_clean_far = correct_pressure_sensitivity(ph1_clean_far, psigs[idxfn])
-            ph2_clean_far = hf['ph2_clean'][:]
-            ph2_clean_far = correct_pressure_sensitivity(ph2_clean_far, psigs[idxfn])
+            ph1_clean_close = hf['ph1_clean'][:]
+            ph1_clean_close = correct_pressure_sensitivity(ph1_clean_close, psigs[idxfn])
+            ph2_clean_close = hf['ph2_clean'][:]
+            ph2_clean_close = correct_pressure_sensitivity(ph2_clean_close, psigs[idxfn])
             u_tau = float(hf.attrs['u_tau'])
             nu = float(hf.attrs['nu'])
             rho = float(hf.attrs['rho'])
             Re_tau = hf.attrs.get('Re_tau', np.nan)
             cf_2 = hf.attrs.get('cf_2', np.nan)
-        f_clean, Pyy_ph1_clean = compute_spec(FS, ph1_clean_far)
-        f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean_far)
+        ph1_clean_close = apply_frf(ph1_clean_close, FS, f_cal, H_fused)
+        ph2_clean_close = apply_frf(ph2_clean_close, FS, f_cal, H_fused)
+        f_clean, Pyy_ph1_clean = compute_spec(FS, ph1_clean_close)
+        f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean_close)
         T_plus = 1/f_clean * (u_tau**2)/nu
 
         g1_b, g2_b, rv_b = bl_model(T_plus, Re_tau, cf_2)
@@ -207,12 +215,12 @@ def plot_model_comparison():
 
         data_fphipp_plus1 = (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4)
         data_fphipp_plus2 = (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4)
-        ax[0].semilogx(f_clean, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        ax[0].semilogx(f_clean, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn], ls='-.')
+        ax[0].semilogx(f_clean, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn], ls='-.')
+        ax[0].semilogx(f_clean, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
         # ax[0].semilogx(f_clean, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
-        ax[1].semilogx(T_plus, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        ax[1].semilogx(T_plus, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn], ls='-.')
+        ax[1].semilogx(T_plus, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn], ls='-.')
+        ax[1].semilogx(T_plus, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
         # ax[1].semilogx(T_plus, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
     ax[0].set_xlabel(r"$f$ [Hz]")
@@ -229,16 +237,111 @@ def plot_model_comparison():
     ax[1].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
     ax[1].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
 
-    labels_handles = ['1 000 PH1', '1 000 psig PH2',
-                      '5 000 psig PH1', '5 000 psig PH2',
-                      '9 000 psig PH1', '9 000 psig PH2']
+    labels_handles = ['1 000 PH2', '1 000 PH1',
+                      '5 000 PH2', '5 000 PH1',
+                      '9 000 PH2', '9 000 PH1']
     label_colours = ['C0', 'C0', 'C1', 'C1', 'C2', 'C2']
     label_styles = ['solid', '-.', 'solid', '-.', 'solid', '-.']
     custom_lines = [Line2D([0], [0], color=label_colours[i], linestyle=label_styles[i]) for i in range(len(labels_handles))]
     ax[0].legend(custom_lines, labels_handles, loc='upper right', fontsize=8)
-    fig.savefig('figures/final/spectra_comparison.png', dpi=410)
+    fig.savefig('figures/final/tf_corrected_spectra_comparison.png', dpi=410)
+
+def plot_model_comparison_roi():
+    labels = ['0psig', '50psig', '100psig']
+    colours = ['C0', 'C1', 'C2']
+    psigs = [0, 50, 100]
+
+    fig, ax = plt.subplots(2, 1, figsize=(9, 5), tight_layout=True)
+    f_cutl, f_cuth = 100, 1_000  # Hz
+
+    for idxfn, fn in enumerate(labels):
+        with h5py.File("data/final_calibration/" +f'calibs_{fn}.h5', 'r') as hf:
+            H_fused = hf['H_fused'][:].squeeze().astype(complex)
+            f_cal = hf['frequencies'][:].squeeze().astype(float)
+            # Load cleaned signals and attributes
+        with h5py.File("data/final_cleaned/" +f'{fn}_far_cleaned.h5', 'r') as hf:
+            ph1_clean_far = hf['ph1_clean'][:]
+            ph1_clean_far = correct_pressure_sensitivity(ph1_clean_far, psigs[idxfn])
+            ph2_clean_far = hf['ph2_clean'][:]
+            ph2_clean_far = correct_pressure_sensitivity(ph2_clean_far, psigs[idxfn])
+            u_tau = float(hf.attrs['u_tau'])
+            nu = float(hf.attrs['nu'])
+            rho = float(hf.attrs['rho'])
+            Re_tau = hf.attrs.get('Re_tau', np.nan)
+            cf_2 = hf.attrs.get('cf_2', np.nan)
+        ph1_clean_far = apply_frf(ph1_clean_far, FS, f_cal, H_fused)
+        ph2_clean_far = apply_frf(ph2_clean_far, FS, f_cal, H_fused)
+        f_clean, Pyy_ph1_clean = compute_spec(FS, ph1_clean_far)
+        f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean_far)
+        T_plus = 1/f_clean * (u_tau**2)/nu
+
+        g1_b, g2_b, rv_b = bl_model(T_plus, Re_tau, cf_2)
+        bl_fphipp_plus = rv_b*(g1_b+g2_b)
+
+        data_fphipp_plus1 = (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4)
+        data_fphipp_plus2 = (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4)
+        # ax[0].semilogx(f_clean, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        ax[0].semilogx(f_clean[((f_clean>f_cutl) & (f_clean<f_cuth))], data_fphipp_plus2[((f_clean>f_cutl) & (f_clean<f_cuth))], label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        # ax[0].semilogx(f_clean, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
+
+        # ax[1].semilogx(T_plus, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        ax[1].semilogx(T_plus[((f_clean>f_cutl) & (f_clean<f_cuth))], data_fphipp_plus2[((f_clean>f_cutl) & (f_clean<f_cuth))], label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        # ax[1].semilogx(T_plus, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
+
+        with h5py.File("data/final_cleaned/" +f'{fn}_close_cleaned.h5', 'r') as hf:
+            ph1_clean_close = hf['ph1_clean'][:]
+            ph1_clean_close = correct_pressure_sensitivity(ph1_clean_close, psigs[idxfn])
+            ph2_clean_close = hf['ph2_clean'][:]
+            ph2_clean_close = correct_pressure_sensitivity(ph2_clean_close, psigs[idxfn])
+            u_tau = float(hf.attrs['u_tau'])
+            nu = float(hf.attrs['nu'])
+            rho = float(hf.attrs['rho'])
+            Re_tau = hf.attrs.get('Re_tau', np.nan)
+            cf_2 = hf.attrs.get('cf_2', np.nan)
+        ph1_clean_close = apply_frf(ph1_clean_close, FS, f_cal, H_fused)
+        ph2_clean_close = apply_frf(ph2_clean_close, FS, f_cal, H_fused)
+        f_clean, Pyy_ph1_clean = compute_spec(FS, ph1_clean_close)
+        f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean_close)
+        T_plus = 1/f_clean * (u_tau**2)/nu
+
+        g1_b, g2_b, rv_b = bl_model(T_plus, Re_tau, cf_2)
+        bl_fphipp_plus = rv_b*(g1_b+g2_b)
+
+        data_fphipp_plus1 = (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4)
+        data_fphipp_plus2 = (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4)
+        # ax[0].semilogx(f_clean, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        ax[0].semilogx(f_clean[((f_clean>f_cutl) & (f_clean<f_cuth))], data_fphipp_plus2[((f_clean>f_cutl) & (f_clean<f_cuth))], label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        # ax[0].semilogx(f_clean, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
+
+        # ax[1].semilogx(T_plus, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        ax[1].semilogx(T_plus[((f_clean>f_cutl) & (f_clean<f_cuth))], data_fphipp_plus2[((f_clean>f_cutl) & (f_clean<f_cuth))], label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        # ax[1].semilogx(T_plus, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
+
+    ax[0].set_xlabel(r"$f$ [Hz]")
+    ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
+    ax[0].set_xlim(50, 1e3)
+    ax[0].set_ylim(0, 8)
+    ax[0].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+    ax[0].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+
+    ax[1].set_xlabel(r"$T^+$")
+    ax[1].set_ylabel(r"${f \phi_{pp}}^+$")
+    ax[1].set_xlim(20, 2_000)
+    ax[1].set_ylim(0, 8)
+    ax[1].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+    ax[1].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+
+    labels_handles = ['1 000 PH2', '1 000 Model',
+                      '5 000 PH2', '5 000 Model',
+                      '9 000 PH2', '9 000 Model']
+    label_colours = ['C0', 'C0', 'C1', 'C1', 'C2', 'C2']
+    label_styles = ['solid', '--', 'solid', '--', 'solid', '--']
+    custom_lines = [Line2D([0], [0], color=label_colours[i], linestyle=label_styles[i]) for i in range(len(labels_handles))]
+    ax[0].legend(custom_lines, labels_handles, loc='upper left', fontsize=8)
+    fig.savefig('figures/final/tf_corrected_spectra_roi.png', dpi=410)
 
 
 if __name__ == "__main__":
     plot_model_comparison()
+    plot_model_comparison_roi()
     

@@ -11,6 +11,8 @@ from scipy.signal import csd, get_window, welch
 from clean_raw_data import volts_to_pa
 from fuse_anechoic import combine_anechoic_calibrations
 
+PSI_TO_PA = 6_894.76
+
 
 def _estimate_frf(
     x: np.ndarray,
@@ -38,6 +40,15 @@ def _estimate_frf(
     gamma2 = np.clip(gamma2.real, 0.0, 1.0)
     return f, H, gamma2
 
+def correct_pressure_sensitivity(p, psig):
+    """
+    Correct pressure sensor sensitivity based on gauge pressure [psig].
+    Returns corrected pressure signal [Pa].
+    """
+    alpha = 0.01 # dB/kPa
+    p_corr = p * 10**(psig * PSI_TO_PA / 1000 * alpha / 20)
+    return p_corr
+
 
 def save_calibs(
     pressures: Iterable[str],
@@ -61,16 +72,20 @@ def save_calibs(
     for idx, pressure in enumerate(pressures):
         cutoff = f_cuts[idx]
 
-        dat = loadmat(base / f"calib_{pressure}_1.mat")
-        ph1, ph2, nc, _ = dat["channelData_WN"].T
+        dat = loadmat(base / f"calib_{pressure}psig_1.mat")
+        ph1, _, nc, _ = dat["channelData_WN"].T
         nc_pa = volts_to_pa(nc, "NC", cutoff)
         ph1_pa = volts_to_pa(ph1, "PH1", cutoff)
+        nc_pa = correct_pressure_sensitivity(nc_pa, float(pressure))
+        ph1_pa = correct_pressure_sensitivity(ph1_pa, float(pressure))
         f1, H1, g2_1 = _estimate_frf(ph1_pa, nc_pa, fs=fs)
 
-        dat = loadmat(base / f"calib_{pressure}_2.mat")
-        ph1, ph2, nc, _ = dat["channelData_WN"].T
+        dat = loadmat(base / f"calib_{pressure}psig_2.mat")
+        _, ph2, nc, _ = dat["channelData_WN"].T
         nc_pa = volts_to_pa(nc, "NC", cutoff)
         ph2_pa = volts_to_pa(ph2, "PH2", cutoff)
+        nc_pa = correct_pressure_sensitivity(nc_pa, float(pressure))
+        ph2_pa = correct_pressure_sensitivity(ph2_pa, float(pressure))
         f2, H2, g2_2 = _estimate_frf(ph2_pa, nc_pa, fs=fs)
 
         f_fused, H_fused, _ = combine_anechoic_calibrations(
@@ -86,9 +101,19 @@ def save_calibs(
             eps=eps,
         )
 
-        with h5py.File(base / f"calibs_{pressure}.h5", "w") as hf:
+        with h5py.File(base / f"calibs_{pressure}psig.h5", "w") as hf:
             hf.create_dataset("frequencies", data=f1)
             hf.create_dataset("H1", data=H1)
             hf.create_dataset("H2", data=H2)
             hf.create_dataset("H_fused", data=H_fused)
             hf.attrs["psig"] = pressure
+
+if __name__ == "__main__":
+    pressures = [0, 50, 100]
+    f_cuts = [1_200.0, 4000.0, 10_000.0]  # example cutoff frequencies for each pressure
+    save_calibs(
+        pressures,
+        calib_base="data/final_calibration",
+        fs=50_000.0,
+        f_cuts=f_cuts,
+    )
