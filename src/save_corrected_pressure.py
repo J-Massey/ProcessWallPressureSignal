@@ -48,16 +48,27 @@ TDEG = [18, 20, 22]
 
 
 SENSITIVITIES_V_PER_PA: dict[str, float] = {
-    'nc': 50e-3,
-    'PH1': 50e-3,
-    'PH2': 50e-3,
-    'NC': 50e-3,
+    'nc': 52.4e-3,
+    'PH1': 50.9e-3,
+    'PH2': 51.7e-3,
+    'NC': 52.4e-3,
 }
+
 PREAMP_GAIN: dict[str, float] = {"nc": 1.0, "PH1": 1.0, "PH2": 1.0, "NC": 1.0}
 TONAL_BASE = "data/2025-10-28/tonal/"
 CALIB_BASE = "data/final_calibration/"
 TARGET_BASE = "data/final_target/"
 CLEANED_BASE = "data/final_cleaned/"
+
+def correct_pressure_sensitivity(p, psig):
+    """
+    Correct pressure sensor sensitivity based on gauge pressure [psig].
+    Returns corrected pressure signal [Pa].
+    """
+    alpha = 0.01 # dB/kPa
+    p_corr = p * 10**(psig * PSI_TO_PA / 1000 * alpha / 20)
+    return p_corr
+
 
 
 def plot_target_calib_modeled(
@@ -169,25 +180,7 @@ def save_corrected_pressure():
     """
     # --- fit rho–f scaling once from your saved target + calibration ---
     labels = ['0psig', '50psig', '100psig']
-    (c0_db, a, b), scale, diag = fit_speaker_scaling_from_files(
-        labels=tuple(labels),
-        fmin=10.0, fmax=1000.0,   # fitting band
-        f_ref=700.0,
-        invert_target=True         # your "scaling_ratio" -> required |H| = 1/scaling_ratio
-    )
-
     with h5py.File("data/final_pressure/SU_2pt_pressure.h5", 'w') as hf_out:
-        # Store some fit diagnostics
-        hf_out.attrs['c0_db'] = c0_db
-        hf_out.attrs['a_rho'] = a
-        hf_out.attrs['b_f'] = b
-        hf_out.attrs[f'close_spacing'] = 2.8*DELTA
-        # hf_out.attrs = {
-        #     'u_tau': u_tau,
-        #     'nu': nu,
-        #     'rho': rho,
-        #     'Re_tau': Re_tau,
-        # }
 
         #This is the raw data with the freestream noise removed, explain
         hf_out.create_group("raw_data")

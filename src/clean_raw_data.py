@@ -113,7 +113,7 @@ def clean_raw(
     psi_gauge: float,   # psig for this run
     T_K: float,         # Kelvin for this run
     u_tau: float,       # m/s for this run (your measured/estimated)
-    field="channelData_LP",
+    field="channelData",
     out_stub="run",
     plot_flag=True
 ):
@@ -130,8 +130,11 @@ def clean_raw(
 
     # --- Volts -> Pa using fixed chain sensitivities ---
     ph1 = volts_to_pa(ph1_V, 'PH1', f_cut)
+    ph1 -= ph1.mean()
     ph2 = volts_to_pa(ph2_V, 'PH2', f_cut)
+    ph2 -= ph2.mean()
     nkd = volts_to_pa(nkd_V, 'NC', f_cut)
+    nkd -= nkd.mean()
 
     # --- take out the mean ---
     ph1 -= np.mean(ph1)
@@ -148,9 +151,9 @@ def clean_raw(
         # filtered[filtered < 0] = 0
         return filtered
     
-    ph1 = bandpass_filter(ph1, FS, 0.1, f_cut)
-    ph2 = bandpass_filter(ph2, FS, 0.1, f_cut)
-    nkd = bandpass_filter(nkd, FS, 0.1, f_cut)
+    ph1 = bandpass_filter(ph1, FS, 5, f_cut)
+    ph2 = bandpass_filter(ph2, FS, 5, f_cut)
+    nkd = bandpass_filter(nkd, FS, 5, f_cut)
 
 
     # --- spectra ---
@@ -198,7 +201,7 @@ def clean_raw(
     ph2_clean = wiener_cancel_background_torch(ph2, nkd, FS).cpu().numpy()
     torch.cuda.empty_cache()
     
-    with h5py.File(f'data/{out_stub}_cleaned.h5', 'w') as hf:
+    with h5py.File(f'data/final_cleaned/{out_stub}_cleaned.h5', 'w') as hf:
         hf.create_dataset('ph1_clean', data=ph1_clean)
         hf.create_dataset('ph2_clean', data=ph2_clean)
         hf.attrs['rho']   = rho
@@ -222,31 +225,60 @@ def clean_raw(
 def run_all_final():
     # --- ATM ---
     clean_raw(
-        mat_path='data/20251024/final/atm.mat',
+        mat_path='data/20251031/close/0psig.mat',
         psi_gauge=0.0,
         T_K=273.15 + TDEG[0],
         u_tau=0.537,
-        out_stub='0psig',
+        out_stub='0psig_close',
         plot_flag=True
     )
 
     # --- 50 psig ---
     clean_raw(
-        mat_path='data/20251024/final/50psig.mat',
+        mat_path='data/20251031/close/50psig.mat',
         psi_gauge=50.0,
         T_K=273.15 + TDEG[1],
         u_tau=0.522,
-        out_stub='50psig',
+        out_stub='50psig_close',
         plot_flag=True
     )
 
     # --- 100 psig ---
     clean_raw(
-        mat_path='data/20251024/final/100psig.mat',
+        mat_path='data/20251031/close/100psig.mat',
         psi_gauge=100.0,
         T_K=273.15 + TDEG[2],
         u_tau=0.506,
-        out_stub='100psig',
+        out_stub='100psig_close',
+        plot_flag=True
+    )
+
+    clean_raw(
+        mat_path='data/20251031/far/0psig.mat',
+        psi_gauge=0.0,
+        T_K=273.15 + TDEG[0],
+        u_tau=0.537,
+        out_stub='0psig_far',
+        plot_flag=True
+    )
+
+    # --- 50 psig ---
+    clean_raw(
+        mat_path='data/20251031/far/50psig.mat',
+        psi_gauge=50.0,
+        T_K=273.15 + TDEG[1],
+        u_tau=0.522,
+        out_stub='50psig_far',
+        plot_flag=True
+    )
+
+    # --- 100 psig ---
+    clean_raw(
+        mat_path='data/20251031/far/100psig.mat',
+        psi_gauge=100.0,
+        T_K=273.15 + TDEG[2],
+        u_tau=0.506,
+        out_stub='100psig_far',
         plot_flag=True
     )
 

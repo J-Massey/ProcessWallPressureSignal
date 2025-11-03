@@ -62,11 +62,23 @@ def bandpass_filter(data, fs, f_low, f_high, order=4):
     # filtered[filtered < 0] = 0
     return filtered
 
+
 def volts_to_pa(x_volts: np.ndarray, channel: str, f_cut: float) -> np.ndarray:
     sens = CHAIN_SENS_V_PER_PA[channel]  # V/Pa
     # Band pass filter 0.1-f_cut Hz
     x_volts = bandpass_filter(x_volts, FS, 0.1, f_cut)
     return x_volts / sens
+
+
+def correct_pressure_sensitivity(p, psig):
+    """
+    Correct pressure sensor sensitivity based on gauge pressure [psig].
+    Returns corrected pressure signal [Pa].
+    """
+    alpha = 0.014 # dB/kPa
+    p_corr = p * 10**(psig * PSI_TO_PA / 1000 * alpha / 20)
+    return p_corr
+
 
 def f_cut_from_Tplus(u_tau: float, nu: float, Tplus_cut: float = TPLUS_CUT):
     return (u_tau**2 / nu) / Tplus_cut
@@ -139,9 +151,6 @@ def channel_model(Tplus, Re_tau: float, u_tau: float, u_cl) -> np.ndarray:
 
 
 def plot_model_comparison():
-    fn_atm = '0psig_cleaned.h5'
-    fn_50psig = '50psig_cleaned.h5'
-    fn_100psig = '100psig_cleaned.h5'
     labels = ['0psig', '50psig', '100psig']
     colours = ['C0', 'C1', 'C2']
     psigs = [0, 50, 100]
@@ -154,7 +163,9 @@ def plot_model_comparison():
             # Load cleaned signals and attributes
         with h5py.File("data/final_cleaned/" +f'{fn}_far_cleaned.h5', 'r') as hf:
             ph1_clean_far = hf['ph1_clean'][:]
+            ph1_clean_far = correct_pressure_sensitivity(ph1_clean_far, psigs[idxfn])
             ph2_clean_far = hf['ph2_clean'][:]
+            ph2_clean_far = correct_pressure_sensitivity(ph2_clean_far, psigs[idxfn])
             u_tau = float(hf.attrs['u_tau'])
             nu = float(hf.attrs['nu'])
             rho = float(hf.attrs['rho'])
@@ -179,7 +190,9 @@ def plot_model_comparison():
 
         with h5py.File("data/final_cleaned/" +f'{fn}_close_cleaned.h5', 'r') as hf:
             ph1_clean_far = hf['ph1_clean'][:]
+            ph1_clean_far = correct_pressure_sensitivity(ph1_clean_far, psigs[idxfn])
             ph2_clean_far = hf['ph2_clean'][:]
+            ph2_clean_far = correct_pressure_sensitivity(ph2_clean_far, psigs[idxfn])
             u_tau = float(hf.attrs['u_tau'])
             nu = float(hf.attrs['nu'])
             rho = float(hf.attrs['rho'])
