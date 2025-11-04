@@ -311,11 +311,11 @@ def plot_model_comparison_roi():
         data_fphipp_plus1 = (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4)
         data_fphipp_plus2 = (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4)
         # ax[0].semilogx(f_clean, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        ax[0].semilogx(f_clean[((f_clean>f_cutl) & (f_clean<f_cuth))], data_fphipp_plus2[((f_clean>f_cutl) & (f_clean<f_cuth))], label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        ax[0].semilogx(f_clean, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
+        # ax[0].semilogx(f_clean[((f_clean>f_cutl) & (f_clean<f_cuth))], data_fphipp_plus2[((f_clean>f_cutl) & (f_clean<f_cuth))], label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        # ax[0].semilogx(f_clean, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
         # ax[1].semilogx(T_plus, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        ax[1].semilogx(T_plus[((f_clean>f_cutl) & (f_clean<f_cuth))], data_fphipp_plus2[((f_clean>f_cutl) & (f_clean<f_cuth))], label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        ax.semilogx(T_plus[((f_clean>f_cutl) & (f_clean<f_cuth))], data_fphipp_plus2[((f_clean>f_cutl) & (f_clean<f_cuth))], label=labels[idxfn], alpha=0.6, color=colours[idxfn])
         # plot error bars due to u_tau uncertainty
         u_tau_low = u_tau * (1 - u_tau_error[idxfn])
         u_tau_high = u_tau * (1 + u_tau_error[idxfn])
@@ -327,25 +327,25 @@ def plot_model_comparison_roi():
         #                    data_fphipp_plus2_low[((f_clean>f_cutl) & (f_clean<f_cuth))],
         #                    data_fphipp_plus2_high[((f_clean>f_cutl) & (f_clean<f_cuth))],
         #                    color=colours[idxfn], alpha=0.2)
-        ax[1].fill_between(T_plus[((f_clean>f_cutl) & (f_clean<f_cuth))],
+        ax.fill_between(T_plus[((f_clean>f_cutl) & (f_clean<f_cuth))],
                            data_fphipp_plus2_low[((f_clean>f_cutl) & (f_clean<f_cuth))],
                            data_fphipp_plus2_high[((f_clean>f_cutl) & (f_clean<f_cuth))],
                            color=colours[idxfn], alpha=0.2)
-        ax[1].semilogx(T_plus, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
+        ax.semilogx(T_plus, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
-    ax[0].set_xlabel(r"$f$ [Hz]")
-    ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
-    ax[0].set_xlim(50, 1e3)
-    ax[0].set_ylim(0, 6)
-    ax[0].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-    ax[0].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+    # ax[0].set_xlabel(r"$f$ [Hz]")
+    # ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
+    # ax[0].set_xlim(50, 1e3)
+    # ax[0].set_ylim(0, 6)
+    # ax[0].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+    # ax[0].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
 
-    ax[1].set_xlabel(r"$T^+$")
-    ax[1].set_ylabel(r"${f \phi_{pp}}^+$")
-    ax[1].set_xlim(1, 3_000)
-    ax[1].set_ylim(0, 6)
-    ax[1].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-    ax[1].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+    ax.set_xlabel(r"$T^+$")
+    ax.set_ylabel(r"${f \phi_{pp}}^+$")
+    ax.set_xlim(1, 3_000)
+    ax.set_ylim(0, 6)
+    ax.grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+    ax.grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
 
     labels_handles = ['1 000 PH2', '1 000 Model',
                       '5 000 PH2', '5 000 Model',
