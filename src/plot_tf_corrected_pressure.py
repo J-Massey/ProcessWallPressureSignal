@@ -188,11 +188,11 @@ def plot_model_comparison():
         data_fphipp_plus2 = (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4)
         ax[0].semilogx(f_clean, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn], ls='-.')
         ax[0].semilogx(f_clean, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        # ax[0].semilogx(f_clean, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
+        ax[0].semilogx(f_clean, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
         ax[1].semilogx(T_plus, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn], ls='-.')
         ax[1].semilogx(T_plus, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        # ax[1].semilogx(T_plus, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
+        ax[1].semilogx(T_plus, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
         with h5py.File("data/final_cleaned/" +f'{fn}_close_cleaned.h5', 'r') as hf:
             ph1_clean_close = hf['ph1_clean'][:]
@@ -217,11 +217,11 @@ def plot_model_comparison():
         data_fphipp_plus2 = (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4)
         ax[0].semilogx(f_clean, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn], ls='-.')
         ax[0].semilogx(f_clean, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        # ax[0].semilogx(f_clean, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
+        ax[0].semilogx(f_clean, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
         ax[1].semilogx(T_plus, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn], ls='-.')
         ax[1].semilogx(T_plus, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        # ax[1].semilogx(T_plus, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
+        ax[1].semilogx(T_plus, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
     ax[0].set_xlabel(r"$f$ [Hz]")
     ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
@@ -253,6 +253,7 @@ def plot_model_comparison_roi():
 
     fig, ax = plt.subplots(2, 1, figsize=(9, 5), tight_layout=True)
     f_cutl, f_cuth = 100, 1_000  # Hz
+    u_tau_error = [0.2, 0.1, 0.05] #% uncertainty in u_tau for 0, 50, 100 psig
 
     for idxfn, fn in enumerate(labels):
         with h5py.File("data/final_calibration/" +f'calibs_{fn}.h5', 'r') as hf:
@@ -282,11 +283,11 @@ def plot_model_comparison_roi():
         data_fphipp_plus2 = (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4)
         # ax[0].semilogx(f_clean, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
         ax[0].semilogx(f_clean[((f_clean>f_cutl) & (f_clean<f_cuth))], data_fphipp_plus2[((f_clean>f_cutl) & (f_clean<f_cuth))], label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        # ax[0].semilogx(f_clean, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
+        ax[0].semilogx(f_clean, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
         # ax[1].semilogx(T_plus, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
         ax[1].semilogx(T_plus[((f_clean>f_cutl) & (f_clean<f_cuth))], data_fphipp_plus2[((f_clean>f_cutl) & (f_clean<f_cuth))], label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        # ax[1].semilogx(T_plus, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
+        ax[1].semilogx(T_plus, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
         with h5py.File("data/final_cleaned/" +f'{fn}_close_cleaned.h5', 'r') as hf:
             ph1_clean_close = hf['ph1_clean'][:]
@@ -311,23 +312,38 @@ def plot_model_comparison_roi():
         data_fphipp_plus2 = (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4)
         # ax[0].semilogx(f_clean, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
         ax[0].semilogx(f_clean[((f_clean>f_cutl) & (f_clean<f_cuth))], data_fphipp_plus2[((f_clean>f_cutl) & (f_clean<f_cuth))], label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        # ax[0].semilogx(f_clean, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
+        ax[0].semilogx(f_clean, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
         # ax[1].semilogx(T_plus, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
         ax[1].semilogx(T_plus[((f_clean>f_cutl) & (f_clean<f_cuth))], data_fphipp_plus2[((f_clean>f_cutl) & (f_clean<f_cuth))], label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        # ax[1].semilogx(T_plus, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
+        # plot error bars due to u_tau uncertainty
+        u_tau_low = u_tau * (1 - u_tau_error[idxfn])
+        u_tau_high = u_tau * (1 + u_tau_error[idxfn])
+        T_plus_low = 1/f_clean * (u_tau_low**2)/nu
+        T_plus_high = 1/f_clean * (u_tau_high**2)/nu
+        data_fphipp_plus2_low = (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau_low**4)
+        data_fphipp_plus2_high = (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau_high**4)
+        # ax[0].fill_between(f_clean[((f_clean>f_cutl) & (f_clean<f_cuth))],
+        #                    data_fphipp_plus2_low[((f_clean>f_cutl) & (f_clean<f_cuth))],
+        #                    data_fphipp_plus2_high[((f_clean>f_cutl) & (f_clean<f_cuth))],
+        #                    color=colours[idxfn], alpha=0.2)
+        ax[1].fill_between(T_plus[((f_clean>f_cutl) & (f_clean<f_cuth))],
+                           data_fphipp_plus2_low[((f_clean>f_cutl) & (f_clean<f_cuth))],
+                           data_fphipp_plus2_high[((f_clean>f_cutl) & (f_clean<f_cuth))],
+                           color=colours[idxfn], alpha=0.2)
+        ax[1].semilogx(T_plus, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
     ax[0].set_xlabel(r"$f$ [Hz]")
     ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
     ax[0].set_xlim(50, 1e3)
-    ax[0].set_ylim(0, 8)
+    ax[0].set_ylim(0, 6)
     ax[0].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
     ax[0].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
 
     ax[1].set_xlabel(r"$T^+$")
     ax[1].set_ylabel(r"${f \phi_{pp}}^+$")
-    ax[1].set_xlim(20, 2_000)
-    ax[1].set_ylim(0, 8)
+    ax[1].set_xlim(1, 3_000)
+    ax[1].set_ylim(0, 6)
     ax[1].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
     ax[1].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
 
@@ -342,6 +358,6 @@ def plot_model_comparison_roi():
 
 
 if __name__ == "__main__":
-    plot_model_comparison()
+    # plot_model_comparison()
     plot_model_comparison_roi()
     

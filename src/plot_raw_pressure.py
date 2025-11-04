@@ -180,12 +180,12 @@ def plot_model_comparison():
 
         data_fphipp_plus1 = (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4)
         data_fphipp_plus2 = (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4)
-        ax[0].semilogx(f_clean, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        ax[0].semilogx(f_clean, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn], ls='-.')
+        ax[0].semilogx(f_clean, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        ax[0].semilogx(f_clean, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn], ls='-.')
         # ax[0].semilogx(f_clean, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
-        ax[1].semilogx(T_plus, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        ax[1].semilogx(T_plus, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn], ls='-.')
+        ax[1].semilogx(T_plus, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        ax[1].semilogx(T_plus, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn], ls='-.')
         # ax[1].semilogx(T_plus, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
         with h5py.File("data/final_cleaned/" +f'{fn}_close_cleaned.h5', 'r') as hf:
@@ -207,31 +207,33 @@ def plot_model_comparison():
 
         data_fphipp_plus1 = (f_clean * Pyy_ph1_clean)/(rho**2 * u_tau**4)
         data_fphipp_plus2 = (f_clean * Pyy_ph2_clean)/(rho**2 * u_tau**4)
-        ax[0].semilogx(f_clean, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        ax[0].semilogx(f_clean, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn], ls='-.')
+        ax[0].semilogx(f_clean, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        ax[0].semilogx(f_clean, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn], ls='-.')
         # ax[0].semilogx(f_clean, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
-        ax[1].semilogx(T_plus, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
-        ax[1].semilogx(T_plus, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn], ls='-.')
+        ax[1].semilogx(T_plus, data_fphipp_plus2, label=labels[idxfn], alpha=0.6, color=colours[idxfn])
+        ax[1].semilogx(T_plus, data_fphipp_plus1, label=labels[idxfn], alpha=0.6, color=colours[idxfn], ls='-.')
         # ax[1].semilogx(T_plus, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
     ax[0].set_xlabel(r"$f$ [Hz]")
-    ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
+    ax[0].set_ylabel(r"$({f \phi_{pp}}^+)_{\textrm{raw}}$")
     ax[0].set_xlim(1, 1e4)
     ax[0].set_ylim(0, 8)
     ax[0].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
     ax[0].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
 
     ax[1].set_xlabel(r"$T^+$")
-    ax[1].set_ylabel(r"${f \phi_{pp}}^+$")
+    ax[1].set_ylabel(r"$({f \phi_{pp}}^+)_{\textrm{raw}}$")
     ax[1].set_xlim(1, 1e4)
     ax[1].set_ylim(0, 8)
     ax[1].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
     ax[1].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
 
-    labels_handles = ['1 000 PH1', '1 000 psig PH2',
-                      '5 000 psig PH1', '5 000 psig PH2',
-                      '9 000 psig PH1', '9 000 psig PH2']
+    ax[0].fill_betweenx([0, 8], 1000, 2000, color='grey', alpha=0.2)
+
+    labels_handles = ['1 000 PH2', '1 000 PH1',
+                      '5 000 PH2', '5 000 PH1',
+                      '9 000 PH2', '9 000 PH1']
     label_colours = ['C0', 'C0', 'C1', 'C1', 'C2', 'C2']
     label_styles = ['solid', '-.', 'solid', '-.', 'solid', '-.']
     custom_lines = [Line2D([0], [0], color=label_colours[i], linestyle=label_styles[i]) for i in range(len(labels_handles))]
