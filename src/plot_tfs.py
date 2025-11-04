@@ -72,7 +72,7 @@ def volts_to_pa(x_volts: np.ndarray, channel: str, f_cut: float) -> np.ndarray:
     return x_volts / sens
 
 
-def correct_pressure_sensitivity(p, psig, alpha: float = 0.012):
+def correct_pressure_sensitivity(p, psig, alpha: float = 0.01):
     """
     Correct pressure sensor sensitivity based on gauge pressure [psig].
     Returns corrected pressure signal [Pa].
@@ -155,8 +155,6 @@ def plot_tfs():
     labels = ['0psig', '50psig', '100psig']
     colours = ['C0', 'C1', 'C2']
     psigs = [0, 50, 100]
-    with h5py.File(f'data/final_pressure/SU_2pt_pressure.h5', 'r') as f:
-        grp = f['raw_data']
 
     fig, ax = plt.subplots(2, 1, figsize=(9, 5), tight_layout=True)
 
@@ -166,7 +164,9 @@ def plot_tfs():
             f_cal = hf['frequencies'][:].squeeze().astype(float)
         _, _, nu = air_props_from_gauge(psigs[idxfn], TDEG[idxfn] + 273.15)
         T_plus = 1/f_cal * (0.5**2)/nu
-        ax[0].semilogx(f_cal, H_fused, label=f'{labels[idxfn]}', linestyle='--', color=colours[idxfn])
+        psig = psigs[idxfn]
+        
+        ax[0].semilogx(f_cal, H_fused*(1+psig*0.002), label=f'{labels[idxfn]}', linestyle='--', color=colours[idxfn])
         ax[1].semilogx(T_plus, H_fused, label=f'{labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
     ax[0].set_xlabel(r"$f$ [Hz]")

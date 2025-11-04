@@ -280,12 +280,24 @@ fig, ax = plt.subplots(1,1, figsize=(6,4), tight_layout=True, sharex=True)
 f_list, S_list = [], []
 for psig in psigs:
     dat = sio.loadmat(f"data/final_calibration/calib_{psig}psig_1.mat")
-    ph1_nf, _, nc1, _ = dat["channelData_WN"].T
+    ph1_nf, nc1, _, _ = dat["channelData_WN"].T
     nc1 = correct_pressure_sensitivity(nc1, psig)
-    f_i, Pxx_i = compute_spec(FS, nc1)
-    f_list.append(f_i); S_list.append(np.sqrt(Pxx_i))
+    dat = sio.loadmat(f"data/final_calibration/calib_{psig}psig_2.mat")
+    ph2_nf, _, nc2, _ = dat["channelData_WN"].T
+    nc2 = correct_pressure_sensitivity(nc2, psig)
+    f1, Pxx1 = compute_spec(FS, nc1)
+    f2, Pxx2 = compute_spec(FS, nc2)
 
-f, S_runs = resample_to_common_f(f_list, S_list, fband=(50.0, 1000.0))
+    # put both into the resampler
+    f_list.extend([f1, f2]); S_list.extend([np.sqrt(Pxx1), np.sqrt(Pxx2)])
+# assuming two files per psig, reshape & average
+S_stack = np.array(S_list).reshape(len(psigs), -1, f_list[0].size)  # (Npressures, Nrepeats, Nf)
+S_runs  = S_stack.mean(axis=1)
+f_stack = np.array(f_list).reshape(len(psigs), -1, f_list[0].size)  # (Npressures, Nrepeats, Nf)
+f_runs  = f_stack[:,0,:]  # assume same f for both repeats
+
+
+f, S_runs = resample_to_common_f(f_list, S_runs, fband=(50.0, 1000.0))
 
 model = fit_pressure_invariant_source(
     f, S_runs, psigs, TdegC=20.0,
