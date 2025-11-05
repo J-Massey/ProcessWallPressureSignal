@@ -56,6 +56,9 @@ CHAIN_SENS_V_PER_PA = {
     'nc':  52.4e-3,  # V/Pa
 }
 
+COLOURS = ("#1e8ad8", "#ff7f0e", "#26bd26")  # hex equivalents of C0, C1, C2
+
+
 def bandpass_filter(data, fs, f_low, f_high, order=4):
     sos = butter(order, [f_low, f_high], btype='band', fs=fs, output='sos')
     filtered = sosfiltfilt(sos, data)
@@ -153,43 +156,42 @@ def channel_model(Tplus, Re_tau: float, u_tau: float, u_cl) -> np.ndarray:
 
 def plot_tfs():
     labels = ['0psig', '50psig', '100psig']
-    colours = ['C0', 'C1', 'C2']
     psigs = [0, 50, 100]
 
-    fig, ax = plt.subplots(2, 1, figsize=(9, 5), tight_layout=True)
+    fig, ax = plt.subplots(1, 1, figsize=(5, 2.7), tight_layout=True)
 
     for idxfn, fn in enumerate(labels):
-        with h5py.File("data/final_calibration/" +f'calibs_{fn}.h5', 'r') as hf:
+        with h5py.File("data/final_calibration/" +f'calibs_{psigs[idxfn]}.h5', 'r') as hf:
             H_fused = hf['H_fused'][:].squeeze().astype(complex)
             f_cal = hf['frequencies'][:].squeeze().astype(float)
         _, _, nu = air_props_from_gauge(psigs[idxfn], TDEG[idxfn] + 273.15)
         T_plus = 1/f_cal * (0.5**2)/nu
         psig = psigs[idxfn]
-        
-        ax[0].semilogx(f_cal, H_fused*(1+psig*0.002), label=f'{labels[idxfn]}', linestyle='--', color=colours[idxfn])
-        ax[1].semilogx(T_plus, H_fused, label=f'{labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
-    ax[0].set_xlabel(r"$f$ [Hz]")
-    ax[0].set_ylabel(r"${f \phi_{pp}}^+$")
-    ax[0].set_xlim(100, 1e3)
-    ax[0].set_ylim(0.6, 1.1)
-    ax[0].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-    ax[0].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+        ax.semilogx(f_cal, np.abs(H_fused), label=f'{labels[idxfn]}', linestyle='-', color=COLOURS[idxfn])
+        # ax.semilogx(T_plus, H_fused, label=f'{labels[idxfn]}', linestyle='--', color=colours[idxfn])
 
-    ax[1].set_xlabel(r"$T^+$")
-    ax[1].set_ylabel(r"${f \phi_{pp}}^+$")
-    ax[1].set_xlim(20, 1e4)
-    ax[1].set_ylim(0.6, 1.1)
-    ax[1].grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-    ax[1].grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+    ax.set_xlabel(r"$f$ [Hz]")
+    ax.set_ylabel(r"$|H|$")
+    ax.set_xlim(100, 1e3)
+    ax.set_ylim(0.6, 1.1)
+    ax.grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+    ax.grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
 
-    labels_handles = ['1 000 PH2', '1 000 PH1',
-                      '5 000 PH2', '5 000 PH1',
-                      '9 000 PH2', '9 000 PH1']
-    label_colours = ['C0', 'C0', 'C1', 'C1', 'C2', 'C2']
-    label_styles = ['solid', '-.', 'solid', '-.', 'solid', '-.']
+    # ax.set_xlabel(r"$T^+$")
+    # ax.set_ylabel(r"${f \phi_{pp}}^+$")
+    # ax.set_xlim(20, 1e4)
+    # ax.set_ylim(0.6, 1.1)
+    # ax.grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+    # ax.grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+
+    labels_handles = [r'$\mathit{Re}_\tau \approx$ 1 000',
+                      r'$\mathit{Re}_\tau \approx$ 5 000',
+                      r'$\mathit{Re}_\tau \approx$ 9 000']
+    label_colours = COLOURS
+    label_styles = ['-', '-', '-']
     custom_lines = [Line2D([0], [0], color=label_colours[i], linestyle=label_styles[i]) for i in range(len(labels_handles))]
-    ax[0].legend(custom_lines, labels_handles, loc='upper right', fontsize=8)
+    ax.legend(custom_lines, labels_handles, loc='lower left', fontsize=9)
     fig.savefig('figures/final/tfs.png', dpi=410)
 
 if __name__ == "__main__":

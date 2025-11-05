@@ -21,13 +21,13 @@ from fit_speaker_scales import fit_speaker_scaling_from_files
 from models import bl_model
 from clean_raw_data import air_props_from_gauge
 from save_calibs import save_calibs
-from save_scaling_target import compute_spec, save_scaling_target
+from src.unused.save_scaling_target import compute_spec, save_scaling_target
 
 # =============================================================================
 # Constants & styling (exported so tf_plot.py can import them)
 # =============================================================================
 FS: float = 50_000.0
-NPERSEG: int = 2**10
+NPERSEG: int = 2**12
 WINDOW: str = "hann"
 
 # Colors (exported for plotting)
@@ -70,109 +70,6 @@ def correct_pressure_sensitivity(p, psig):
     return p_corr
 
 
-
-def plot_target_calib_modeled(
-    labels: tuple[str, ...] = ("0psig", "50psig", "100psig"),
-    *,
-    fmin: float = 100.0,
-    fmax: float = 1000.0,
-    f_ref: float = 700.0,
-    rho_ref: float | None = None,
-    invert_target: bool = True,   # saved "scaling_ratio" is model/data → required |H| = 1/scaling_ratio
-    to_db: bool = False,          # set True to plot in dB
-    colours: list[str] | None = None,
-    savepath: str | None = None,
-):
-    # ----------------------------
-    # 1) Fit both scaling models
-    # ----------------------------
-    # (a) your baseline power-law (ρ, f) model
-    (c0_db, a_rho, b_f), scale_powerlaw, diag_pw = fit_speaker_scaling_from_files(
-        # labels=labels, fmin=fmin, fmax=fmax, f_ref=f_ref, rho_ref=rho_ref, invert_target=invert_target
-    )
-    # ----------------------------
-    # 2) helpers & styling
-    # ----------------------------
-    def as_db(x: np.ndarray) -> np.ndarray:
-        x = np.asarray(x, float)
-        return 20.0 * np.log10(np.maximum(x, 1e-16))
-
-    if colours is None:
-        colours = ['C0', 'C1', 'C2', 'C3', 'C4']
-
-    fig, ax = plt.subplots(1, 1, figsize=(7, 3), tight_layout=True)
-
-    # store RMSE (dB) per label & per model
-    rmse_pw, rmse_stk = {}, {}
-
-    # ----------------------------
-    # 3) loop over labels
-    # ----------------------------
-    for i, L in enumerate(labels):
-        color = colours[i % len(colours)]
-
-        # --- load target (required |H|)
-        with h5py.File(TARGET_BASE + f"target_{L}_close.h5", "r") as hf:
-            f_tgt = np.asarray(hf["frequencies"][:], float)
-            s_ratio = np.asarray(hf["scaling_ratio"][:], float)  # (model/data) in POWER
-            rho = float(hf.attrs["rho"]) if "rho" in hf.attrs else np.nan
-        tgt_mag = 1.0 / np.maximum(s_ratio, 1e-16) if invert_target else s_ratio  # required |H| (AMPLITUDE)
-        mt = (f_tgt >= fmin) & (f_tgt <= fmax)
-        f_tgt, tgt_mag = f_tgt[mt], tgt_mag[mt]
-
-        # --- load measured calibration |H_cal|
-        with h5py.File(CALIB_BASE + f"calibs_{L}.h5", "r") as hf:
-            f_cal = np.asarray(hf["frequencies"][:], float)
-            H_cal = np.asarray(hf["H_fused"][:], complex)
-        cal_mag = np.abs(H_cal)
-        mc = (f_cal >= fmin) & (f_cal <= fmax)
-        f_cal, cal_mag = f_cal[mc], cal_mag[mc]
-
-        # --- build modeled curves
-        # power-law model uses (f, rho) directly
-        S_pw = scale_powerlaw(f_cal, rho)
-
-        modeled_pw = cal_mag * S_pw
-        # --- plot (target, measured, both models)
-        ax.semilogx(f_tgt, as_db(tgt_mag), color=color, lw=1.6)                     # target
-        ax.semilogx(f_cal, as_db(cal_mag), color=color, lw=1.0, ls="--", alpha=0.9) # measured cal
-        ax.semilogx(f_cal, as_db(modeled_pw), color=color, lw=1.0, ls=":", alpha=0.95)   # power-law modeled
-
-        # --- RMSE on the target grid (in dB) for both models
-        pw_on_tgt  = np.interp(f_tgt, f_cal, modeled_pw)
-        e_pw  = as_db(tgt_mag) - as_db(pw_on_tgt)
-        rmse_pw[L]  = float(np.sqrt(np.mean(e_pw**2)))
-
-    # ----------------------------
-    # 4) axes & legends
-    # ----------------------------
-    ax.set_xlabel(r"$f$ [Hz]")
-    ax.set_ylabel("Magnitude (dB)" if to_db else "Magnitude")
-    ax.set_xlim(fmin, fmax)
-    ax.grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
-    ax.grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
-
-    # Legend 1: styles (one entry per curve type)
-    style_handles = [
-        Line2D([0], [0], color='k', lw=1.6, ls='-',  label="target |H| (required)"),
-        Line2D([0], [0], color='k', lw=1.0, ls='--', label="|H_cal| (meas)"),
-        Line2D([0], [0], color='k', lw=1.0, ls=':',  label="cal x S_powerlaw"),
-    ]
-    leg1 = ax.legend(handles=style_handles, loc="upper left", fontsize=8, framealpha=0.9)
-
-    # Legend 2: colors (one entry per label)
-    color_handles = [Line2D([0], [0], color=colours[i % len(colours)], lw=1.6, label=labels[i]) for i in range(len(labels))]
-    leg2 = ax.legend(handles=color_handles, loc="lower right", fontsize=8, framealpha=0.9)
-    ax.add_artist(leg1)
-
-    # Optional: print compact RMSE summary to console
-    print("RMSE (dB) power-law:", rmse_pw)
-
-    if savepath:
-        fig.savefig(savepath, dpi=350)
-    return fig, ax
-
-
 def save_corrected_pressure():
     """
     Apply the (rho, f)-scaled calibration FRF to measured time series and plot
@@ -213,16 +110,17 @@ def save_corrected_pressure():
             h_raw.create_dataset(f'{L}_close/ph2', data=ph2_clean_close)
             
 
-            with h5py.File(CALIB_BASE + f"calibs_{L}.h5", "r") as hf:
+            psig = int(L.replace('psig', ''))
+            with h5py.File(CALIB_BASE + f"calibs_{psig}.h5", "r") as hf:
                 f_cal = np.asarray(hf["frequencies"][:], float)
                 H_cal = np.asarray(hf["H_fused"][:], complex)
 
             # --- apply FRF with fitted rho–f magnitude scaling ---
             # (uses your updated apply_frf that accepts scale_fn and rho)
-            ph1_filt_far = apply_frf(ph1_clean_far, FS, f_cal, H_cal, rho=rho, scale_fn=scale)
-            ph2_filt_far = apply_frf(ph2_clean_far, FS, f_cal, H_cal, rho=rho, scale_fn=scale)
-            ph1_filt_close = apply_frf(ph1_clean_close, FS, f_cal, H_cal, rho=rho, scale_fn=scale)
-            ph2_filt_close = apply_frf(ph2_clean_close, FS, f_cal, H_cal, rho=rho, scale_fn=scale)
+            ph1_filt_far = apply_frf(ph1_clean_far, FS, f_cal, H_cal)
+            ph2_filt_far = apply_frf(ph2_clean_far, FS, f_cal, H_cal)
+            ph1_filt_close = apply_frf(ph1_clean_close, FS, f_cal, H_cal)
+            ph2_filt_close = apply_frf(ph2_clean_close, FS, f_cal, H_cal)
 
             h_corrected.create_dataset(f'{L}_far/ph1', data=ph1_filt_far)
             h_corrected.create_dataset(f'{L}_far/ph2', data=ph2_filt_far)

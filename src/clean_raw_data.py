@@ -143,7 +143,7 @@ def clean_raw(
 
     # --- apply a band pass filter between 0.1 Hz and f_cut ---
     from scipy.signal import butter, sosfiltfilt
-    def bandpass_filter(data, fs, f_low, f_high, order=4):
+    def bandpass_filter(data, fs, f_low, f_high, order=3):
         sos = butter(order, [f_low, f_high], btype='band', fs=fs, output='sos')
         filtered = sosfiltfilt(sos, data)
         # protect against NaNs and negatives
@@ -151,9 +151,9 @@ def clean_raw(
         # filtered[filtered < 0] = 0
         return filtered
     
-    ph1 = bandpass_filter(ph1, FS, 5, f_cut)
-    ph2 = bandpass_filter(ph2, FS, 5, f_cut)
-    nkd = bandpass_filter(nkd, FS, 5, f_cut)
+    ph1 = bandpass_filter(ph1, FS, 1, f_cut)
+    ph2 = bandpass_filter(ph2, FS, 1, f_cut)
+    nkd = bandpass_filter(nkd, FS, 1, f_cut)
 
 
     # --- spectra ---

@@ -5,7 +5,7 @@ import torch.nn.functional as F
 def wiener_cancel_background_torch(
     p0,
     pn,
-    filter_order=2**14,
+    filter_order=2**6,
     device=None,
     dtype=torch.float32,
     solver="cg_fft",          # "cg_fft" (fast O(m log m) per iter) or "cholesky" (dense, for small m)

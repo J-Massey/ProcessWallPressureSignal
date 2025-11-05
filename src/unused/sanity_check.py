@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 from icecream import ic
 import os
 
-from wiener_filter_gib import wiener_cancel_background
+from src.unused.wiener_filter_gib import wiener_cancel_background
 
 from plotting import (
     plot_spectrum,

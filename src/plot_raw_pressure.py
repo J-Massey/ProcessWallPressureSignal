@@ -24,7 +24,7 @@ plt.rc("text.latex", preamble=r"\usepackage{mathpazo}")
 # Constants & defaults
 ############################
 FS = 50_000.0
-NPERSEG = 2**14
+NPERSEG = 2**12
 WINDOW = "hann"
 TRIM_CAL_SECS = 5  # seconds trimmed from the start of calibration runs (0 to disable)
 
@@ -348,6 +348,8 @@ def plot_one_position(ax, position: str, fmin: float = 100.0, fmax: float = 1_00
                        color=col, lw=1.2, alpha=0.9, label=f"{lab} PH2")
         ax[1].semilogx(Tplus1, norm_pm(f1[m1], P11[m1]),
                        color=col, lw=1.0, alpha=0.9, ls="--", label=f"{lab} PH1")
+        
+        ic(700e-6 * 2 * u_tau / nu )
 
     # formatting
     for k in range(2):
@@ -370,12 +372,12 @@ def plot_one_position(ax, position: str, fmin: float = 100.0, fmax: float = 1_00
     # custom legend: solid for PH2, dashed for PH1
     from matplotlib.lines import Line2D
     handles = [
-        Line2D([0], [0], color="C0", lw=1.2, ls="-"),
-        Line2D([0], [0], color="C0", lw=1.0, ls="--"),
-        Line2D([0], [0], color="C1", lw=1.2, ls="-"),
-        Line2D([0], [0], color="C1", lw=1.0, ls="--"),
-        Line2D([0], [0], color="C2", lw=1.2, ls="-"),
-        Line2D([0], [0], color="C2", lw=1.0, ls="--"),
+        Line2D([0], [0], color=COLOURS[0], lw=1.2, ls="-"),
+        Line2D([0], [0], color=COLOURS[0], lw=1.0, ls="--"),
+        Line2D([0], [0], color=COLOURS[1], lw=1.2, ls="-"),
+        Line2D([0], [0], color=COLOURS[1], lw=1.0, ls="--"),
+        Line2D([0], [0], color=COLOURS[2], lw=1.2, ls="-"),
+        Line2D([0], [0], color=COLOURS[2], lw=1.0, ls="--"),
     ]
     labels = ["1 000 PH2", "1 000 PH1", "5 000 PH2", "5 000 PH1", "9 000 PH2", "9 000 PH1"]
     ax[0].legend(handles, labels, loc="upper right", fontsize=8)
@@ -389,7 +391,7 @@ def plot_one_position(ax, position: str, fmin: float = 100.0, fmax: float = 1_00
             #     plt.show()
 
 def main():
-    fig, ax = plt.subplots(2, 1, figsize=(9, 5), tight_layout=True, sharex=False)
+    fig, ax = plt.subplots(2, 1, figsize=(7, 3), tight_layout=True, sharex=False)
 
     plot_one_position(ax, "far")
     plot_one_position(ax, "close")
