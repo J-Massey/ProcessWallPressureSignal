@@ -254,7 +254,7 @@ def plot_model_comparison_roi():
         ax.grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
 
     axs[1].set_xlabel(r"$T^+$")
-    axs[0].set_ylabel(r"${f \phi_{pp}}^+$")
+    axs[0].set_ylabel(r"$({f \phi_{pp}}^+)_{\mathrm{corr.}}$")
     ax.set_xlim(7, 7_000)
     ax.set_ylim(0, 6)
 
