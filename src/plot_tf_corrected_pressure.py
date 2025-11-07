@@ -55,6 +55,7 @@ CHAIN_SENS_V_PER_PA = {
 COLOURS = ("#1e8ad8", "#ff7f0e", "#26bd26")  # hex equivalents of C0, C1, C2
 
 
+
 def bandpass_filter(data, fs, f_low, f_high, order=4):
     sos = butter(order, [f_low, f_high], btype='band', fs=fs, output='sos')
     filtered = sosfiltfilt(sos, data)
@@ -71,7 +72,7 @@ def volts_to_pa(x_volts: np.ndarray, channel: str, f_cut: float) -> np.ndarray:
     return x_volts / sens
 
 
-def correct_pressure_sensitivity(p, psig, alpha: float = 0.012):
+def correct_pressure_sensitivity(p, psig, alpha: float = 0.01):
     """
     Correct pressure sensor sensitivity based on gauge pressure [psig].
     Returns corrected pressure signal [Pa].
@@ -373,6 +374,6 @@ def plot_model_comparison_p_sensitivity():
 
 if __name__ == "__main__":
     # plot_model_comparison()
-    # plot_model_comparison_roi()
+    plot_model_comparison_roi()
     plot_model_comparison_p_sensitivity()
     

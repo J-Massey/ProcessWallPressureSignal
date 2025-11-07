@@ -17,7 +17,6 @@ plt.rc("text", usetex=True)
 plt.rc("text.latex", preamble=r"\usepackage{mathpazo}")
 
 from apply_frf import apply_frf
-from fit_speaker_scales import fit_speaker_scaling_from_files
 from models import bl_model
 from clean_raw_data import air_props_from_gauge
 from save_calibs import save_calibs
@@ -114,6 +113,9 @@ def save_corrected_pressure():
             with h5py.File(CALIB_BASE + f"calibs_{psig}.h5", "r") as hf:
                 f_cal = np.asarray(hf["frequencies"][:], float)
                 H_cal = np.asarray(hf["H_fused"][:], complex)
+            with h5py.File("data/20250930/" +f'calibs_{psig}.h5', 'r') as hf:
+                f_cal_nkd = hf['frequencies'][:].squeeze().astype(float)
+                H_fused_nkd = hf['H_fused'][:].squeeze().astype(complex)
 
             # --- apply FRF with fitted rho–f magnitude scaling ---
             # (uses your updated apply_frf that accepts scale_fn and rho)
@@ -121,10 +123,17 @@ def save_corrected_pressure():
             ph2_filt_far = apply_frf(ph2_clean_far, FS, f_cal, H_cal)
             ph1_filt_close = apply_frf(ph1_clean_close, FS, f_cal, H_cal)
             ph2_filt_close = apply_frf(ph2_clean_close, FS, f_cal, H_cal)
+            ph1_filt_far = apply_frf(ph1_clean_far, FS, f_cal_nkd, H_fused_nkd)
+            ph2_filt_far = apply_frf(ph2_clean_far, FS, f_cal_nkd, H_fused_nkd)
+            ph1_filt_close = apply_frf(ph1_clean_close, FS, f_cal_nkd, H_fused_nkd)
+            ph2_filt_close = apply_frf(ph2_clean_close, FS, f_cal_nkd, H_fused_nkd)
+
+            h_corrected.attrs[f'rho_{L}'] = rho
+            h_corrected.attrs[f'u_tau_{L}'] = u_tau
+            h_corrected.attrs[f'nu_{L}'] = nu
 
             h_corrected.create_dataset(f'{L}_far/ph1', data=ph1_filt_far)
             h_corrected.create_dataset(f'{L}_far/ph2', data=ph2_filt_far)
-
             h_corrected.create_dataset(f'{L}_close/ph1', data=ph1_filt_close)
             h_corrected.create_dataset(f'{L}_close/ph2', data=ph2_filt_close)
 
