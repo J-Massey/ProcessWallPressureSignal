@@ -2,6 +2,7 @@
 from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, Sequence, Tuple, Dict
+from icecream import ic
 
 import h5py
 import numpy as np
@@ -202,8 +203,57 @@ def save_calibs(
 
         print(f"[ok] {p_si:>3} psig → {out}")
 
+
+def save_NC_NKD_calibs(
+    pressures: Iterable[float | int | str],
+    *,
+    calib_base: str | Path,
+    fs: float,
+    f_cuts: Sequence[float],
+) -> None:
+    """
+    Build PH→NC H₁ FRF for each pressure from dual-position (…_1, …_2) semi-anechoic runs:
+      - Convert both channels to Pa (volts_to_pa) and compensate mic sensitivity vs psig.
+      - Estimate H1 with x=PH, y=NC, using welch/csd: H = conj(Sxy)/Sxx (SciPy's definition).
+      - Fuse PH1 and PH2 FRFs on a **common frequency grid**, coherence-weighted, optionally smoothed.
+      - Save **f_fused**, **H_fused (complex)**, optional raw H1/H2 and fused γ², and numeric psig.
+    """
+    base = Path(calib_base)
+    pressures = [int(p) for p in pressures]
+    if len(f_cuts) != len(pressures):
+        raise ValueError("f_cuts length must match number of pressures")
+
+    for p_si, fcut in zip(pressures, f_cuts):
+        psig = float(p_si)
+        # ---- run 1: PH1→NC
+        m1 = loadmat(base / f"{p_si}psig/nkd-ns_nofacilitynoise.mat")
+        ic(m1.keys())
+        if p_si == 100:
+            nkd, nc = m1["channelData_nofacitynoise"].T
+        else:
+            nkd, nc = m1["channelData"].T
+
+        # ph1_pa = volts_to_pa(ph1_v, "PH1", fcut)
+        # nc1_pa = volts_to_pa(nc_v,  "NC",  fcut)
+        # # compensate sensor sensitivity vs psig (amplitude gain)
+        # ph1_pa = correct_pressure_sensitivity(ph1_pa, psig)
+        # nc1_pa =  correct_pressure_sensitivity(nc1_pa,  psig)
+        f1, H1, g2_1 = _estimate_frf(nc, nkd, fs=fs)  # x=PH1, y=NC  ⇒ H:=H_{PH→NC}
+        # ---- persist (note: save the **fused** frequency vector)
+        out = Path(calib_base) / f"calibs_{p_si}.h5"   # or f"calibs_{p_si}psig.h5"
+        with h5py.File(out, "w") as hf:
+            hf.create_dataset("frequencies", data=f1)   # <— use fused grid
+            hf.create_dataset("H_fused", data=H1)       # complex, PH→NC
+            hf.create_dataset("gamma2_fused", data=g2_1)
+            hf.attrs["psig"] = psig
+            hf.attrs["orientation"] = "H = NC/PH (H1 = conj(Sxy)/Sxx with x=nc, y=nkd)"
+            hf.attrs["fs_Hz"] = fs
+            hf.attrs["fcut_Hz"] = fcut
+        print(f"[ok] {p_si:>3} psig → {out}")
+
 # --------------- example CLI ---------------------------------------------------
 if __name__ == "__main__":
     pressures = [0, 50, 100]                       # psig
     f_cuts    = [1200.0, 4000.0, 10000.0]          # per-label anti-alias lowpass in Hz
-    save_calibs(pressures, calib_base="data/final_calibration", fs=50_000.0, f_cuts=f_cuts)
+    # save_calibs(pressures, calib_base="data/20250930", fs=50_000.0, f_cuts=f_cuts)
+    save_NC_NKD_calibs(pressures, calib_base="data/20250930", fs=50_000.0, f_cuts=f_cuts)

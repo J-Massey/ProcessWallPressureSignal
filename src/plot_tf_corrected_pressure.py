@@ -163,6 +163,9 @@ def plot_model_comparison_roi():
         with h5py.File("data/final_calibration/" +f'calibs_{psigs[idxfn]}.h5', 'r') as hf:
             H_fused = hf['H_fused'][:].squeeze().astype(complex)
             f_cal = hf['frequencies'][:].squeeze().astype(float)
+        with h5py.File("data/20250930/" +f'calibs_{psigs[idxfn]}.h5', 'r') as hf:
+            H_fused_nkd = hf['H_fused'][:].squeeze().astype(complex)
+            f_cal_nkd = hf['frequencies'][:].squeeze().astype(float)
             # Load cleaned signals and attributes
         with h5py.File("data/final_cleaned/" +f'{fn}_far_cleaned.h5', 'r') as hf:
             ph1_clean_far = hf['ph1_clean'][:]
@@ -176,6 +179,8 @@ def plot_model_comparison_roi():
             cf_2 = hf.attrs.get('cf_2', np.nan)
         ph1_clean_far = apply_frf(ph1_clean_far, FS, f_cal, H_fused)
         ph2_clean_far = apply_frf(ph2_clean_far, FS, f_cal, H_fused)
+        ph1_clean_far = apply_frf(ph1_clean_far, FS, f_cal_nkd, H_fused_nkd)
+        ph2_clean_far = apply_frf(ph2_clean_far, FS, f_cal_nkd, H_fused_nkd)
         f_clean, Pyy_ph1_clean = compute_spec(FS, ph1_clean_far)
         f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean_far)
         T_plus = 1/f_clean * (u_tau**2)/nu
@@ -202,6 +207,9 @@ def plot_model_comparison_roi():
             cf_2 = hf.attrs.get('cf_2', np.nan)
         ph1_clean_close = apply_frf(ph1_clean_close, FS, f_cal, H_fused)
         ph2_clean_close = apply_frf(ph2_clean_close, FS, f_cal, H_fused)
+        ph1_clean_close = apply_frf(ph1_clean_close, FS, f_cal_nkd, H_fused_nkd)
+        ph2_clean_close = apply_frf(ph2_clean_close, FS, f_cal_nkd, H_fused_nkd)
+
         f_clean, Pyy_ph1_clean = compute_spec(FS, ph1_clean_close)
         f_clean, Pyy_ph2_clean = compute_spec(FS, ph2_clean_close)
         T_plus = 1/f_clean * (u_tau**2)/nu
@@ -275,8 +283,96 @@ def plot_model_comparison_roi():
 
     fig.savefig('figures/final/tf_corrected_spectra_roi.png', dpi=410)
 
+def plot_model_comparison_p_sensitivity():
+    labels = ['0psig', '50psig', '100psig']
+    psigs = [0, 50, 100]
+
+    fig, axs = plt.subplots(1, 3, figsize=(8, 3), tight_layout=True, sharey=True, sharex=True)
+    f_cutl, f_cuth = 100, 1_000  # Hz
+    u_tau_error = [0.2, 0.1, 0.05] #% uncertainty in u_tau for 0, 50, 100 psig
+
+    for idxfn, fn in enumerate(labels):
+        ax = axs[idxfn]
+        with h5py.File("data/final_calibration/" +f'calibs_{psigs[idxfn]}.h5', 'r') as hf:
+            H_fused = hf['H_fused'][:].squeeze().astype(complex)
+            f_cal = hf['frequencies'][:].squeeze().astype(float)
+        with h5py.File("data/20250930/" +f'calibs_{psigs[idxfn]}.h5', 'r') as hf:
+            H_fused_nkd = hf['H_fused'][:].squeeze().astype(complex)
+            f_cal_nkd = hf['frequencies'][:].squeeze().astype(float)
+            # Load cleaned signals and attributes
+        with h5py.File("data/final_cleaned/" +f'{fn}_far_cleaned.h5', 'r') as hf:
+            ph2_clean_far = hf['ph2_clean'][:]
+            ph2_clean_far_l = correct_pressure_sensitivity(ph2_clean_far, psigs[idxfn], alpha=0.005)
+            ph2_clean_far_u = correct_pressure_sensitivity(ph2_clean_far, psigs[idxfn], alpha=0.015)
+            u_tau = float(hf.attrs['u_tau'])
+            nu = float(hf.attrs['nu'])
+            rho = float(hf.attrs['rho'])
+            Re_tau = hf.attrs.get('Re_tau', np.nan)
+            cf_2 = hf.attrs.get('cf_2', np.nan)
+        ph2_clean_far_l = apply_frf(ph2_clean_far_l, FS, f_cal, H_fused)
+        ph2_clean_far_l = apply_frf(ph2_clean_far_l, FS, f_cal_nkd, H_fused_nkd)
+        ph2_clean_far_u = apply_frf(ph2_clean_far_u, FS, f_cal, H_fused)
+        ph2_clean_far_u = apply_frf(ph2_clean_far_u, FS, f_cal_nkd, H_fused_nkd)
+        f_clean, Pyy_ph2_clean_u = compute_spec(FS, ph2_clean_far_u)
+        f_clean, Pyy_ph2_clean_l = compute_spec(FS, ph2_clean_far_l)
+        T_plus = 1/f_clean * (u_tau**2)/nu
+
+        g1_b, g2_b, rv_b = bl_model(T_plus, Re_tau, cf_2)
+        g1_c, g2_c, rv_c = channel_model(T_plus, Re_tau, u_tau, u_cl=14)  # u_cl ~ 15 m/s
+        bl_fphipp_plus = rv_b*(g1_b+g2_b)
+        channel_fphipp_plus = rv_c*(g1_c+g2_c)
+        
+        ax.semilogx(T_plus, bl_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='--', color=COLOURS[idxfn], lw=0.7)
+        ax.semilogx(T_plus, channel_fphipp_plus, label=f'Model {labels[idxfn]}', linestyle='-.', color=COLOURS[idxfn], lw=0.7)
+
+        # plot error bars due to u_tau uncertainty
+        # mask the frequency window once
+        # --- window & data ---
+        mask = (f_clean > f_cutl) & (f_clean < f_cuth)
+        f_m   = f_clean[mask]
+        P_m_u   = Pyy_ph2_clean_u[mask]
+        P_m_l   = Pyy_ph2_clean_l[mask]
+
+        # --- u_tau range ---
+        u_nom = u_tau
+
+        # nominal on top & labelled
+        T_nom = (u_nom**2) / (nu * f_m)
+        Y_nom_u = (f_m * P_m_u) / (rho**2 * u_nom**4)
+        Y_nom_l = (f_m * P_m_l) / (rho**2 * u_nom**4)
+        ax.semilogx(T_nom, Y_nom_u, color=COLOURS[idxfn], linewidth=1, label=labels[idxfn], zorder=10)
+        ax.semilogx(T_nom, Y_nom_l, color=COLOURS[idxfn], linewidth=1, label=labels[idxfn], zorder=10)
+
+        ax.grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+        ax.grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+
+    axs[1].set_xlabel(r"$T^+$")
+    axs[0].set_ylabel(r"$({f \phi_{pp}}^+)_{\mathrm{corr.}}$")
+    ax.set_xlim(7, 7_000)
+    ax.set_ylim(0, 6)
+
+    labels_handles = ['1 000 PH2',
+                      '5 000 PH2',
+                      '9 000 PH2',]
+    label_colours = COLOURS
+    label_styles = ['-', '-', '-']
+    custom_lines = [Line2D([0], [0], color=label_colours[i], linestyle=label_styles[i]) for i in range(len(labels_handles))]
+    leg1 = ax.legend(custom_lines, labels_handles, loc='upper right', fontsize=8)
+    ax.add_artist(leg1)
+    labels_handles2 = ['BL model',
+                       'Channel model']
+    label_colours2 = ['black', 'black']
+    label_styles2 = ['--', '-.']
+    custom_lines2 = [Line2D([0], [0], color=label_colours2[i], linestyle=label_styles2[i]) for i in range(len(labels_handles2))]
+    axs[1].legend(custom_lines2, labels_handles2, loc='upper center', fontsize=8)
+
+    fig.suptitle(r'Pressure sensitivity correction $\alpha\in[0.005, 0.015]dB kPa^{-1}$ variation')
+
+    fig.savefig('figures/final/tf_corrected_spectra_p_sensitivity.png', dpi=410)
+
 
 if __name__ == "__main__":
     # plot_model_comparison()
-    plot_model_comparison_roi()
+    # plot_model_comparison_roi()
+    plot_model_comparison_p_sensitivity()
     

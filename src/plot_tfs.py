@@ -194,6 +194,41 @@ def plot_tfs():
     ax.legend(custom_lines, labels_handles, loc='lower left', fontsize=9)
     fig.savefig('figures/final/tfs.png', dpi=410)
 
+def plot_tfs_nc_nkd():
+    labels = ['0psig', '50psig', '100psig']
+    psigs = [0, 50, 100]
+
+    fig, ax = plt.subplots(1, 1, figsize=(5, 2.7), tight_layout=True)
+
+    for idxfn, fn in enumerate(labels):
+        with h5py.File("data/20250930/" +f'calibs_{psigs[idxfn]}.h5', 'r') as hf:
+            H_fused = hf['H_fused'][:].squeeze().astype(complex)
+            f_cal = hf['frequencies'][:].squeeze().astype(float)
+        _, _, nu = air_props_from_gauge(psigs[idxfn], TDEG[idxfn] + 273.15)
+        T_plus = 1/f_cal * (0.5**2)/nu
+        psig = psigs[idxfn]
+
+        ax.semilogx(f_cal, np.abs(H_fused), label=f'{labels[idxfn]}', linestyle='-', color=COLOURS[idxfn])
+        # ax.semilogx(T_plus, H_fused, label=f'{labels[idxfn]}', linestyle='--', color=colours[idxfn])
+
+    ax.set_xlabel(r"$f$ [Hz]")
+    ax.set_ylabel(r"$|H|$")
+    ax.set_xlim(100, 1e3)
+    ax.set_ylim(0.6, 1.1)
+    ax.grid(True, which='major', linestyle='--', linewidth=0.4, alpha=0.7)
+    ax.grid(True, which='minor', linestyle=':', linewidth=0.2, alpha=0.6)
+
+
+    labels_handles = [r'$\mathit{Re}_\tau \approx$ 1 000',
+                      r'$\mathit{Re}_\tau \approx$ 5 000',
+                      r'$\mathit{Re}_\tau \approx$ 9 000']
+    label_colours = COLOURS
+    label_styles = ['-', '-', '-']
+    custom_lines = [Line2D([0], [0], color=label_colours[i], linestyle=label_styles[i]) for i in range(len(labels_handles))]
+    ax.legend(custom_lines, labels_handles, loc='lower left', fontsize=9)
+    fig.savefig('figures/final/tfs_nc_nkd.png', dpi=410)
+
 if __name__ == "__main__":
     plot_tfs()
+    plot_tfs_nc_nkd()
     
