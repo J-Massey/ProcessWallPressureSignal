@@ -17,7 +17,7 @@ plt.rc("text", usetex=True)
 plt.rc("text.latex", preamble=r"\usepackage{mathpazo}")
 
 from apply_frf import apply_frf
-from models import bl_model
+from plot.models import bl_model
 from clean_raw_data import air_props_from_gauge
 from save_calibs import save_calibs
 from src.unused.save_scaling_target import compute_spec, save_scaling_target
@@ -67,6 +67,75 @@ def correct_pressure_sensitivity(p, psig):
     alpha = 0.01 # dB/kPa
     p_corr = p * 10**(psig * PSI_TO_PA / 1000 * alpha / 20)
     return p_corr
+
+
+def save_raw_pressure():
+    """
+    Apply the (rho, f)-scaled calibration FRF to measured time series and plot
+    pre-multiplied, normalized spectra:  f * Pyy / (rho^2 * u_tau^4).
+    """
+    # --- fit rho–f scaling once from your saved target + calibration ---
+    labels = ['0psig', '50psig', '100psig']
+    with h5py.File("data/final_pressure/SU_2pt_raw_pressure.h5", 'w') as hf_out:
+
+        #This is the raw data with the freestream noise removed, explain
+        hf_out.create_group("raw_data")
+        h_raw = hf_out["raw_data"]
+        # This is where the data has been corrected using a LEM
+        hf_out.create_group("corrected_data")
+        h_corrected = hf_out["corrected_data"]
+
+    
+        u_tau_uncertainty = [0.2, 0.1, 0.05]
+        # --- main loop over datasets ---
+        for i, L in enumerate(labels):
+
+            # Load cleaned signals and attributes
+            with h5py.File(CLEANED_BASE +f'{L}_far_cleaned.h5', 'r') as hf:
+                ph1_clean_far = hf['ph1_clean'][:]
+                ph2_clean_far = hf['ph2_clean'][:]
+                u_tau = float(hf.attrs['u_tau'])
+                nu = float(hf.attrs['nu'])
+                rho = float(hf.attrs['rho'])
+                Re_tau = hf.attrs.get('Re_tau', np.nan)
+
+            h_raw.create_dataset(f'{L}_far/ph1', data=ph1_clean_far)
+            h_raw.create_dataset(f'{L}_far/ph2', data=ph2_clean_far)
+            with h5py.File(CLEANED_BASE +f'{L}_close_cleaned.h5', 'r') as hf:
+                ph1_clean_close = hf['ph1_clean'][:]
+                ph2_clean_close = hf['ph2_clean'][:]
+            
+            h_raw.create_dataset(f'{L}_close/ph1', data=ph1_clean_close)
+            h_raw.create_dataset(f'{L}_close/ph2', data=ph2_clean_close)
+            
+
+            psig = int(L.replace('psig', ''))
+            with h5py.File(CALIB_BASE + f"calibs_{psig}.h5", "r") as hf:
+                f_cal = np.asarray(hf["frequencies"][:], float)
+                H_cal = np.asarray(hf["H_fused"][:], complex)
+            with h5py.File("data/20250930/" +f'calibs_{psig}.h5', 'r') as hf:
+                f_cal_nkd = hf['frequencies'][:].squeeze().astype(float)
+                H_fused_nkd = hf['H_fused'][:].squeeze().astype(complex)
+
+            # --- apply FRF with fitted rho–f magnitude scaling ---
+            # (uses your updated apply_frf that accepts scale_fn and rho)
+            ph1_filt_far = apply_frf(ph1_clean_far, FS, f_cal, H_cal)
+            ph2_filt_far = apply_frf(ph2_clean_far, FS, f_cal, H_cal)
+            ph1_filt_close = apply_frf(ph1_clean_close, FS, f_cal, H_cal)
+            ph2_filt_close = apply_frf(ph2_clean_close, FS, f_cal, H_cal)
+            ph1_filt_far = apply_frf(ph1_clean_far, FS, f_cal_nkd, H_fused_nkd)
+            ph2_filt_far = apply_frf(ph2_clean_far, FS, f_cal_nkd, H_fused_nkd)
+            ph1_filt_close = apply_frf(ph1_clean_close, FS, f_cal_nkd, H_fused_nkd)
+            ph2_filt_close = apply_frf(ph2_clean_close, FS, f_cal_nkd, H_fused_nkd)
+
+            h_corrected.attrs[f'rho_{L}'] = rho
+            h_corrected.attrs[f'u_tau_{L}'] = u_tau
+            h_corrected.attrs[f'nu_{L}'] = nu
+
+            h_corrected.create_dataset(f'{L}_far/ph1', data=ph1_filt_far)
+            h_corrected.create_dataset(f'{L}_far/ph2', data=ph2_filt_far)
+            h_corrected.create_dataset(f'{L}_close/ph1', data=ph1_filt_close)
+            h_corrected.create_dataset(f'{L}_close/ph2', data=ph2_filt_close)
 
 
 def save_corrected_pressure():
@@ -138,7 +207,5 @@ def save_corrected_pressure():
             h_corrected.create_dataset(f'{L}_close/ph2', data=ph2_filt_close)
 
 
-
-
 if __name__ == "__main__":
-    save_corrected_pressure()
+    save_raw_pressure()

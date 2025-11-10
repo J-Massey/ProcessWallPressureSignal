@@ -35,12 +35,6 @@ ph1_colour = "#c76713"  # matplotlib default orange
 ph2_colour = "#9fda16"  # matplotlib default red
 nkd_colour = '#2ca02c' # matplotlib default green
 
-DEFAULT_UNITS = {
-    'channelData_300_plug': ('Pa', 'Pa'),  # PH, NKD
-    'channelData_300_nose': ('Pa', 'Pa'),  # NKD, NC
-    'channelData_300':      ('Pa', 'Pa'),  # NC,  PH
-}
-
 # --- constants (keep once, top of file) ---
 R = 287.05        # J/kg/K
 PSI_TO_PA = 6_894.76
