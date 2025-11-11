@@ -20,7 +20,7 @@ plt.rcParams["font.size"] = "10.5"
 plt.rc("text", usetex=True)
 plt.rc("text.latex", preamble=r"\usepackage{mathpazo}")
 
-from models import channel_model, bl_model
+from plot.models import channel_model, bl_model
 
 ############################
 # Constants & defaults
@@ -49,6 +49,15 @@ CHAIN_SENS_V_PER_PA = {
     'PH2': 51.7e-3,  # V/Pa
     'NC':  52.4e-3,  # V/Pa
 }
+
+def correct_pressure_sensitivity(p, psig):
+    """
+    Correct pressure sensor sensitivity based on gauge pressure [psig].
+    Returns corrected pressure signal [Pa].
+    """
+    alpha = 0.01 # dB/kPa
+    p_corr = p * 10**(psig * PSI_TO_PA / 1000 * alpha / 20)
+    return p_corr
 
 
 def bandpass_filter(data, fs, f_low, f_high, order=4):
@@ -124,11 +133,12 @@ def clean_raw(
 
     # --- Volts -> Pa using fixed chain sensitivities ---
     ph1 = volts_to_pa(ph1_V, 'PH1', f_cut)
-    ph1 -= ph1.mean()
     ph2 = volts_to_pa(ph2_V, 'PH2', f_cut)
-    ph2 -= ph2.mean()
     nkd = volts_to_pa(nkd_V, 'NC', f_cut)
-    nkd -= nkd.mean()
+    # --- pressure sensitivity correction ---
+    ph1 = correct_pressure_sensitivity(ph1, psi_gauge)
+    ph2 = correct_pressure_sensitivity(ph2, psi_gauge)
+    nkd = correct_pressure_sensitivity(nkd, psi_gauge)
 
     # --- take out the mean ---
     ph1 -= np.mean(ph1)

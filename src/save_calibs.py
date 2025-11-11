@@ -233,11 +233,6 @@ def save_NC_NKD_calibs(
         else:
             nkd, nc = m1["channelData"].T
 
-        # ph1_pa = volts_to_pa(ph1_v, "PH1", fcut)
-        # nc1_pa = volts_to_pa(nc_v,  "NC",  fcut)
-        # # compensate sensor sensitivity vs psig (amplitude gain)
-        # ph1_pa = correct_pressure_sensitivity(ph1_pa, psig)
-        # nc1_pa =  correct_pressure_sensitivity(nc1_pa,  psig)
         f1, H1, g2_1 = _estimate_frf(nc, nkd, fs=fs)  # x=PH1, y=NC  ⇒ H:=H_{PH→NC}
         # ---- persist (note: save the **fused** frequency vector)
         out = Path(calib_base) / f"calibs_{p_si}.h5"   # or f"calibs_{p_si}psig.h5"
