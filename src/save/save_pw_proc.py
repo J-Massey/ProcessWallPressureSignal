@@ -28,7 +28,6 @@ TDEG = [18, 20, 22]
 # Units & optional conversions (kept for compatibility with other workflows)
 # =============================================================================
 
-
 SENSITIVITIES_V_PER_PA: dict[str, float] = {
     'PH1': 50.9e-3,
     'PH2': 51.7e-3,
@@ -71,7 +70,12 @@ def air_props_from_gauge(psi_gauge: float, T_K: float):
     return rho, mu, nu
 
 
-def save_raw_ph_pressure():
+def save_corrected_pressure():
+    """
+    Apply the (rho, f)-scaled calibration FRF to measured time series and plot
+    pre-multiplied, normalized spectra:  f * Pyy / (rho^2 * u_tau^4).
+    """
+    # --- fit rho–f scaling once from your saved target + calibration ---
     labels = ['0psig', '50psig', '100psig']
     psigs  = [0.0, 50.0, 100.0]
     u_tau  = [0.537, 0.522, 0.506]
@@ -82,11 +86,11 @@ def save_raw_ph_pressure():
     Ue = 14.0
     analog_LP_filter = [2100, 4700, 14100]
 
-    ph_raw = 'data/final_pressure/G_wallp_SU_raw.hdf5'
+    ph_processed = 'data/final_pressure/G_wallp_SU_production.hdf5'
 
-    with h5py.File(ph_raw, 'w') as hf:
+    with h5py.File(ph_processed, 'w') as hf:
         # --- file-level metadata ---
-        hf.attrs['title'] = "Wall-pressure (pin-hole) - raw & calibration"
+        hf.attrs['title'] = "Wall-pressure (pin-hole) - processed & FRF from calibration"
         hf.attrs['fs_Hz'] = FS
         hf.attrs['Ue_m_per_s'] = Ue
         hf.attrs['DAQ'] = "24-bit"
@@ -95,16 +99,15 @@ def save_raw_ph_pressure():
 
 
         # --- helpful top-level description ---
-        
         hf.attrs['description'] = (
-            "Raw wall-pressure signals from pinhole treated microphone. "
+            "Processed wall-pressure signals from pinhole treated microphone applying FRF from calibration. "
             "Two measurements per condition: close/far correspond to the "
             "pinhole spacings used in wall-pressure dataset G. "
-            "Includes semi-anechoic calibration signal with a white noise"
+            "Includes frequency response function from semi-anechoic calibration signal with a white noise "
             "source measuring the pinhole and nosecone treated mic simultaneously."
         )
 
-        g_fs = hf.create_group("wallp_raw")
+        g_fs = hf.create_group("wallp_production")
 
         for i, L in enumerate(labels):
             gL = g_fs.create_group(L)
@@ -120,113 +123,32 @@ def save_raw_ph_pressure():
             gL.attrs['T_K'] = Tk[i]
             gL.attrs['analog_LP_filter_Hz'] = analog_LP_filter[i]
 
-            # ---- load raw (.mat) ----
-            nr_mat = Path(RAW_BASE) / f'far/{L}.mat'
-            fr_mat = Path(RAW_BASE) / f'close/{L}.mat'
+            g_rejected = gL.create_group('fs_noise_rejected_signals')
 
-            dat_far  = sio.loadmat(nr_mat)
-            dat_close = sio.loadmat(fr_mat)   # <- fix the typo: not nr_mat again
-
-            # Expect columns: 0=PH1,1=PH2,2=NC  (rename if your files differ)
-            X_far   = np.asarray(dat_far['channelData'])
-            X_close = np.asarray(dat_close['channelData'])
-            ph1_far_V, ph2_far_V, NC_far_V       = X_far[:,0],  X_far[:,1],  X_far[:,2]
-            ph1_close_V, ph2_close_V, NC_close_V = X_close[:,0],X_close[:,1],X_close[:,2]
-
-            # --- convert + pressure sensitivity corrections (your funcs) ---
-            ph1_far  = correct_pressure_sensitivity(volts_to_pa(ph1_far_V,  'PH1'), psigs[i])
-            ph2_far  = correct_pressure_sensitivity(volts_to_pa(ph2_far_V,  'PH2'), psigs[i])
-
-            ph1_close = correct_pressure_sensitivity(volts_to_pa(ph1_close_V,'PH1'), psigs[i])
-            ph2_close = correct_pressure_sensitivity(volts_to_pa(ph2_close_V,'PH2'), psigs[i])
-
-            # --- store raw arrays (chunked + compressed) ---
-            # Close
-            gC = gL.create_group('close')
-            gC.attrs['spacing_m'] = 2.8*DELTA
-            gC.create_dataset('PH1_Pa', data=ph1_close)
-            gC.create_dataset('PH2_Pa', data=ph2_close)
-            
-            # Far
-            gF = gL.create_group('far')
-            gF.attrs['spacing_m'] = 3.2*DELTA
-            gF.create_dataset('PH1_Pa', data=ph1_far)
-            gF.create_dataset('PH2_Pa', data=ph2_far)
-
-            # ---- run 1: PH1→NC
-            m1 = sio.loadmat(CAL_BASE + f"calib_{L}_1.mat")
-            ph1_v, _, nc_v, *_ = m1["channelData_WN"].T
-            ph1_pa = volts_to_pa(ph1_v, "PH1")
-            nc1_pa = volts_to_pa(nc_v,  "NC")
-            # compensate sensor sensitivity vs psig (amplitude gain)
-            ph1_pa = correct_pressure_sensitivity(ph1_pa, psigs[i])
-            nc1_pa =  correct_pressure_sensitivity(nc1_pa,  psigs[i]) # x=PH1, y=NC  ⇒ H:=H_{PH→NC}
-
-            # ---- run 2: PH2→NC
-            m2 = sio.loadmat(CAL_BASE + f"calib_{L}_2.mat")
-            _, ph2_v, nc_v2, *_ = m2["channelData_WN"].T
-            ph2_pa = volts_to_pa(ph2_v, "PH2")
-            nc2_pa = volts_to_pa(nc_v2,  "NC")
-            ph2_pa = correct_pressure_sensitivity(ph2_pa, psigs[i])
-            nc2_pa =  correct_pressure_sensitivity(nc2_pa,  psigs[i])
-
-            gFRF = gL.create_group('FRF_PH_to_NC')
-            gFRF.attrs['from'] = 'NC'
-            gFRF.attrs['to']   = 'nkd'
-            gFRF.attrs['note'] = 'Semi-anechoic calibration mapping the pinhole mic to nosecone mic'
-            gR1 = gFRF.create_group('Run1')
-            gR1.create_dataset('PH1_Pa', data=ph1_pa)
-            gR1.create_dataset('NC_Pa',  data=nc1_pa)
-            gR2 = gFRF.create_group('Run2')
-            gR2.create_dataset('PH2_Pa', data=ph2_pa)
-            gR2.create_dataset('NC_Pa',  data=nc2_pa)
-
-
-def save_corrected_pressure():
-    """
-    Apply the (rho, f)-scaled calibration FRF to measured time series and plot
-    pre-multiplied, normalized spectra:  f * Pyy / (rho^2 * u_tau^4).
-    """
-    # --- fit rho–f scaling once from your saved target + calibration ---
-    labels = ['0psig', '50psig', '100psig']
-    with h5py.File("data/final_pressure/SU_2pt_pressure.h5", 'w') as hf_out:
-
-        #This is the raw data with the freestream noise removed, explain
-        hf_out.create_group("raw_data")
-        h_raw = hf_out["raw_data"]
-        # This is where the data has been corrected using a LEM
-        hf_out.create_group("corrected_data")
-        h_corrected = hf_out["corrected_data"]
-
-    
-        u_tau_uncertainty = [0.2, 0.1, 0.05]
-        # --- main loop over datasets ---
-        for i, L in enumerate(labels):
+            g_rejected_far = g_rejected.create_group('far')
+            g_rejected_far.attrs['spacing_m'] = 3.2*DELTA
+            g_rejected_close = g_rejected.create_group('close')
+            g_rejected_close.attrs['spacing_m'] = 2.8*DELTA
 
             # Load cleaned signals and attributes
             with h5py.File(CLEANED_BASE +f'{L}_far_cleaned.h5', 'r') as hf:
                 ph1_clean_far = hf['ph1_clean'][:]
                 ph2_clean_far = hf['ph2_clean'][:]
-                u_tau = float(hf.attrs['u_tau'])
-                nu = float(hf.attrs['nu'])
-                rho = float(hf.attrs['rho'])
-                Re_tau = hf.attrs.get('Re_tau', np.nan)
+            
+            g_rejected_far.create_dataset('ph1', data=ph1_clean_far)
+            g_rejected_far.create_dataset('ph2', data=ph2_clean_far)
 
-            h_raw.create_dataset(f'{L}_far/ph1', data=ph1_clean_far)
-            h_raw.create_dataset(f'{L}_far/ph2', data=ph2_clean_far)
             with h5py.File(CLEANED_BASE +f'{L}_close_cleaned.h5', 'r') as hf:
                 ph1_clean_close = hf['ph1_clean'][:]
                 ph2_clean_close = hf['ph2_clean'][:]
-            
-            h_raw.create_dataset(f'{L}_close/ph1', data=ph1_clean_close)
-            h_raw.create_dataset(f'{L}_close/ph2', data=ph2_clean_close)
-            
 
-            psig = int(L.replace('psig', ''))
-            with h5py.File(CALIB_BASE + f"calibs_{psig}.h5", "r") as hf:
+            g_rejected_close.create_dataset('ph1', data=ph1_clean_close)
+            g_rejected_close.create_dataset('ph2', data=ph2_clean_close)
+
+            with h5py.File(CAL_BASE + f"calibs_{int(psigs[i])}.h5", "r") as hf:
                 f_cal = np.asarray(hf["frequencies"][:], float)
                 H_cal = np.asarray(hf["H_fused"][:], complex)
-            with h5py.File("data/20250930/" +f'calibs_{psig}.h5', 'r') as hf:
+            with h5py.File("data/20250930/" +f'calibs_{int(psigs[i])}.h5', 'r') as hf:
                 f_cal_nkd = hf['frequencies'][:].squeeze().astype(float)
                 H_fused_nkd = hf['H_fused'][:].squeeze().astype(complex)
 
@@ -241,15 +163,17 @@ def save_corrected_pressure():
             ph1_filt_close = apply_frf(ph1_clean_close, FS, f_cal_nkd, H_fused_nkd)
             ph2_filt_close = apply_frf(ph2_clean_close, FS, f_cal_nkd, H_fused_nkd)
 
-            h_corrected.attrs[f'rho_{L}'] = rho
-            h_corrected.attrs[f'u_tau_{L}'] = u_tau
-            h_corrected.attrs[f'nu_{L}'] = nu
+            g_corrected = gL.create_group('frf_corrected_signals')
+            g_corrected_far = g_corrected.create_group('far')
+            g_corrected_close = g_corrected.create_group('close')
 
-            h_corrected.create_dataset(f'{L}_far/ph1', data=ph1_filt_far)
-            h_corrected.create_dataset(f'{L}_far/ph2', data=ph2_filt_far)
-            h_corrected.create_dataset(f'{L}_close/ph1', data=ph1_filt_close)
-            h_corrected.create_dataset(f'{L}_close/ph2', data=ph2_filt_close)
+            g_corrected_far.create_dataset('ph1', data=ph1_filt_far)
+            g_corrected_far.create_dataset('ph2', data=ph2_filt_far)
+            g_corrected_far.attrs['spacing_m'] = 3.2*DELTA
 
+            g_corrected_close.create_dataset('ph1', data=ph1_filt_close)
+            g_corrected_close.create_dataset('ph2', data=ph2_filt_close)
+            g_corrected_close.attrs['spacing_m'] = 2.8*DELTA
 
 if __name__ == "__main__":
-    save_raw_ph_pressure()
+    save_corrected_pressure()

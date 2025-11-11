@@ -10,7 +10,7 @@ def h5_tree(filename, *, show_attrs=False, max_depth=None, file_mode="r") -> str
         if not show_attrs or not hasattr(obj, "attrs") or len(obj.attrs) == 0:
             return ""
         keys = list(obj.attrs.keys())
-        return f"  (attrs: {len(keys)} -> {', '.join(map(str, keys[:4]))}{'…' if len(keys) > 4 else ''})"
+        return f"  (attrs: {len(keys)} -> {', '.join(map(str, keys[:10]))}{'…' if len(keys) > 10 else ''})"
 
     def _node_line(name, obj, is_group):
         if is_group:
@@ -61,10 +61,12 @@ if __name__ == "__main__":
     import os
     fps = [
         'data/final_pressure/F_freestreamp_SU_raw.hdf5',
+        'data/final_pressure/F_freestreamp_SU_production.hdf5',
         'data/final_pressure/G_wallp_SU_raw.hdf5',
+        'data/final_pressure/G_wallp_SU_production.hdf5',
     ]
     for fp in fps:
-        tree_str = h5_tree(fp, show_attrs=True, max_depth=8)
+        tree_str = h5_tree(fp, show_attrs=True, max_depth=80)
         out_path = os.path.splitext(fp)[0] + "_tree.txt"
         with open(out_path, "w", encoding="utf-8") as f_out:
             f_out.write(tree_str)
