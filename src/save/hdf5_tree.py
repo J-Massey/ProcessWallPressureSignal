@@ -60,11 +60,11 @@ def h5_tree(filename, *, show_attrs=False, max_depth=None, file_mode="r") -> str
 if __name__ == "__main__":
     import os
     fps = [
-        # 'data/final_pressure/F_freestreamp_SU_raw.hdf5',
-        # 'data/final_pressure/F_freestreamp_SU_production.hdf5',
-        # 'data/final_pressure/G_wallp_SU_raw.hdf5',
-        # 'data/final_pressure/G_wallp_SU_production.hdf5',
-        "/home/masseyj/Downloads/D_shear_SU_production_test.hdf5"
+        'data/final_pressure/F_freestreamp_SU_raw.hdf5',
+        'data/final_pressure/F_freestreamp_SU_production.hdf5',
+        'data/final_pressure/G_wallp_SU_raw.hdf5',
+        'data/final_pressure/G_wallp_SU_production.hdf5',
+        # "/home/masseyj/Downloads/D_shear_SU_production_test.hdf5"
         
     ]
     for fp in fps:

@@ -122,13 +122,19 @@ def save_corrected_pressure():
             gL.attrs['u_tau_rel_unc'] = u_tau_unc[i]
             gL.attrs['T_K'] = Tk[i]
             gL.attrs['analog_LP_filter_Hz'] = analog_LP_filter[i]
+            gL.attrs['units'] = ['psig: psi(g)', 'u_tau: m/s', 'nu: m^2/s', 'rho: kg/m^3', 'mu: Pa·s', 'T_K: K', 'analog_LP_filter_Hz: Hz']
 
             g_rejected = gL.create_group('fs_noise_rejected_signals')
 
             g_rejected_far = g_rejected.create_group('far')
             g_rejected_far.attrs['spacing_m'] = 3.2*DELTA
+            g_rejected_far.attrs['x_PH2'] = 15e-3
+            g_rejected_far.attrs['x_PH1'] = 15e-3 + 3.2*DELTA
+
             g_rejected_close = g_rejected.create_group('close')
             g_rejected_close.attrs['spacing_m'] = 2.8*DELTA
+            g_rejected_close.attrs['x_PH2'] = 15e-3+0.2*DELTA
+            g_rejected_close.attrs['x_PH1'] = 15e-3+0.2*DELTA + 2.8*DELTA
 
             # Load cleaned signals and attributes
             with h5py.File(CLEANED_BASE +f'{L}_far_cleaned.h5', 'r') as hf:
@@ -170,10 +176,14 @@ def save_corrected_pressure():
             g_corrected_far.create_dataset('ph1', data=ph1_filt_far)
             g_corrected_far.create_dataset('ph2', data=ph2_filt_far)
             g_corrected_far.attrs['spacing_m'] = 3.2*DELTA
+            g_corrected_far.attrs['x_PH2'] = 15e-3
+            g_corrected_far.attrs['x_PH1'] = 15e-3 + 3.2*DELTA
 
             g_corrected_close.create_dataset('ph1', data=ph1_filt_close)
             g_corrected_close.create_dataset('ph2', data=ph2_filt_close)
             g_corrected_close.attrs['spacing_m'] = 2.8*DELTA
+            g_corrected_close.attrs['x_PH2'] = 15e-3+0.2*DELTA
+            g_corrected_close.attrs['x_PH1'] = 15e-3+0.2*DELTA + 2.8*DELTA
 
 if __name__ == "__main__":
     save_corrected_pressure()

@@ -89,7 +89,7 @@ def save_raw_ph_pressure():
         hf.attrs['title'] = "Wall-pressure (pin-hole) - raw & calibration"
         hf.attrs['fs_Hz'] = FS
         hf.attrs['Ue_m_per_s'] = Ue
-        hf.attrs['DAQ'] = "24-bit"
+        hf.attrs['DAQ'] = "24-bit NI-USB-6363"
         hf.attrs['mic_details'] = "HB&K 1/2'' Type 4964"
         # gL.attrs['sensor_serial'] = sensor_serial[i % len(sensor_serial)]
 
@@ -119,6 +119,7 @@ def save_raw_ph_pressure():
             gL.attrs['u_tau_rel_unc'] = u_tau_unc[i]
             gL.attrs['T_K'] = Tk[i]
             gL.attrs['analog_LP_filter_Hz'] = analog_LP_filter[i]
+            gL.attrs['units'] = ['psig: psi(g)', 'u_tau: m/s', 'nu: m^2/s', 'rho: kg/m^3', 'mu: Pa·s', 'T_K: K', 'analog_LP_filter_Hz: Hz']
 
             # ---- load raw (.mat) ----
             nr_mat = Path(RAW_BASE) / f'far/{L}.mat'
@@ -144,12 +145,17 @@ def save_raw_ph_pressure():
             # Close
             gC = gL.create_group('close')
             gC.attrs['spacing_m'] = 2.8*DELTA
+            gC.attrs['x_PH1'] = 15e-3+0.2*DELTA
+            gC.attrs['x_PH2'] = 15e-3+0.2*DELTA + 2.8*DELTA
+            gC.attrs['spacing_m'] = 2.8*DELTA
             gC.create_dataset('PH1_Pa', data=ph1_close)
             gC.create_dataset('PH2_Pa', data=ph2_close)
             
             # Far
             gF = gL.create_group('far')
             gF.attrs['spacing_m'] = 3.2*DELTA
+            gF.attrs['x_PH2'] = 15e-3
+            gF.attrs['x_PH2'] = 15e-3 + 3.2*DELTA
             gF.create_dataset('PH1_Pa', data=ph1_far)
             gF.create_dataset('PH2_Pa', data=ph2_far)
 

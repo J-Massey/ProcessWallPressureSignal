@@ -10,7 +10,7 @@ from scipy.signal import butter, sosfiltfilt
 import torch
 from tqdm import tqdm
 
-from wiener_filter_torch import wiener_cancel_background_torch
+from src.wiener_filter_torch import wiener_cancel_background_torch
 
 from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
