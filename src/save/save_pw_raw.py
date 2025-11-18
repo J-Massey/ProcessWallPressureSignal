@@ -155,7 +155,7 @@ def save_raw_ph_pressure():
             gF = gL.create_group('far')
             gF.attrs['spacing_m'] = 3.2*DELTA
             gF.attrs['x_PH2'] = 15e-3
-            gF.attrs['x_PH2'] = 15e-3 + 3.2*DELTA
+            gF.attrs['x_PH1'] = 15e-3 + 3.2*DELTA
             gF.create_dataset('PH1_Pa', data=ph1_far)
             gF.create_dataset('PH2_Pa', data=ph2_far)
 

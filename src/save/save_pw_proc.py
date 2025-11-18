@@ -141,15 +141,15 @@ def save_corrected_pressure():
                 ph1_clean_far = hf['ph1_clean'][:]
                 ph2_clean_far = hf['ph2_clean'][:]
             
-            g_rejected_far.create_dataset('ph1', data=ph1_clean_far)
-            g_rejected_far.create_dataset('ph2', data=ph2_clean_far)
+            g_rejected_far.create_dataset('PH1_Pa', data=ph1_clean_far)
+            g_rejected_far.create_dataset('PH2_Pa', data=ph2_clean_far)
 
             with h5py.File(CLEANED_BASE +f'{L}_close_cleaned.h5', 'r') as hf:
                 ph1_clean_close = hf['ph1_clean'][:]
                 ph2_clean_close = hf['ph2_clean'][:]
 
-            g_rejected_close.create_dataset('ph1', data=ph1_clean_close)
-            g_rejected_close.create_dataset('ph2', data=ph2_clean_close)
+            g_rejected_close.create_dataset('PH1_Pa', data=ph1_clean_close)
+            g_rejected_close.create_dataset('PH2_Pa', data=ph2_clean_close)
 
             with h5py.File(CAL_BASE + f"calibs_{int(psigs[i])}.h5", "r") as hf:
                 f_cal = np.asarray(hf["frequencies"][:], float)
@@ -173,14 +173,14 @@ def save_corrected_pressure():
             g_corrected_far = g_corrected.create_group('far')
             g_corrected_close = g_corrected.create_group('close')
 
-            g_corrected_far.create_dataset('ph1', data=ph1_filt_far)
-            g_corrected_far.create_dataset('ph2', data=ph2_filt_far)
+            g_corrected_far.create_dataset('PH1_Pa', data=ph1_filt_far)
+            g_corrected_far.create_dataset('PH2_Pa', data=ph2_filt_far)
             g_corrected_far.attrs['spacing_m'] = 3.2*DELTA
             g_corrected_far.attrs['x_PH2'] = 15e-3
             g_corrected_far.attrs['x_PH1'] = 15e-3 + 3.2*DELTA
 
-            g_corrected_close.create_dataset('ph1', data=ph1_filt_close)
-            g_corrected_close.create_dataset('ph2', data=ph2_filt_close)
+            g_corrected_close.create_dataset('PH1_Pa', data=ph1_filt_close)
+            g_corrected_close.create_dataset('PH2_Pa', data=ph2_filt_close)
             g_corrected_close.attrs['spacing_m'] = 2.8*DELTA
             g_corrected_close.attrs['x_PH2'] = 15e-3+0.2*DELTA
             g_corrected_close.attrs['x_PH1'] = 15e-3+0.2*DELTA + 2.8*DELTA
