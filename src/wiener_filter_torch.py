@@ -8,8 +8,8 @@ def wiener_cancel_background_torch(
     filter_order=2**6,
     device=None,
     dtype=torch.float32,
-    solver="cg_fft",          # "cg_fft" (fast O(m log m) per iter) or "cholesky" (dense, for small m)
-    regularization=0.0,       # small ridge on r_pn(0) to stabilize the Toeplitz system
+    solver="cholesky",          # "cg_fft" (fast O(m log m) per iter) or "cholesky" (dense, for small m)
+    regularization=1e-6,       # small ridge on r_pn(0) to stabilize the Toeplitz system
     cg_tol=1e-6,
     cg_maxiter=128,
     preserve_mean=True,
@@ -166,12 +166,28 @@ def wiener_cancel_background_torch(
     # ---------- solve Toeplitz system R_pn c = r_{p0,pn} for c (A6, A7) ----------
     if solver == "cholesky":
         # build dense Toeplitz (OK for small m)
-        idx = torch.abs(torch.arange(m, device=device).unsqueeze(0) - torch.arange(m, device=device).unsqueeze(1))
+        idx = torch.abs(torch.arange(m, device=device).unsqueeze(0)
+                        - torch.arange(m, device=device).unsqueeze(1))
         R = rpn[idx]
-        c = torch.cholesky_solve(rp0pn.unsqueeze(1), torch.linalg.cholesky(R)).squeeze(1)
+
+        # symmetrise to kill tiny asymmetry
+        R = 0.5 * (R + R.T)
+
+        # choose a jitter: either user regularization or small fraction of rpn[0]
+        if regularization > 0.0:
+            jitter = regularization
+        else:
+            jitter = 1e-6 * torch.abs(rpn[0])
+
+        R = R + jitter * torch.eye(m, device=device, dtype=dtype)
+
+        # now Cholesky should succeed
+        L = torch.linalg.cholesky(R)
+        c = torch.cholesky_solve(rp0pn.unsqueeze(1), L).squeeze(1)
     else:
-        # CG with FFT-based Toeplitz mat-vec (recommended for large m/GPU)
-        c = _cg_toeplitz_solve(rpn, rp0pn, ridge=0.0, tol=cg_tol, maxiter=cg_maxiter)
+        c = _cg_toeplitz_solve(rpn, rp0pn, ridge=regularization,
+                            tol=cg_tol, maxiter=cg_maxiter)
+
 
     # ---------- estimate noise p̂_b = c * pn  (causal FIR; A8) ----------
     # causal "full" convolution truncated to N samples:
@@ -187,3 +203,59 @@ def wiener_cancel_background_torch(
         p_clean = p_clean + mu_p0
 
     return (p_clean, pb_hat) if return_noise_estimate else p_clean
+
+
+def cancel_background_freq(
+    p0,
+    pn,
+    fs,
+    nperseg=2**12,
+    window="hann",
+    gmin=0.3,          # coherence threshold
+    alpha=0.8,         # 0<alpha<=1: how strongly to cancel
+    eps=1e-12,
+):
+    """
+    Simple spectral H1-based background cancellation.
+
+    p0 : wall-pressure signal (1D)
+    pn : free-stream noise mic (1D)
+    fs : sampling rate [Hz]
+
+    Returns p_clean, pb_hat:
+      p_clean = p0 - alpha * pb_hat
+      pb_hat  = predicted background at wall mic from pn
+    """
+    p0 = np.asarray(p0, float)
+    pn = np.asarray(pn, float)
+    N = min(p0.size, pn.size)
+    p0 = p0[:N] - p0[:N].mean()
+    pn = pn[:N] - pn[:N].mean()
+
+    w = get_window(window, nperseg, fftbins=True)
+
+    # Auto / cross spectra
+    f, Snn = welch(pn, fs=fs, window=w, nperseg=nperseg, detrend="constant")
+    _, S00 = welch(p0, fs=fs, window=w, nperseg=nperseg, detrend="constant")
+    _, S0n = csd(p0, pn, fs=fs, window=w, nperseg=nperseg, detrend="constant")
+
+    # Coherence and simple H1 (noise→wall)
+    gamma2 = np.abs(S0n)**2 / (S00 * Snn + eps)
+    H = S0n / (Snn + eps)
+
+    # Kill H where coherence is low, to avoid overfitting
+    H[gamma2 < gmin] = 0.0
+
+    # Apply H to the full pn via FFT
+    Nfft = int(2**np.ceil(np.log2(N)))
+    fr = np.fft.rfftfreq(Nfft, d=1.0/fs)
+
+    Pn = np.fft.rfft(pn, n=Nfft)
+    H_i = np.interp(fr, f, H.real, left=0.0, right=0.0) + 1j*np.interp(fr, f, H.imag, left=0.0, right=0.0)
+    Pb_hat = H_i * Pn
+    pb_hat = np.fft.irfft(Pb_hat, n=Nfft)[:N]
+
+    # Leaky subtraction
+    p_clean = p0 - alpha * pb_hat
+
+    return p_clean

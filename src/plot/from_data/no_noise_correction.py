@@ -15,6 +15,8 @@ from scipy.signal import welch, get_window
 import scienceplots
 from icecream import ic
 
+from src.apply_frf import apply_frf
+
 plt.style.use(["science", "grid"])
 plt.rcParams["font.size"] = 10.5
 plt.rc("text", usetex=True)
@@ -28,8 +30,8 @@ PSI_TO_PA = 6_894.76
 
 LABELS = ("0psig", "50psig", "100psig")
 PSIGS  = (0.0, 50.0, 100.0)
-COLOURS = ("#1e8ad8", "#ff7f0e", "#26bd26")  # hex equivalents of C0, C1, C2
-COLOURS = ("#1e8ad8", "#ff7f0e", "#26bd26")
+COLOURS = ("#1e8ad8",  "#26bd26", "#ff7f0e",)  # hex equivalents of C0, C1, C2
+
 
 def compute_spec(x: np.ndarray, fs: float = FS, nperseg: int = NPERSEG):
     """Welch PSD with consistent settings. Returns f [Hz], Pxx [Pa^2/Hz]."""
@@ -44,7 +46,7 @@ def compute_spec(x: np.ndarray, fs: float = FS, nperseg: int = NPERSEG):
     )
     return f, Pxx
 
-def plot_fs_raw():
+def plot_raw():
     psigs = ['0psig', '50psig', '100psig']
     Re_noms = [1_500, 4_500, 9_000]
     fig, ax = plt.subplots(1, 2, figsize=(6, 3), sharey=True)
@@ -52,30 +54,33 @@ def plot_fs_raw():
     ax[1].set_title("NC--far run")
     ax[0].set_xlabel(r"$T^+$")
     ax[1].set_xlabel(r"$T^+$")
-    ax[0].set_ylabel(r"${f \phi_{pp}}_{\mathrm{prod.}}^+$")
+    ax[0].set_ylabel(r"${f \phi_{pp}}_{\mathrm{raw}}^+$")
+    ax[0].set_ylim(0, 15)
 
-    with h5py.File(fps[1], 'r') as f_raw:
+    with h5py.File(fps[2], 'r') as f_raw:
         for psig in psigs:
-            nc_raw_close = f_raw[f'freestream_production/{psig}/close/NC_Pa'][:]
-            nc_raw_far = f_raw[f'freestream_production/{psig}/far/NC_Pa'][:]
-            ic(f_raw[f'freestream_production/{psig}'].attrs.keys())
-            rho = f_raw[f'freestream_production/{psig}'].attrs['rho'][()]
-            u_tau = f_raw[f'freestream_production/{psig}'].attrs['u_tau'][()]
-            nu = f_raw[f'freestream_production/{psig}'].attrs['nu'][()]
+            PH1_raw_close = f_raw[f'wallp_raw/{psig}/close/PH1_Pa'][:]
+            PH2_raw_close = f_raw[f'wallp_raw/{psig}/close/PH2_Pa'][:]
+            PH1_raw_far = f_raw[f'wallp_raw/{psig}/far/PH1_Pa'][:]
+            PH2_raw_far = f_raw[f'wallp_raw/{psig}/far/PH2_Pa'][:]
+            ic(f_raw[f'wallp_raw/{psig}'].attrs.keys())
+            rho = f_raw[f'wallp_raw/{psig}'].attrs['rho'][()]
+            u_tau = f_raw[f'wallp_raw/{psig}'].attrs['u_tau'][()]
+            nu = f_raw[f'wallp_raw/{psig}'].attrs['nu'][()]
     
-            f, Pxx_close = compute_spec(nc_raw_close, fs=FS, nperseg=NPERSEG)
-            f, Pxx_far = compute_spec(nc_raw_far, fs=FS, nperseg=NPERSEG)
+            f, Pxx_close = compute_spec(PH2_raw_far, fs=FS, nperseg=NPERSEG)
+            f, Pxx_far = compute_spec(PH2_raw_close, fs=FS, nperseg=NPERSEG)
 
             T_plus = (u_tau**2) / (nu * f)
 
             norm_factor = (rho**2) * (u_tau**4)
-            ax[0].loglog(T_plus, f * Pxx_close / norm_factor, label=fr'$Re_\tau^{{\mathrm{{nom}}}}$={Re_noms[psigs.index(psig)]}')
-            ax[1].loglog(T_plus, f * Pxx_far / norm_factor, label=psig, color=COLOURS[psigs.index(psig)])
+            ax[0].semilogx(T_plus, f * Pxx_close / norm_factor, label=fr'$Re_\tau^{{\mathrm{{nom}}}}$={Re_noms[psigs.index(psig)]}')
+            ax[1].semilogx(T_plus, f * Pxx_far / norm_factor, label=psig, color=COLOURS[psigs.index(psig)])
 
     
     ax[0].legend()
     ax[1].legend()
-    plt.savefig("figures/from_data/F_freestreamp_SU_production.png", dpi=600)
+    plt.savefig("figures/from_data/no_noise_correction.png", dpi=600)
 
 if __name__ == "__main__":
-    plot_fs_raw()
+    plot_raw()

@@ -42,14 +42,6 @@ TARGET_BASE = "data/final_target/"
 CLEANED_BASE = "data/final_cleaned/"
 RAW_BASE = "data/20251031/"
 
-def correct_pressure_sensitivity(p, psig, alpha: float = 0.01):
-    """
-    Correct pressure sensor sensitivity based on gauge pressure [psig].
-    Returns corrected pressure signal [Pa].
-    """
-    p_corr = p * 10**(psig * PSI_TO_PA / 1000 * alpha / 20)
-    return p_corr
-
 
 def volts_to_pa(x_volts: np.ndarray, channel: str) -> np.ndarray:
     sens = SENSITIVITIES_V_PER_PA[channel]  # V/Pa
@@ -87,6 +79,7 @@ def save_corrected_pressure():
     analog_LP_filter = [2100, 4700, 14100]
 
     ph_processed = 'data/final_pressure/G_wallp_SU_production.hdf5'
+    ph_raw = 'data/final_pressure/G_wallp_SU_raw.hdf5'
 
     with h5py.File(ph_processed, 'w') as hf:
         # --- file-level metadata ---
@@ -137,16 +130,24 @@ def save_corrected_pressure():
             g_rejected_close.attrs['x_PH1'] = 15e-3+0.2*DELTA + 2.8*DELTA
 
             # Load cleaned signals and attributes
-            with h5py.File(CLEANED_BASE +f'{L}_far_cleaned.h5', 'r') as hf:
-                ph1_clean_far = hf['ph1_clean'][:]
-                ph2_clean_far = hf['ph2_clean'][:]
+            with h5py.File(CLEANED_BASE +f'{L}_cleaned.h5', 'r') as hf:
+                ph1_clean_far = hf['far/ph1_clean'][:]
+                ph2_clean_far = hf['far/ph2_clean'][:]
+                ph1_clean_close = hf['close/ph1_clean'][:]
+                ph2_clean_close = hf['close/ph2_clean'][:]
+                
+            # with h5py.File(ph_raw, 'r') as f_raw:
+            #     ph1_clean_close = f_raw[f'wallp_raw/{psigs[i]}/close/PH1_Pa'][:]
+            #     ph2_clean_close = f_raw[f'wallp_raw/{psigs[i]}/close/PH2_Pa'][:]
+            #     ph1_clean_far = f_raw[f'wallp_raw/{psigs[i]}/far/PH1_Pa'][:]
+            #     ph2_clean_far = f_raw[f'wallp_raw/{psigs[i]}/far/PH2_Pa'][:]
             
             g_rejected_far.create_dataset('PH1_Pa', data=ph1_clean_far)
             g_rejected_far.create_dataset('PH2_Pa', data=ph2_clean_far)
 
-            with h5py.File(CLEANED_BASE +f'{L}_close_cleaned.h5', 'r') as hf:
-                ph1_clean_close = hf['ph1_clean'][:]
-                ph2_clean_close = hf['ph2_clean'][:]
+            # with h5py.File(CLEANED_BASE +f'{L}_close_cleaned.h5', 'r') as hf:
+            #     ph1_clean_close = hf['ph1_clean'][:]
+            #     ph2_clean_close = hf['ph2_clean'][:]
 
             g_rejected_close.create_dataset('PH1_Pa', data=ph1_clean_close)
             g_rejected_close.create_dataset('PH2_Pa', data=ph2_clean_close)
@@ -164,10 +165,11 @@ def save_corrected_pressure():
             ph2_filt_far = apply_frf(ph2_clean_far, FS, f_cal, H_cal)
             ph1_filt_close = apply_frf(ph1_clean_close, FS, f_cal, H_cal)
             ph2_filt_close = apply_frf(ph2_clean_close, FS, f_cal, H_cal)
-            ph1_filt_far = apply_frf(ph1_clean_far, FS, f_cal_nkd, H_fused_nkd)
-            ph2_filt_far = apply_frf(ph2_clean_far, FS, f_cal_nkd, H_fused_nkd)
-            ph1_filt_close = apply_frf(ph1_clean_close, FS, f_cal_nkd, H_fused_nkd)
-            ph2_filt_close = apply_frf(ph2_clean_close, FS, f_cal_nkd, H_fused_nkd)
+
+            ph1_filt_far = apply_frf(ph1_filt_far, FS, f_cal_nkd, H_fused_nkd)
+            ph2_filt_far = apply_frf(ph2_filt_far, FS, f_cal_nkd, H_fused_nkd)
+            ph1_filt_close = apply_frf(ph1_filt_close, FS, f_cal_nkd, H_fused_nkd)
+            ph2_filt_close = apply_frf(ph2_filt_close, FS, f_cal_nkd, H_fused_nkd)
 
             g_corrected = gL.create_group('frf_corrected_signals')
             g_corrected_far = g_corrected.create_group('far')

@@ -178,8 +178,10 @@ def save_calibs(
         _, ph2_v, nc_v2, *_ = m2["channelData_WN"].T
         ph2_pa = volts_to_pa(ph2_v, "PH2", fcut)
         nc2_pa = volts_to_pa(nc_v2,  "NC",  fcut)
+        print(ph2_pa.mean(), nc2_pa.mean())
         ph2_pa = correct_pressure_sensitivity(ph2_pa, psig)
         nc2_pa =  correct_pressure_sensitivity(nc2_pa,  psig)
+        print(ph2_pa.mean(), nc2_pa.mean())
         f2, H2, g2_2 = _estimate_frf(ph2_pa, nc2_pa, fs=fs)  # x=PH2 → y=NC
 
         # ---- fuse to physical anchor on a **common grid** and optionally smooth
@@ -250,5 +252,5 @@ def save_NC_NKD_calibs(
 if __name__ == "__main__":
     pressures = [0, 50, 100]                       # psig
     f_cuts    = [1200.0, 4000.0, 10000.0]          # per-label anti-alias lowpass in Hz
-    # save_calibs(pressures, calib_base="data/20250930", fs=50_000.0, f_cuts=f_cuts)
-    save_NC_NKD_calibs(pressures, calib_base="data/20250930", fs=50_000.0, f_cuts=f_cuts)
+    save_calibs(pressures, calib_base="data/final_calibration", fs=50_000.0, f_cuts=f_cuts)
+    # save_NC_NKD_calibs(pressures, calib_base="data/20250930", fs=50_000.0, f_cuts=f_cuts)
