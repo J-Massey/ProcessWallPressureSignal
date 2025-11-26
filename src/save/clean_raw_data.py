@@ -10,7 +10,7 @@ from scipy.signal import butter, sosfiltfilt
 import torch
 from tqdm import tqdm
 
-from src.wiener_filter_torch import wiener_cancel_background_torch, cancel_background_freq
+from src.wiener_filter_torch import wiener_cancel_background_torch, cancel_background_freq, wiener_cancel_hybrid
 
 from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
@@ -26,7 +26,7 @@ from src.plot.models import channel_model, bl_model
 # Constants & defaults
 ############################
 FS = 50_000.0
-NPERSEG = 2**14
+NPERSEG = 2**12
 WINDOW = "hann"
 TRIM_CAL_SECS = 5  # seconds trimmed from the start of calibration runs (0 to disable)
 
@@ -94,7 +94,7 @@ def clean_raw(
     psi_gauge: int,   # psig for this run
     T_K: float,         # Kelvin for this run
     u_tau: float,       # m/s for this run (your measured/estimated)
-    plot_flag=True
+    plot_flag=False
 ):
     # --- gas props & scales ---
     rho, mu, nu = air_props_from_gauge(psi_gauge, T_K)
@@ -124,10 +124,8 @@ def clean_raw(
             with h5py.File(ph_raw, 'r') as f_raw:
                 ph1 = f_raw[f'wallp_raw/{int(psi_gauge)}psig/{sp}/PH1_Pa'][:]
                 ph2 = f_raw[f'wallp_raw/{int(psi_gauge)}psig/{sp}/PH2_Pa'][:]
-                # nkd = f_raw[f'wallp_raw/{int(psi_gauge)}psig/{sp}/NKD_Pa'][:]
             nkd_raw = 'data/final_pressure/F_freestreamp_SU_production.hdf5'
             with h5py.File(nkd_raw, 'r') as f_nkd:
-                ic(f_nkd[f'freestream_production/{int(psi_gauge)}psig/{sp}'].keys())
                 nkd = f_nkd[f'freestream_production/{int(psi_gauge)}psig/{sp}/NC_Pa'][:]
 
             # --- take out the mean ---
@@ -191,8 +189,8 @@ def clean_raw(
                 fig.savefig(out_png, dpi=410)
 
             # --- Wiener clean, save HDF5 with consistent metadata ---
-            ph1_clean = cancel_background_freq(ph1, nkd, FS)
-            ph2_clean = cancel_background_freq(ph2, nkd, FS)
+            ph1_clean = wiener_cancel_hybrid(ph1, nkd, FS)
+            ph2_clean = wiener_cancel_hybrid(ph2, nkd, FS)
             torch.cuda.empty_cache()
             sgrp.create_dataset('ph1_clean', data=ph1_clean)
             sgrp.create_dataset('ph2_clean', data=ph2_clean)
@@ -208,7 +206,7 @@ def run_all_final():
         psi_gauge=0,
         T_K=273.15 + TDEG[0],
         u_tau=0.537,
-        plot_flag=True
+        plot_flag=False
     )
 
     # --- 50 psig ---
@@ -216,7 +214,7 @@ def run_all_final():
         psi_gauge=50,
         T_K=273.15 + TDEG[1],
         u_tau=0.522,
-        plot_flag=True
+        plot_flag=False
     )
 
     # --- 100 psig ---
@@ -224,7 +222,7 @@ def run_all_final():
         psi_gauge=100,
         T_K=273.15 + TDEG[2],
         u_tau=0.506,
-        plot_flag=True
+        plot_flag=False
     )
 
 if __name__ == "__main__":

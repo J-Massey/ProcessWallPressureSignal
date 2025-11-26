@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import numpy as np
 import h5py
-import scipy.io as sio
+from scipy.signal import butter, sosfiltfilt
 
 from icecream import ic
 from pathlib import Path
 
 from src.apply_frf import apply_frf
+from src.wiener_filter_torch import wiener_cancel_background, cancel_background_freq, wiener_cancel_hybrid
+
 
 # =============================================================================
 # Constants & styling (exported so tf_plot.py can import them)
@@ -116,41 +118,13 @@ def save_corrected_pressure():
             gL.attrs['T_K'] = Tk[i]
             gL.attrs['analog_LP_filter_Hz'] = analog_LP_filter[i]
             gL.attrs['units'] = ['psig: psi(g)', 'u_tau: m/s', 'nu: m^2/s', 'rho: kg/m^3', 'mu: Pa·s', 'T_K: K', 'analog_LP_filter_Hz: Hz']
-
-            g_rejected = gL.create_group('fs_noise_rejected_signals')
-
-            g_rejected_far = g_rejected.create_group('far')
-            g_rejected_far.attrs['spacing_m'] = 3.2*DELTA
-            g_rejected_far.attrs['x_PH2'] = 15e-3
-            g_rejected_far.attrs['x_PH1'] = 15e-3 + 3.2*DELTA
-
-            g_rejected_close = g_rejected.create_group('close')
-            g_rejected_close.attrs['spacing_m'] = 2.8*DELTA
-            g_rejected_close.attrs['x_PH2'] = 15e-3+0.2*DELTA
-            g_rejected_close.attrs['x_PH1'] = 15e-3+0.2*DELTA + 2.8*DELTA
-
-            # Load cleaned signals and attributes
-            with h5py.File(CLEANED_BASE +f'{L}_cleaned.h5', 'r') as hf:
-                ph1_clean_far = hf['far/ph1_clean'][:]
-                ph2_clean_far = hf['far/ph2_clean'][:]
-                ph1_clean_close = hf['close/ph1_clean'][:]
-                ph2_clean_close = hf['close/ph2_clean'][:]
-                
-            # with h5py.File(ph_raw, 'r') as f_raw:
-            #     ph1_clean_close = f_raw[f'wallp_raw/{psigs[i]}/close/PH1_Pa'][:]
-            #     ph2_clean_close = f_raw[f'wallp_raw/{psigs[i]}/close/PH2_Pa'][:]
-            #     ph1_clean_far = f_raw[f'wallp_raw/{psigs[i]}/far/PH1_Pa'][:]
-            #     ph2_clean_far = f_raw[f'wallp_raw/{psigs[i]}/far/PH2_Pa'][:]
-            
-            g_rejected_far.create_dataset('PH1_Pa', data=ph1_clean_far)
-            g_rejected_far.create_dataset('PH2_Pa', data=ph2_clean_far)
-
-            # with h5py.File(CLEANED_BASE +f'{L}_close_cleaned.h5', 'r') as hf:
-            #     ph1_clean_close = hf['ph1_clean'][:]
-            #     ph2_clean_close = hf['ph2_clean'][:]
-
-            g_rejected_close.create_dataset('PH1_Pa', data=ph1_clean_close)
-            g_rejected_close.create_dataset('PH2_Pa', data=ph2_clean_close)
+            # --- load raw signals ---
+            ph_raw = 'data/final_pressure/G_wallp_SU_raw.hdf5'
+            with h5py.File(ph_raw, 'r') as f_raw:
+                ph1_raw_far = f_raw[f'wallp_raw/{L}/far/PH1_Pa'][:]
+                ph2_raw_far = f_raw[f'wallp_raw/{L}/far/PH2_Pa'][:]
+                ph1_raw_close = f_raw[f'wallp_raw/{L}/close/PH1_Pa'][:]
+                ph2_raw_close = f_raw[f'wallp_raw/{L}/close/PH2_Pa'][:]
 
             with h5py.File(CAL_BASE + f"calibs_{int(psigs[i])}.h5", "r") as hf:
                 f_cal = np.asarray(hf["frequencies"][:], float)
@@ -161,10 +135,10 @@ def save_corrected_pressure():
 
             # --- apply FRF with fitted rho–f magnitude scaling ---
             # (uses your updated apply_frf that accepts scale_fn and rho)
-            ph1_filt_far = apply_frf(ph1_clean_far, FS, f_cal, H_cal)
-            ph2_filt_far = apply_frf(ph2_clean_far, FS, f_cal, H_cal)
-            ph1_filt_close = apply_frf(ph1_clean_close, FS, f_cal, H_cal)
-            ph2_filt_close = apply_frf(ph2_clean_close, FS, f_cal, H_cal)
+            ph1_filt_far = apply_frf(ph1_raw_far, FS, f_cal, H_cal)
+            ph2_filt_far = apply_frf(ph2_raw_far, FS, f_cal, H_cal)
+            ph1_filt_close = apply_frf(ph1_raw_close, FS, f_cal, H_cal)
+            ph2_filt_close = apply_frf(ph2_raw_close, FS, f_cal, H_cal)
 
             ph1_filt_far = apply_frf(ph1_filt_far, FS, f_cal_nkd, H_fused_nkd)
             ph2_filt_far = apply_frf(ph2_filt_far, FS, f_cal_nkd, H_fused_nkd)
@@ -186,6 +160,59 @@ def save_corrected_pressure():
             g_corrected_close.attrs['spacing_m'] = 2.8*DELTA
             g_corrected_close.attrs['x_PH2'] = 15e-3+0.2*DELTA
             g_corrected_close.attrs['x_PH1'] = 15e-3+0.2*DELTA + 2.8*DELTA
+            
+            g_rejected = gL.create_group('fs_noise_rejected_signals')
+
+            g_rejected_far = g_rejected.create_group('far')
+            g_rejected_far.attrs['spacing_m'] = 3.2*DELTA
+            g_rejected_far.attrs['x_PH2'] = 15e-3
+            g_rejected_far.attrs['x_PH1'] = 15e-3 + 3.2*DELTA
+
+            g_rejected_close = g_rejected.create_group('close')
+            g_rejected_close.attrs['spacing_m'] = 2.8*DELTA
+            g_rejected_close.attrs['x_PH2'] = 15e-3+0.2*DELTA
+            g_rejected_close.attrs['x_PH1'] = 15e-3+0.2*DELTA + 2.8*DELTA
+
+            # --- reject the background noise
+            nkd_raw = 'data/final_pressure/F_freestreamp_SU_production.hdf5'
+            with h5py.File(nkd_raw, 'r') as f_nkd:
+                nkd_far = f_nkd[f'freestream_production/{L}/far/NC_Pa'][:]
+                nkd_close = f_nkd[f'freestream_production/{L}/close/NC_Pa'][:]
+
+            # --- take out the mean ---
+            ph1_filt_far -= np.mean(ph1_filt_far); ph1_filt_close -= np.mean(ph1_filt_close)
+            ph2_filt_far -= np.mean(ph2_filt_far); ph2_filt_close -= np.mean(ph2_filt_close)
+            nkd_far -= np.mean(nkd_far); nkd_close -= np.mean(nkd_close)
+
+            # --- apply a band pass filter between 0.1 Hz and f_cut ---
+            def bandpass_filter(data, fs, f_low, f_high, order=3):
+                sos = butter(order, [f_low, f_high], btype='band', fs=fs, output='sos')
+                filtered = sosfiltfilt(sos, data)
+                filtered = np.nan_to_num(filtered, nan=0.0)
+                return filtered
+            
+            ph1_filt_far = bandpass_filter(ph1_filt_far, FS, 1, analog_LP_filter[i])
+            ph2_filt_far = bandpass_filter(ph2_filt_far, FS, 1, analog_LP_filter[i])
+            nkd_far = bandpass_filter(nkd_far, FS, 1, analog_LP_filter[i])
+            ph1_filt_close = bandpass_filter(ph1_filt_close, FS, 1, analog_LP_filter[i])
+            ph2_filt_close = bandpass_filter(ph2_filt_close, FS, 1, analog_LP_filter[i])
+            nkd_close = bandpass_filter(nkd_close, FS, 1, analog_LP_filter[i])
+
+            # --- cancel background with Wiener filter ---
+            ph1_clean_far = wiener_cancel_background(
+                ph1_filt_far, nkd_far, FS)#.cpu().numpy()
+            ph2_clean_far = wiener_cancel_background(
+                ph2_filt_far, nkd_far, FS)#.cpu().numpy()
+            ph1_clean_close = wiener_cancel_background(
+                ph1_filt_close, nkd_close, FS)#.cpu().numpy()
+            ph2_clean_close = wiener_cancel_background(
+                ph2_filt_close, nkd_close, FS)#.cpu().numpy()
+            
+            g_rejected_far.create_dataset('PH1_Pa', data=ph1_clean_far)
+            g_rejected_far.create_dataset('PH2_Pa', data=ph2_clean_far)
+            g_rejected_close.create_dataset('PH1_Pa', data=ph1_clean_close)
+            g_rejected_close.create_dataset('PH2_Pa', data=ph2_clean_close)
+
 
 if __name__ == "__main__":
     save_corrected_pressure()

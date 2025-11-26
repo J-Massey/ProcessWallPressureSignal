@@ -17,6 +17,7 @@ from matplotlib.colors import to_rgba
 from matplotlib.lines import Line2D
 from icecream import ic
 
+
 plt.style.use(["science", "grid"])
 plt.rcParams["font.size"] = 10.5
 plt.rc("text", usetex=True)
@@ -24,7 +25,7 @@ plt.rc("text.latex", preamble=r"\usepackage{mathpazo}")
 
 # -------------------- constants --------------------
 FS = 50_000.0
-NPERSEG = 2**14          # keep one value for all runs
+NPERSEG = 2**12          # keep one value for all runs
 WINDOW  = "hann"
 PSI_TO_PA = 6_894.76
 
@@ -106,6 +107,7 @@ def plot_model_comparison_roi():
             )
 
             g_corr = gL["frf_corrected_signals"]
+            g_corr = gL["fs_noise_rejected_signals"]
             g_far   = g_corr["far"]
             g_close = g_corr["close"]
 
