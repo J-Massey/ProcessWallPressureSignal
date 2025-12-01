@@ -28,7 +28,7 @@ PSI_TO_PA = 6_894.76
 
 LABELS = ("0psig", "50psig", "100psig")
 PSIGS  = (0.0, 50.0, 100.0)
-COLOURS = ("#1e8ad8",  "#26bd26", "#ff7f0e",)  # hex equivalents of C0, C1, C2
+COLOURS = ("#1e8ad8", "#ff7f0e", "#26bd26")  # hex equivalents of C0, C1, C2
 
 
 def compute_spec(x: np.ndarray, fs: float = FS, nperseg: int = NPERSEG):
@@ -72,7 +72,7 @@ def plot_raw():
             T_plus = (u_tau**2) / (nu * f)
 
             norm_factor = (rho**2) * (u_tau**4)
-            ax[0].semilogx(T_plus, f * Pxx_close / norm_factor, label=fr'$Re_\tau^{{\mathrm{{nom}}}}$={Re_noms[psigs.index(psig)]}')
+            ax[0].semilogx(T_plus, f * Pxx_close / norm_factor, label=fr'$Re_\tau^{{\mathrm{{nom}}}}$={Re_noms[psigs.index(psig)]}', color=COLOURS[psigs.index(psig)])
             ax[1].semilogx(T_plus, f * Pxx_far / norm_factor, label=psig, color=COLOURS[psigs.index(psig)])
 
     

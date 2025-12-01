@@ -28,8 +28,7 @@ PSI_TO_PA = 6_894.76
 
 LABELS = ("0psig", "50psig", "100psig")
 PSIGS  = (0.0, 50.0, 100.0)
-COLOURS = ("#1e8ad8",  "#26bd26", "#ff7f0e",)  # hex equivalents of C0, C1, C2
-
+COLOURS = ("#1e8ad8", "#ff7f0e", "#26bd26")  # hex equivalents of C0, C1, C2
 
 
 def compute_spec(x: np.ndarray, fs: float = FS, nperseg: int = NPERSEG):
