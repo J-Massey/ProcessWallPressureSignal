@@ -81,6 +81,7 @@ def channel_model(Tplus, Re_tau: float, u_tau: float, u_cl) -> np.ndarray:
 
 def plot_model_comparison_roi():
     labels = ['0psig', '50psig', '100psig']
+    Re_nom = [1_500, 5_000, 9_000]
 
     f_cutl, f_cuth = 100.0, 1_000.0  # Hz
 
@@ -178,11 +179,14 @@ def plot_model_comparison_roi():
 
             ax.grid(True, which='major', linestyle='--',
                     linewidth=0.4, alpha=0.7)
-            ax.grid(True, which='minor', linestyle=':',
-                    linewidth=0.2, alpha=0.6)
+            # ax.grid(True, which='minor', linestyle=':',
+            #         linewidth=0.2, alpha=0.6)
+            
+            re_labs = fr'$Re_\tau^{{nom}}={Re_nom[i]:,.0f}$; {labels[i]}'
+            ax.set_title(f"{re_labs}")
 
+            ax.set_xlabel(r"$T^+$")
     # common axes / limits
-    axs[1].set_xlabel(r"$T^+$")
     axs[0].set_ylabel(r"$({f \phi_{pp}}^+)_{\mathrm{corr.}}$")
 
     for ax in axs:
@@ -199,9 +203,9 @@ def plot_model_comparison_roi():
                linestyle=label_styles[i])
         for i in range(len(labels_handles))
     ]
-    leg1 = axs[-1].legend(custom_lines, labels_handles,
-                          loc='upper right', fontsize=8)
-    axs[-1].add_artist(leg1)
+    # leg1 = axs[-1].legend(custom_lines, labels_handles,
+    #                       loc='upper right', fontsize=8)
+    # axs[-1].add_artist(leg1)
 
     # legend for model types
     labels_handles2 = ['BL model', 'Channel model']

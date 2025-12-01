@@ -319,12 +319,12 @@ def plot_2pt_speed_outer():
 
             ax.semilogx(speed_far_out, R_norm_far,   linestyle="-",  color=COLOURS[i])
             ax.semilogx(speed_close_out, R_norm_close, linestyle="--", color=COLOURS[i])
+
             re_labs = fr'$Re_\tau^{{nom}}={Re_nom[i]:,.0f}$; {labels[i]}'
-        
             ax.set_title(f"{re_labs}")
             ax.set_xlabel(r"$U_c^o$")
-            ax.axvline(0.85, color='gray', linestyle=':', lw=0.8)
-            ax.annotate(r'$U_c/U_e=0.85$', xy=(0.5, -0.1), xycoords='data', rotation=90, fontsize=8)
+            ax.axvline(0.85, color='darkblue', linestyle=':', lw=0.8)
+            ax.annotate(r'$U_c/U_e=0.85$', xy=(0.6, -0.05), xycoords='data', rotation=90, fontsize=8, color='darkblue')
 
         custom_lines = [
             Line2D([0], [0], color='gray', linestyle='-', lw=1),
