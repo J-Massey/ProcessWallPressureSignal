@@ -243,7 +243,8 @@ def plot_2pt_outer():
 
 def plot_2pt_speed_outer():
     labels = ['0psig', '50psig', '100psig']
-    Re_nom = [1_500, 4_500, 9_000]
+    Re_nom = [1_500, 5_000, 9_000]
+
 
 
 
@@ -290,7 +291,7 @@ def plot_2pt_speed_outer():
 
             # log-spaced time lags between 0.01 and 1 s
             tmin, tmax = 0.001, 0.1 # seconds
-            lags_sec = np.logspace(np.log10(tmin), np.log10(tmax), 64)
+            lags_sec = np.logspace(np.log10(tmin), np.log10(tmax), 128)
             lags_samp = np.unique(np.round(lags_sec * fs).astype(int))  # integer sample lags
             lags_sec = lags_samp / fs  # snap back to actual times
 
@@ -323,8 +324,11 @@ def plot_2pt_speed_outer():
             re_labs = fr'$Re_\tau^{{nom}}={Re_nom[i]:,.0f}$; {labels[i]}'
             ax.set_title(f"{re_labs}")
             ax.set_xlabel(r"$U_c^o$")
-            ax.axvline(0.85, color='darkblue', linestyle=':', lw=0.8)
-            ax.annotate(r'$U_c/U_e=0.85$', xy=(0.6, -0.05), xycoords='data', rotation=90, fontsize=8, color='darkblue')
+            # ax.axvline(0.85, color='darkblue', linestyle=':', lw=0.8)
+            # ax.axvline(0.8, color='darkblue', linestyle=':', lw=0.8)
+            # highlight region between the two reference lines
+            ax.axvspan(0.8, 0.9, color='darkblue', alpha=0.12, edgecolor='none', linewidth=0)
+            ax.annotate(r'$U_c/U_e\in[0.8,0.9]$', xy=(0.6, -0.07), xycoords='data', rotation=90, fontsize=8, color='darkblue')
 
         custom_lines = [
             Line2D([0], [0], color='gray', linestyle='-', lw=1),

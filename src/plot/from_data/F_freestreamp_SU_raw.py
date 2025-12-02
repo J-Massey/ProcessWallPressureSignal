@@ -46,7 +46,7 @@ def compute_spec(x: np.ndarray, fs: float = FS, nperseg: int = NPERSEG):
 
 def plot_fs_raw():
     psigs = ['0psig', '50psig', '100psig']
-    Re_noms = [1_500, 4_500, 9_000]
+    Re_noms = [1_500, 5_000, 9_000]
     fig, ax = plt.subplots(1, 2, figsize=(6, 3), sharey=True)
     ax[0].set_title("NC--close run")
     ax[1].set_title("NC--far run")
