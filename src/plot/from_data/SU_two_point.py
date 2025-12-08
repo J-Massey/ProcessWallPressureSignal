@@ -285,8 +285,6 @@ def plot_2pt_speed_outer():
             ph2_close = g_close["PH2_Pa"][:]
 
             nt = ph2_far.size
-            mean_p2_far   = np.mean(ph1_far**2 + ph2_far**2) / 2.0
-            mean_p2_close = np.mean(ph1_close**2 + ph2_close**2) / 2.0
 
 
             # log-spaced time lags between 0.01 and 1 s
@@ -302,16 +300,16 @@ def plot_2pt_speed_outer():
 
             for k, lag in tqdm(enumerate(lags_samp), total=lags_samp.size):
                 # FAR
-                p1 = ph1_far[start:nt-lag]
-                p2 = ph2_far[start+lag:nt]
+                p1 = ph1_far[start:nt-lag] - np.mean(ph1_far)
+                p2 = ph2_far[start+lag:nt] - np.mean(ph2_far)
                 R  = np.mean(p1 * p2)
-                R_norm_far[k] = R / mean_p2_far
+                R_norm_far[k] = R / (np.sqrt(np.mean((ph1_far- np.mean(ph1_far))**2)) * np.sqrt(np.mean((ph2_far - np.mean(ph2_far))**2)))
 
                 # CLOSE (match trimming)
-                p1 = ph1_close[start:nt-lag]
-                p2 = ph2_close[start+lag:nt]
+                p1 = ph1_close[start:nt-lag] - np.mean(ph1_close)
+                p2 = ph2_close[start+lag:nt] - np.mean(ph2_close)
                 R  = np.mean(p1 * p2)
-                R_norm_close[k] = R / mean_p2_close
+                R_norm_close[k] = R / (np.sqrt(np.mean((ph1_close- np.mean(ph1_close))**2)) * np.sqrt(np.mean((ph2_close - np.mean(ph2_close))**2)))
 
             # x-axis: convective distance (or just lags_sec if you want time)
             t_conv = lags_sec  # seconds
