@@ -101,6 +101,7 @@ def plot_model_comparison_roi():
             # scalarise attrs in case h5py gives small arrays
             u_tau = float(np.atleast_1d(gL.attrs["u_tau"])[0])
             nu    = float(np.atleast_1d(gL.attrs["nu"])[0])
+            ic(u_tau**2/(nu * 700), u_tau, nu)
             rho   = float(np.atleast_1d(gL.attrs["rho"])[0])
             Re_tau = float(np.atleast_1d(gL.attrs["Re_tau"])[0])
             u_tau_rel_unc = float(
