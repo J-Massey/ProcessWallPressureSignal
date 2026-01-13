@@ -1,4 +1,4 @@
-# phys_tf_calib.py  — pressure-dependent physical FRFs (PH→NC) from semi-anechoic runs
+# phys_tf_calib.py  — pressure-dependent physical FRFs (PH->NC) from semi-anechoic runs
 from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, Sequence, Tuple, Dict
@@ -9,7 +9,7 @@ import numpy as np
 from scipy.io import loadmat
 from scipy.signal import csd, get_window, welch
 
-from src.save.clean_raw_data import volts_to_pa  # expects volts→Pa conversion by channel
+from src.save.clean_raw_data import volts_to_pa  # expects volts-> Pa conversion by channel
 
 PSI_TO_PA = 6_894.76  # Pa per psi
 
@@ -70,9 +70,9 @@ def _estimate_frf(
     nperseg: int = 2**10
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    H1 frequency response and coherence, **PH→NC orientation**:
+    H1 frequency response and coherence, **PH->NC orientation**:
       x:= PH (input), y:= NC (output)
-      SciPy: csd(x,y) = E{ X * conj(Y) }, so H1(x→y) = conj(S_xy) / S_xx
+      SciPy: csd(x,y) = E{ X * conj(Y) }, so H1(x->y) = conj(S_xy) / S_xx
     Returns: (f [Hz], H (complex), gamma2 [0..1])
     """
     x = np.asarray(x, float); y = np.asarray(y, float)
@@ -82,7 +82,7 @@ def _estimate_frf(
     _, Syy = welch(y, fs=fs, window=w, nperseg=nperseg, detrend='constant')
     _, Sxy = csd(x, y, fs=fs, window=w, nperseg=nperseg, detrend='constant')
 
-    H = np.conjugate(Sxy) / Sxx   # H1 for x→y
+    H = np.conjugate(Sxy) / Sxx   # H1 for x->y
     g2 = np.clip((np.abs(Sxy) ** 2) / (Sxx * Syy), 0.0, 1.0)
     return f, H, g2
 
@@ -150,7 +150,7 @@ def save_calibs(
     eps: float = 1e-12
 ) -> None:
     """
-    Build PH→NC H₁ FRF for each pressure from dual-position (…_1, …_2) semi-anechoic runs:
+    Build PH->NC H₁ FRF for each pressure from dual-position (…_1, …_2) semi-anechoic runs:
       - Convert both channels to Pa (volts_to_pa) and compensate mic sensitivity vs psig.
       - Estimate H1 with x=PH, y=NC, using welch/csd: H = conj(Sxy)/Sxx (SciPy's definition).
       - Fuse PH1 and PH2 FRFs on a **common frequency grid**, coherence-weighted, optionally smoothed.
@@ -163,7 +163,7 @@ def save_calibs(
 
     for p_si, fcut in zip(pressures, f_cuts):
         psig = float(p_si)
-        # ---- run 1: PH1→NC
+        # ---- run 1: PH1->NC
         m1 = loadmat(base / f"calib_{p_si}psig_1.mat")
         ph1_v, _, nc_v, *_ = m1["channelData_WN"].T
         ph1_pa = volts_to_pa(ph1_v, "PH1", fcut)
@@ -171,9 +171,9 @@ def save_calibs(
         # compensate sensor sensitivity vs psig (amplitude gain)
         ph1_pa = correct_pressure_sensitivity(ph1_pa, psig)
         nc1_pa =  correct_pressure_sensitivity(nc1_pa,  psig)
-        f1, H1, g2_1 = _estimate_frf(ph1_pa, nc1_pa, fs=fs)  # x=PH1, y=NC  ⇒ H:=H_{PH→NC}
+        f1, H1, g2_1 = _estimate_frf(ph1_pa, nc1_pa, fs=fs)  # x=PH1, y=NC  ⇒ H:=H_{PH->NC}
 
-        # ---- run 2: PH2→NC
+        # ---- run 2: PH2->NC
         m2 = loadmat(base / f"calib_{p_si}psig_2.mat")
         _, ph2_v, nc_v2, *_ = m2["channelData_WN"].T
         ph2_pa = volts_to_pa(ph2_v, "PH2", fcut)
@@ -182,7 +182,7 @@ def save_calibs(
         ph2_pa = correct_pressure_sensitivity(ph2_pa, psig)
         nc2_pa =  correct_pressure_sensitivity(nc2_pa,  psig)
         print(ph2_pa.mean(), nc2_pa.mean())
-        f2, H2, g2_2 = _estimate_frf(ph2_pa, nc2_pa, fs=fs)  # x=PH2 → y=NC
+        f2, H2, g2_2 = _estimate_frf(ph2_pa, nc2_pa, fs=fs)  # x=PH2 -> y=NC
 
         # ---- fuse to physical anchor on a **common grid** and optionally smooth
         f_fused, H_fused, g2_fused = combine_anechoic_calibrations(
@@ -196,14 +196,14 @@ def save_calibs(
             hf.create_dataset("frequencies", data=f_fused)   # <— use fused grid
             hf.create_dataset("H1", data=H1)                 # optional raw
             hf.create_dataset("H2", data=H2)
-            hf.create_dataset("H_fused", data=H_fused)       # complex, PH→NC
+            hf.create_dataset("H_fused", data=H_fused)       # complex, PH->NC
             hf.create_dataset("gamma2_fused", data=g2_fused)
             hf.attrs["psig"] = psig
             hf.attrs["orientation"] = "H = NC/PH (H1 = conj(Sxy)/Sxx with x=PH, y=NC)"
             hf.attrs["fs_Hz"] = fs
             hf.attrs["fcut_Hz"] = fcut
 
-        print(f"[ok] {p_si:>3} psig → {out}")
+        print(f"[ok] {p_si:>3} psig -> {out}")
 
 
 def save_NC_NKD_calibs(
@@ -214,7 +214,7 @@ def save_NC_NKD_calibs(
     f_cuts: Sequence[float],
 ) -> None:
     """
-    Build PH→NC H₁ FRF for each pressure from dual-position (…_1, …_2) semi-anechoic runs:
+    Build PH->NC H₁ FRF for each pressure from dual-position (…_1, …_2) semi-anechoic runs:
       - Convert both channels to Pa (volts_to_pa) and compensate mic sensitivity vs psig.
       - Estimate H1 with x=PH, y=NC, using welch/csd: H = conj(Sxy)/Sxx (SciPy's definition).
       - Fuse PH1 and PH2 FRFs on a **common frequency grid**, coherence-weighted, optionally smoothed.
@@ -227,7 +227,7 @@ def save_NC_NKD_calibs(
 
     for p_si, fcut in zip(pressures, f_cuts):
         psig = float(p_si)
-        # ---- run 1: PH1→NC
+        # ---- run 1: PH1->NC
         m1 = loadmat(base / f"{p_si}psig/nkd-ns_nofacilitynoise.mat")
         ic(m1.keys())
         if p_si == 100:
@@ -235,18 +235,18 @@ def save_NC_NKD_calibs(
         else:
             nkd, nc = m1["channelData"].T
 
-        f1, H1, g2_1 = _estimate_frf(nc, nkd, fs=fs)  # x=PH1, y=NC  ⇒ H:=H_{PH→NC}
+        f1, H1, g2_1 = _estimate_frf(nc, nkd, fs=fs)  # x=PH1, y=NC  ⇒ H:=H_{PH->NC}
         # ---- persist (note: save the **fused** frequency vector)
         out = Path(calib_base) / f"calibs_{p_si}.h5"   # or f"calibs_{p_si}psig.h5"
         with h5py.File(out, "w") as hf:
             hf.create_dataset("frequencies", data=f1)   # <— use fused grid
-            hf.create_dataset("H_fused", data=H1)       # complex, PH→NC
+            hf.create_dataset("H_fused", data=H1)       # complex, PH->NC
             hf.create_dataset("gamma2_fused", data=g2_1)
             hf.attrs["psig"] = psig
             hf.attrs["orientation"] = "H = NC/PH (H1 = conj(Sxy)/Sxx with x=nc, y=nkd)"
             hf.attrs["fs_Hz"] = fs
             hf.attrs["fcut_Hz"] = fcut
-        print(f"[ok] {p_si:>3} psig → {out}")
+        print(f"[ok] {p_si:>3} psig -> {out}")
 
 # --------------- example CLI ---------------------------------------------------
 if __name__ == "__main__":
