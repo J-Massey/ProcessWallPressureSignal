@@ -59,11 +59,14 @@ def h5_tree(filename, *, show_attrs=False, max_depth=None, file_mode="r") -> str
 
 if __name__ == "__main__":
     import os
+    from src.save.config_params import Config
+
+    cfg = Config()
     fps = [
-        'data/final_pressure/F_freestreamp_SU_raw.hdf5',
-        'data/final_pressure/F_freestreamp_SU_production.hdf5',
-        'data/final_pressure/G_wallp_SU_raw.hdf5',
-        'data/final_pressure/G_wallp_SU_production.hdf5',
+        cfg.NKD_RAW_FILE,
+        cfg.NKD_PROCESSED_FILE,
+        cfg.PH_RAW_FILE,
+        cfg.PH_PROCESSED_FILE,
         # "/home/masseyj/Downloads/D_shear_SU_production_test.hdf5"
         
     ]

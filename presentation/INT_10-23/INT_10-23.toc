@@ -1,2 +1,0 @@
-\beamer@sectionintoc {1}{Raw Data}{5}{0}{1}
-\beamer@sectionintoc {2}{Refit microphones}{9}{0}{2}

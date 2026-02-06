@@ -1,3 +1,8 @@
+"""
+File 1: 
+"""
+
+
 import h5py
 import numpy as np
 from scipy.signal import welch, csd, get_window
@@ -21,14 +26,18 @@ plt.rc("text", usetex=True)
 plt.rc("text.latex", preamble=r"\usepackage{mathpazo}")
 
 from src.plot.models import channel_model, bl_model
+from src.save.config_params import Config
+
+# Load the config parameters (file paths, constants, etc.) from a central location to ensure consistency
+cfg = Config()
 
 ############################
 # Constants & defaults
 ############################
-FS = 50_000.0
-NPERSEG = 2**12
-WINDOW = "hann"
-TRIM_CAL_SECS = 5  # seconds trimmed from the start of calibration runs (0 to disable)
+FS = cfg.FS
+NPERSEG = cfg.NPERSEG
+WINDOW = cfg.WINDOW
+TRIM_CAL_SECS = cfg.TRIM_CAL_SECS  # seconds trimmed from the start of calibration runs (0 to disable)
 
 nc_colour = '#1f77b4'  # matplotlib default blue
 ph1_colour = "#c76713"  # matplotlib default orange
@@ -36,13 +45,19 @@ ph2_colour = "#9fda16"  # matplotlib default red
 nkd_colour = '#2ca02c' # matplotlib default green
 
 # --- constants (keep once, top of file) ---
-R = 287.05        # J/kg/K
-PSI_TO_PA = 6_894.76
-P_ATM = 101_325.0
-DELTA = 0.035  # m, bl-height of 'channel'
-TDEG = [18, 20, 22]
+R = cfg.R        # J/kg/K
+PSI_TO_PA = cfg.PSI_TO_PA
+P_ATM = cfg.P_ATM
+DELTA = cfg.DELTA  # m, bl-height of 'channel'
+TDEG = cfg.TDEG
 
-TPLUS_CUT = 10  # picked so that we cut at half the inner peak
+TPLUS_CUT = cfg.TPLUS_CUT  # picked so that we cut at half the inner peak
+
+# Data
+RAW_DIR = cfg.RAW_DIR
+PH_RAW_FILE = cfg.PH_RAW_FILE
+NKD_RAW_FILE = cfg.NKD_PROCESSED_FILE
+FINAL_CLEANED_DIR = cfg.FINAL_CLEANED_DIR
 
 
 def bandpass_filter(data, fs, f_low, f_high, order=4):
@@ -98,33 +113,33 @@ def clean_raw(
 ):
     # --- gas props & scales ---
     rho, mu, nu = air_props_from_gauge(psi_gauge, T_K)
-    Re_tau = u_tau * 0.035 / nu              # if 0.035 m is your half-height
+    Re_tau = u_tau * DELTA / nu              # if DELTA is your half-height
     f_cut  = f_cut_from_Tplus(u_tau, nu)     # matches your scaling
     Tplus_cut = (u_tau**2 / nu) / f_cut      # should equal TPLUS_CUT
 
-    with h5py.File(f'data/final_cleaned/{psi_gauge}psig_cleaned.h5', 'w') as hf:
+    with h5py.File(f"{FINAL_CLEANED_DIR}/{psi_gauge}psig_cleaned.h5", "w") as hf:
         hf.attrs['rho']   = rho
         hf.attrs['mu']    = mu
         hf.attrs['nu']    = nu
         hf.attrs['u_tau'] = u_tau
         hf.attrs['Re_tau']= Re_tau
-        hf.attrs['FS']    = FS
+        hf.attrs['FS']    = cfg.FS
         hf.attrs['f_cut'] = f_cut
         hf.attrs['Tplus_cut'] = Tplus_cut
-        hf.attrs['delta'] = 0.035
+        hf.attrs["delta"] = DELTA
         hf.attrs['psi_gauge'] = psi_gauge
         hf.attrs['T_K']       = T_K
-        hf.attrs['cf_2']      = 2*(u_tau**2)/14.0**2
+        hf.attrs["cf_2"] = 2 * (u_tau**2) / cfg.U_E**2
         spacing = ['close', 'far']
 
         for sp in spacing:
             sgrp = hf.create_group(sp)
             # --- load ---
-            ph_raw = 'data/final_pressure/G_wallp_SU_raw.hdf5'
+            ph_raw = PH_RAW_FILE
             with h5py.File(ph_raw, 'r') as f_raw:
                 ph1 = f_raw[f'wallp_raw/{int(psi_gauge)}psig/{sp}/PH1_Pa'][:]
                 ph2 = f_raw[f'wallp_raw/{int(psi_gauge)}psig/{sp}/PH2_Pa'][:]
-            nkd_raw = 'data/final_pressure/F_freestreamp_SU_production.hdf5'
+            nkd_raw = NKD_RAW_FILE
             with h5py.File(nkd_raw, 'r') as f_nkd:
                 nkd = f_nkd[f'freestream_production/{int(psi_gauge)}psig/{sp}/NC_Pa'][:]
 
@@ -153,13 +168,13 @@ def clean_raw(
             _, P_ph2 = compute_spec(FS, ph2)
             _, P_nkd = compute_spec(FS, nkd)
 
-            # premultiplied, dimensionless: f * Φ_pp / (ρ^2 u_τ^4)
+            # premultiplied, dimensionless: f * phi_pp / (rho^2 * u_tau^4)
             prem = lambda Pf: (f * Pf) / (rho**2 * u_tau**4)
 
-            # --- optional plotting (mirrors your style) ---
+            # --- optional plotting checks ---
             if plot_flag:
                 T_plus = (u_tau**2 / nu) / f
-                g1, g2, rv   = bl_model(T_plus, Re_tau, 2*(u_tau**2)/14.0**2)
+                g1, g2, rv   = bl_model(T_plus, Re_tau, 2 * (u_tau**2) / cfg.U_E**2)
                 g1c,g2c,rv_c = channel_model(T_plus, Re_tau, u_tau, 14)
 
                 fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
@@ -201,27 +216,31 @@ def clean_raw(
 
 
 def run_all_final():
+    psigs = cfg.PSIGS
+    u_tau = cfg.U_TAU
+    Tdeg = cfg.TDEG
+
     # --- ATM ---
     clean_raw(
-        psi_gauge=0,
-        T_K=273.15 + TDEG[0],
-        u_tau=0.537,
+        psi_gauge=psigs[0],
+        T_K=273.15 + Tdeg[0],
+        u_tau=u_tau[0],
         plot_flag=False
     )
 
     # --- 50 psig ---
     clean_raw(
-        psi_gauge=50,
-        T_K=273.15 + TDEG[1],
-        u_tau=0.522,
+        psi_gauge=psigs[1],
+        T_K=273.15 + Tdeg[1],
+        u_tau=u_tau[1],
         plot_flag=False
     )
 
     # --- 100 psig ---
     clean_raw(
-        psi_gauge=100,
-        T_K=273.15 + TDEG[2],
-        u_tau=0.506,
+        psi_gauge=psigs[2],
+        T_K=273.15 + Tdeg[2],
+        u_tau=u_tau[2],
         plot_flag=False
     )
 

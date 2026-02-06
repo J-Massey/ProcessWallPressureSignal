@@ -8,38 +8,35 @@ import scipy.io as sio
 from icecream import ic
 from pathlib import Path
 
+from src.save.config_params import Config
+
+# Load the config parameters (file paths, constants, etc.) from a central location to ensure consistency
+cfg = Config()
+
 # =============================================================================
 # Constants & styling (exported so tf_plot.py can import them)
 # =============================================================================
-FS: float = 50_000.0
-NPERSEG: int = 2**12
-WINDOW: str = "hann"
+FS = cfg.FS
+NPERSEG = cfg.NPERSEG
+WINDOW = cfg.WINDOW
 
 # --- constants (keep once, top of file) ---
-R = 287.05        # J/kg/K
-PSI_TO_PA = 6_894.76
-P_ATM = 101_325.0
-DELTA = 0.035  # m, bl-height of 'channel'
-TDEG = [18, 20, 22]
+R = cfg.R
+PSI_TO_PA = cfg.PSI_TO_PA
+P_ATM = cfg.P_ATM
+DELTA = cfg.DELTA
+TDEG = cfg.TDEG
 
 # =============================================================================
 # Units & optional conversions (kept for compatibility with other workflows)
 # =============================================================================
-
-
-SENSITIVITIES_V_PER_PA: dict[str, float] = {
-    'PH1': 50.9e-3,
-    'PH2': 51.7e-3,
-    'NC': 52.4e-3,
-    'nkd': 50.9e-3,
-}
-
-PREAMP_GAIN: dict[str, float] = {"nc": 1.0, "PH1": 1.0, "PH2": 1.0, "NC": 1.0}
-TONAL_BASE = "data/2025-10-28/tonal/"
-CAL_BASE = "data/final_calibration/"
-TARGET_BASE = "data/final_target/"
-CLEANED_BASE = "data/final_cleaned/"
-RAW_BASE = "data/20251031/"
+SENSITIVITIES_V_PER_PA = cfg.SENSITIVITIES_V_PER_PA
+PREAMP_GAIN = cfg.PREAMP_GAIN
+TONAL_BASE = cfg.TONAL_BASE
+CAL_BASE = cfg.CAL_BASE
+TARGET_BASE = cfg.TARGET_BASE
+CLEANED_BASE = cfg.CLEANED_BASE
+RAW_BASE = cfg.RAW_BASE
 
 def correct_pressure_sensitivity(p, psig, alpha: float = 0.01):
     """
@@ -70,18 +67,18 @@ def air_props_from_gauge(psi_gauge: float, T_K: float):
 
 
 def save_raw_fs_pressure():
-    labels = ['0psig', '50psig', '100psig']
-    psigs  = [0.0, 50.0, 100.0]
-    u_tau  = [0.537, 0.522, 0.506]
-    u_tau_unc = [0.2, 0.1, 0.05]
-    Tdeg = [18, 20, 22]
-    Tk   = [273.15 + t for t in Tdeg]
-    FS = 50_000.0
-    Ue = 14.0
+    labels = cfg.LABELS
+    psigs = cfg.PSIGS
+    u_tau = cfg.U_TAU
+    u_tau_unc = cfg.U_TAU_REL_UNC
+    Tdeg = cfg.TDEG
+    Tk = [273.15 + t for t in Tdeg]
+    FS = cfg.FS
+    Ue = cfg.U_E
     # sensor_serial = [123]  # example
-    analog_LP_filter = [2100, 4700, 14100]
+    analog_LP_filter = cfg.ANALOG_LP_FILTER
 
-    fs_raw = "data/final_pressure/F_freestreamp_SU_raw.hdf5"
+    fs_raw = cfg.NKD_RAW_FILE
 
     with h5py.File(fs_raw, 'w') as hf:
         # --- file-level metadata ---
@@ -144,7 +141,7 @@ def save_raw_fs_pressure():
             gF.create_dataset('NC_Pa',  data=NC_far)
 
             # --- load simultaneous semi-anechoic calibration data & store ---
-            base = Path("data/20250930")
+            base = Path(cfg.SEMI_ANECHOIC_BASE)
             m1 = sio.loadmat(base / f"{L}/nkd-ns_nofacilitynoise.mat")
             if L == '100psig':
                 nkd_cal, nc_cal = m1["channelData_nofacitynoise"].T
@@ -165,7 +162,7 @@ def save_raw_fs_pressure():
 
 if __name__ == "__main__":
     save_raw_fs_pressure()
-    with h5py.File('data/final_pressure/F_freestreamp_SU_raw.hdf5', 'r') as hf:
+    with h5py.File(cfg.NKD_RAW_FILE, "r") as hf:
         print(hf.keys())
         print(hf['freestream_raw'].attrs.keys())
         print(hf['freestream_raw']['0psig'].attrs.keys())

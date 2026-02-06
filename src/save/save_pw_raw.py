@@ -1,4 +1,6 @@
-# tf_compute.py
+"""
+File GRP1: Transform the raw pressure signals from V to Pa, correct for sensitivity changes with pressure, and save the raw arrays in a structured HDF5 file with metadata. Also include the calibration runs mapping the pinhole mic to the nosecone mic.
+"""
 from __future__ import annotations
 
 import numpy as np
@@ -8,40 +10,34 @@ import scipy.io as sio
 from icecream import ic
 from pathlib import Path
 
-from src.apply_frf import apply_frf
+from src.save.config_params import Config
+
+# Load the config parameters (file paths, constants, etc.) from a central location to ensure consistency
+cfg = Config()
 
 # =============================================================================
 # Constants & styling (exported so tf_plot.py can import them)
 # =============================================================================
-FS: float = 50_000.0
-NPERSEG: int = 2**12
-WINDOW: str = "hann"
+FS = cfg.FS
+NPERSEG = cfg.NPERSEG
+WINDOW = cfg.WINDOW
 
 # --- constants (keep once, top of file) ---
-R = 287.05        # J/kg/K
-PSI_TO_PA = 6_894.76
-P_ATM = 101_325.0
-DELTA = 0.035  # m, bl-height of 'channel'
-TDEG = [18, 20, 22]
+R = cfg.R
+PSI_TO_PA = cfg.PSI_TO_PA
+P_ATM = cfg.P_ATM
+DELTA = cfg.DELTA
+TDEG = cfg.TDEG
 
 # =============================================================================
 # Units & optional conversions (kept for compatibility with other workflows)
 # =============================================================================
-
-
-SENSITIVITIES_V_PER_PA: dict[str, float] = {
-    'PH1': 50.9e-3,
-    'PH2': 51.7e-3,
-    'NC': 52.4e-3,
-    'nkd': 50.9e-3,
-}
-
-PREAMP_GAIN: dict[str, float] = {"nc": 1.0, "PH1": 1.0, "PH2": 1.0, "NC": 1.0}
-TONAL_BASE = "data/2025-10-28/tonal/"
-CAL_BASE = "data/final_calibration/"
-TARGET_BASE = "data/final_target/"
-CLEANED_BASE = "data/final_cleaned/"
-RAW_BASE = "data/20251031/"
+SENSITIVITIES_V_PER_PA = cfg.SENSITIVITIES_V_PER_PA
+PREAMP_GAIN = cfg.PREAMP_GAIN
+CAL_BASE = cfg.CAL_BASE
+TARGET_BASE = cfg.TARGET_BASE
+CLEANED_BASE = cfg.CLEANED_BASE
+RAW_BASE = cfg.RAW_BASE
 
 def correct_pressure_sensitivity(p, psig, alpha: float = 0.01):
     """
@@ -72,17 +68,17 @@ def air_props_from_gauge(psi_gauge: float, T_K: float):
 
 
 def save_raw_ph_pressure():
-    labels = ['0psig', '50psig', '100psig']
-    psigs  = [0.0, 50.0, 100.0]
-    u_tau  = [0.537, 0.522, 0.506]
-    u_tau_unc = [0.2, 0.1, 0.05]
-    Tdeg = [18, 20, 22]
-    Tk   = [273.15 + t for t in Tdeg]
-    FS = 50_000.0
-    Ue = 14.0
-    analog_LP_filter = [2100, 4700, 14100]
+    labels = cfg.LABELS
+    psigs = cfg.PSIGS
+    u_tau = cfg.U_TAU
+    u_tau_unc = cfg.U_TAU_REL_UNC
+    Tdeg = cfg.TDEG
+    Tk = [273.15 + t for t in Tdeg]
+    FS = cfg.FS
+    Ue = cfg.U_E
+    analog_LP_filter = cfg.ANALOG_LP_FILTER
 
-    ph_raw = 'data/final_pressure/G_wallp_SU_raw.hdf5'
+    ph_raw = cfg.PH_RAW_FILE
 
     with h5py.File(ph_raw, 'w') as hf:
         # --- file-level metadata ---
@@ -122,8 +118,8 @@ def save_raw_ph_pressure():
             gL.attrs['units'] = ['psig: psi(g)', 'u_tau: m/s', 'nu: m^2/s', 'rho: kg/m^3', 'mu: Pa·s', 'T_K: K', 'analog_LP_filter_Hz: Hz']
 
             # ---- load raw (.mat) ----
-            nr_mat = Path(RAW_BASE) / f'far/{L}.mat'
-            fr_mat = Path(RAW_BASE) / f'close/{L}.mat'
+            nr_mat = Path(RAW_BASE) / f"far/{L}.mat"
+            fr_mat = Path(RAW_BASE) / f"close/{L}.mat"
 
             dat_far  = sio.loadmat(nr_mat)
             dat_close = sio.loadmat(fr_mat)   # <- fix the typo: not nr_mat again
@@ -160,7 +156,7 @@ def save_raw_ph_pressure():
             gF.create_dataset('PH2_Pa', data=ph2_far)
 
             # ---- run 1: PH1→NC
-            m1 = sio.loadmat(CAL_BASE + f"calib_{L}_1.mat")
+            m1 = sio.loadmat(f"{CAL_BASE}/calib_{L}_1.mat")
             ph1_v, _, nc_v, *_ = m1["channelData_WN"].T
             ph1_pa = volts_to_pa(ph1_v, "PH1")
             nc1_pa = volts_to_pa(nc_v,  "NC")
@@ -169,7 +165,7 @@ def save_raw_ph_pressure():
             nc1_pa =  correct_pressure_sensitivity(nc1_pa,  psigs[i]) # x=PH1, y=NC  ⇒ H:=H_{PH→NC}
 
             # ---- run 2: PH2→NC
-            m2 = sio.loadmat(CAL_BASE + f"calib_{L}_2.mat")
+            m2 = sio.loadmat(f"{CAL_BASE}/calib_{L}_2.mat")
             _, ph2_v, nc_v2, *_ = m2["channelData_WN"].T
             ph2_pa = volts_to_pa(ph2_v, "PH2")
             nc2_pa = volts_to_pa(nc_v2,  "NC")
