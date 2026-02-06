@@ -17,11 +17,11 @@ def wiener_cancel_background_torch(
     return_noise_estimate=False,
 ):
     """
-    GPU-accelerated Wiener noise-cancelling filter (Appendix A, eqs. A5–A8; Gibeau & Ghaemi, 2021).
+    GPU-accelerated Wiener noise-cancelling filter (Appendix A, eqs. A5-A8; Gibeau & Ghaemi, 2021).
 
     Solves (A6) for FIR coefficients c using the autocorrelation of the noise microphone (pn)
     and the cross-correlation between p0 and pn, then estimates p̂_b = c * pn and returns
-    p̂ = p0 − p̂_b (A8→A5). Correlations use unbiased normalization.
+    p̂ = p0 - p̂_b (A8→A5). Correlations use unbiased normalization.
 
     Parameters
     ----------

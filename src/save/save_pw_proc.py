@@ -10,7 +10,7 @@ from pathlib import Path
 
 from src.apply_frf import apply_frf
 from src.wiener_filter_torch import wiener_cancel_background, cancel_background_freq, wiener_cancel_hybrid
-from src.save.config_params import Config
+from src.config_params import Config
 
 cfg = Config()
 
@@ -35,7 +35,7 @@ TDEG = cfg.TDEG
 SENSITIVITIES_V_PER_PA = cfg.SENSITIVITIES_V_PER_PA
 PREAMP_GAIN = cfg.PREAMP_GAIN
 TONAL_BASE = cfg.TONAL_BASE
-CAL_BASE = cfg.CAL_BASE
+CAL_BASE = cfg.TF_BASE
 TARGET_BASE = cfg.TARGET_BASE
 CLEANED_BASE = cfg.CLEANED_BASE
 RAW_BASE = cfg.RAW_BASE
@@ -122,10 +122,10 @@ def save_corrected_pressure():
                 ph1_raw_close = f_raw[f'wallp_raw/{L}/close/PH1_Pa'][:]
                 ph2_raw_close = f_raw[f'wallp_raw/{L}/close/PH2_Pa'][:]
 
-            with h5py.File(f"{CAL_BASE}/calibs_{int(psigs[i])}.h5", "r") as hf:
+            with h5py.File(f"{CAL_BASE}/PH/calibs_{int(psigs[i])}.h5", "r") as hf:
                 f_cal = np.asarray(hf["frequencies"][:], float)
                 H_cal = np.asarray(hf["H_fused"][:], complex)
-            with h5py.File(f"{cfg.SEMI_ANECHOIC_BASE}/calibs_{int(psigs[i])}.h5", "r") as hf:
+            with h5py.File(f"{CAL_BASE}/NC/calibs_{int(psigs[i])}.h5", "r") as hf:
                 f_cal_nkd = hf['frequencies'][:].squeeze().astype(float)
                 H_fused_nkd = hf['H_fused'][:].squeeze().astype(complex)
 

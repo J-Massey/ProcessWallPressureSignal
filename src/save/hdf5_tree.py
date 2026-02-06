@@ -59,7 +59,7 @@ def h5_tree(filename, *, show_attrs=False, max_depth=None, file_mode="r") -> str
 
 if __name__ == "__main__":
     import os
-    from src.save.config_params import Config
+    from src.config_params import Config
 
     cfg = Config()
     fps = [

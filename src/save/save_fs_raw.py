@@ -8,7 +8,7 @@ import scipy.io as sio
 from icecream import ic
 from pathlib import Path
 
-from src.save.config_params import Config
+from src.config_params import Config
 
 # Load the config parameters (file paths, constants, etc.) from a central location to ensure consistency
 cfg = Config()
@@ -33,7 +33,6 @@ TDEG = cfg.TDEG
 SENSITIVITIES_V_PER_PA = cfg.SENSITIVITIES_V_PER_PA
 PREAMP_GAIN = cfg.PREAMP_GAIN
 TONAL_BASE = cfg.TONAL_BASE
-CAL_BASE = cfg.CAL_BASE
 TARGET_BASE = cfg.TARGET_BASE
 CLEANED_BASE = cfg.CLEANED_BASE
 RAW_BASE = cfg.RAW_BASE
@@ -141,7 +140,7 @@ def save_raw_fs_pressure():
             gF.create_dataset('NC_Pa',  data=NC_far)
 
             # --- load simultaneous semi-anechoic calibration data & store ---
-            base = Path(cfg.SEMI_ANECHOIC_BASE)
+            base = Path(cfg.RAW_CAL_BASE) / "NC"
             m1 = sio.loadmat(base / f"{L}/nkd-ns_nofacilitynoise.mat")
             if L == '100psig':
                 nkd_cal, nc_cal = m1["channelData_nofacitynoise"].T

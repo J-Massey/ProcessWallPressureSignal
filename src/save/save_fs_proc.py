@@ -9,7 +9,7 @@ from icecream import ic
 from pathlib import Path
 
 from src.apply_frf import apply_frf
-from src.save.config_params import Config
+from src.config_params import Config
 
 cfg = Config()
 
@@ -135,7 +135,7 @@ def save_prod_fs_pressure():
             NC_close  = correct_pressure_sensitivity(volts_to_pa(NC_close_V, 'NC'), psigs[i])
 
             # --- load simultaneous semi-anechoic calibration data & store ---
-            with h5py.File(f"{cfg.SEMI_ANECHOIC_BASE}/calibs_{int(psigs[i])}.h5", "r") as hf:
+            with h5py.File(f"{cfg.TF_BASE}/NC/calibs_{int(psigs[i])}.h5", "r") as hf:
                 f_cal_nkd = hf['frequencies'][:].squeeze().astype(float)
                 H_fused_nkd = hf['H_fused'][:].squeeze().astype(complex)
             

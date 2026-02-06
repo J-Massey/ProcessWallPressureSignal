@@ -26,7 +26,7 @@ plt.rc("text", usetex=True)
 plt.rc("text.latex", preamble=r"\usepackage{mathpazo}")
 
 from src.plot.models import channel_model, bl_model
-from src.save.config_params import Config
+from src.config_params import Config
 
 # Load the config parameters (file paths, constants, etc.) from a central location to ensure consistency
 cfg = Config()

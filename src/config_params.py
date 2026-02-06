@@ -25,23 +25,24 @@ class Config:
     TPLUS_CUT: float = 10.0  # picked so that we cut at half the inner peak
 
     # --- Data paths ---
-    RAW_DIR: str = "data/final_pressure/wallp_raw"
+    ROOT_DIR: str = "data/phase1"
     CALIB_DIR: str = field(init=False)
     TARGET_DIR: str = field(init=False)
     CLEANED_DIR: str = field(init=False)
 
-    CAL_BASE: str = "data/final_calibration"
-    TARGET_BASE: str = "data/final_target"
-    CLEANED_BASE: str = "data/final_cleaned"
-    RAW_BASE: str = "data/20251031"
-    TONAL_BASE: str = "data/2025-10-28/tonal"
-    SEMI_ANECHOIC_BASE: str = "data/20250930"
-    FINAL_PRESSURE_DIR: str = "data/final_pressure"
-    FINAL_CLEANED_DIR: str = "data/final_cleaned"
-    PH_RAW_FILE: str = "data/final_pressure/G_wallp_SU_raw.hdf5"
-    PH_PROCESSED_FILE: str = "data/final_pressure/G_wallp_SU_production.hdf5"
-    NKD_RAW_FILE: str = "data/final_pressure/F_freestreamp_SU_raw.hdf5"
-    NKD_PROCESSED_FILE: str = "data/final_pressure/F_freestreamp_SU_production.hdf5"
+    RAW_CAL_BASE: str = f"{ROOT_DIR}/raw_calib"
+    TARGET_BASE: str = f"{ROOT_DIR}/target"
+    CLEANED_BASE: str = f"{ROOT_DIR}/cleaned"
+    RAW_BASE: str = f"{ROOT_DIR}/raw_wallp"
+    
+    # --- Output paths ---
+    TF_BASE: str = f"{ROOT_DIR}/calibration"
+    FINAL_PRESSURE_DIR: str = f"{ROOT_DIR}/pressure"
+    FINAL_CLEANED_DIR: str = f"{ROOT_DIR}/cleaned"
+    PH_RAW_FILE: str = f"{ROOT_DIR}/pressure/G_wallp_SU_raw.hdf5"
+    PH_PROCESSED_FILE: str = f"{ROOT_DIR}/pressure/G_wallp_SU_production.hdf5"
+    NKD_RAW_FILE: str = f"{ROOT_DIR}/pressure/F_freestreamp_SU_raw.hdf5"
+    NKD_PROCESSED_FILE: str = f"{ROOT_DIR}/pressure/F_freestreamp_SU_production.hdf5"
 
     # --- Experiment/run metadata defaults ---
     LABELS: tuple[str, str, str] = ("0psig", "50psig", "100psig")
@@ -50,6 +51,7 @@ class Config:
     U_TAU_REL_UNC: tuple[float, float, float] = (0.2, 0.1, 0.05)
     U_E: float = 14.0
     ANALOG_LP_FILTER: tuple[int, int, int] = (2100, 4700, 14100)
+    F_CUTS: tuple[float, float, float] = (1200.0, 4000.0, 10000.0)  # per-label anti-alias lowpass in Hz
 
     # --- Sensor constants ---
     SENSITIVITIES_V_PER_PA: dict[str, float] = field(
@@ -65,6 +67,8 @@ class Config:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "CALIB_DIR", f"{self.RAW_DIR}/calib")
-        object.__setattr__(self, "TARGET_DIR", f"{self.RAW_DIR}/target")
-        object.__setattr__(self, "CLEANED_DIR", f"{self.RAW_DIR}/cleaned")
+        object.__setattr__(self, "CALIB_DIR", f"{self.RAW_CAL_BASE}/calib")
+        object.__setattr__(self, "TARGET_DIR", f"{self.TARGET_BASE}/target")
+        object.__setattr__(self, "CLEANED_DIR", f"{self.CLEANED_BASE}/cleaned")
+
+    

@@ -1,7 +1,7 @@
 """
 File GRP1: Transform the raw pressure signals from V to Pa, correct for sensitivity changes with pressure, and save the raw arrays in a structured HDF5 file with metadata. Also include the calibration runs mapping the pinhole mic to the nosecone mic.
 """
-from __future__ import annotations
+import os
 
 import numpy as np
 import h5py
@@ -10,7 +10,7 @@ import scipy.io as sio
 from icecream import ic
 from pathlib import Path
 
-from src.save.config_params import Config
+from src.config_params import Config
 
 # Load the config parameters (file paths, constants, etc.) from a central location to ensure consistency
 cfg = Config()
@@ -34,10 +34,14 @@ TDEG = cfg.TDEG
 # =============================================================================
 SENSITIVITIES_V_PER_PA = cfg.SENSITIVITIES_V_PER_PA
 PREAMP_GAIN = cfg.PREAMP_GAIN
-CAL_BASE = cfg.CAL_BASE
+CAL_BASE = Path(cfg.RAW_CAL_BASE) / "PH"
+os.makedirs(CAL_BASE, exist_ok=True)
 TARGET_BASE = cfg.TARGET_BASE
+os.makedirs(Path(TARGET_BASE), exist_ok=True)
 CLEANED_BASE = cfg.CLEANED_BASE
+os.makedirs(Path(CLEANED_BASE), exist_ok=True)
 RAW_BASE = cfg.RAW_BASE
+os.makedirs(Path(RAW_BASE), exist_ok=True)
 
 def correct_pressure_sensitivity(p, psig, alpha: float = 0.01):
     """
@@ -79,6 +83,7 @@ def save_raw_ph_pressure():
     analog_LP_filter = cfg.ANALOG_LP_FILTER
 
     ph_raw = cfg.PH_RAW_FILE
+    os.makedirs(Path(ph_raw).parent, exist_ok=True)
 
     with h5py.File(ph_raw, 'w') as hf:
         # --- file-level metadata ---
@@ -156,7 +161,7 @@ def save_raw_ph_pressure():
             gF.create_dataset('PH2_Pa', data=ph2_far)
 
             # ---- run 1: PH1→NC
-            m1 = sio.loadmat(f"{CAL_BASE}/calib_{L}_1.mat")
+            m1 = sio.loadmat(CAL_BASE / f"calib_{L}_1.mat")
             ph1_v, _, nc_v, *_ = m1["channelData_WN"].T
             ph1_pa = volts_to_pa(ph1_v, "PH1")
             nc1_pa = volts_to_pa(nc_v,  "NC")
@@ -165,7 +170,7 @@ def save_raw_ph_pressure():
             nc1_pa =  correct_pressure_sensitivity(nc1_pa,  psigs[i]) # x=PH1, y=NC  ⇒ H:=H_{PH→NC}
 
             # ---- run 2: PH2→NC
-            m2 = sio.loadmat(f"{CAL_BASE}/calib_{L}_2.mat")
+            m2 = sio.loadmat(CAL_BASE / f"calib_{L}_2.mat")
             _, ph2_v, nc_v2, *_ = m2["channelData_WN"].T
             ph2_pa = volts_to_pa(ph2_v, "PH2")
             nc2_pa = volts_to_pa(nc_v2,  "NC")
