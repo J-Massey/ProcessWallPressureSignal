@@ -28,7 +28,6 @@ class Config:
     ROOT_DIR: str = "data/phase1"
     CALIB_DIR: str = field(init=False)
     TARGET_DIR: str = field(init=False)
-    CLEANED_DIR: str = field(init=False)
 
     RAW_CAL_BASE: str = f"{ROOT_DIR}/raw_calib"
     TARGET_BASE: str = f"{ROOT_DIR}/target"
@@ -68,6 +67,5 @@ class Config:
     def __post_init__(self) -> None:
         object.__setattr__(self, "CALIB_DIR", f"{self.RAW_CAL_BASE}/calib")
         object.__setattr__(self, "TARGET_DIR", f"{self.TARGET_BASE}/target")
-        object.__setattr__(self, "CLEANED_DIR", f"{self.CLEANED_BASE}/cleaned")
 
     
