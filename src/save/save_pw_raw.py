@@ -38,8 +38,6 @@ CAL_BASE = Path(cfg.RAW_CAL_BASE) / "PH"
 os.makedirs(CAL_BASE, exist_ok=True)
 TARGET_BASE = cfg.TARGET_BASE
 os.makedirs(Path(TARGET_BASE), exist_ok=True)
-CLEANED_BASE = cfg.CLEANED_BASE
-os.makedirs(Path(CLEANED_BASE), exist_ok=True)
 RAW_BASE = cfg.RAW_BASE
 os.makedirs(Path(RAW_BASE), exist_ok=True)
 

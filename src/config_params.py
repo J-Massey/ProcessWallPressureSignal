@@ -32,13 +32,12 @@ class Config:
 
     RAW_CAL_BASE: str = f"{ROOT_DIR}/raw_calib"
     TARGET_BASE: str = f"{ROOT_DIR}/target"
-    CLEANED_BASE: str = f"{ROOT_DIR}/cleaned"
     RAW_BASE: str = f"{ROOT_DIR}/raw_wallp"
+
     
     # --- Output paths ---
     TF_BASE: str = f"{ROOT_DIR}/calibration"
     FINAL_PRESSURE_DIR: str = f"{ROOT_DIR}/pressure"
-    FINAL_CLEANED_DIR: str = f"{ROOT_DIR}/cleaned"
     PH_RAW_FILE: str = f"{ROOT_DIR}/pressure/G_wallp_SU_raw.hdf5"
     PH_PROCESSED_FILE: str = f"{ROOT_DIR}/pressure/G_wallp_SU_production.hdf5"
     NKD_RAW_FILE: str = f"{ROOT_DIR}/pressure/F_freestreamp_SU_raw.hdf5"

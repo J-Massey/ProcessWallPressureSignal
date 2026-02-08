@@ -8,8 +8,8 @@ from scipy.signal import butter, sosfiltfilt
 from icecream import ic
 from pathlib import Path
 
-from src.apply_frf import apply_frf
-from src.wiener_filter_torch import wiener_cancel_background, cancel_background_freq, wiener_cancel_hybrid
+from src.core.apply_frf import apply_frf
+from src.core.wiener_filter_torch import wiener_cancel_background, cancel_background_freq, wiener_cancel_hybrid
 from src.config_params import Config
 
 cfg = Config()
@@ -34,10 +34,8 @@ TDEG = cfg.TDEG
 
 SENSITIVITIES_V_PER_PA = cfg.SENSITIVITIES_V_PER_PA
 PREAMP_GAIN = cfg.PREAMP_GAIN
-TONAL_BASE = cfg.TONAL_BASE
 CAL_BASE = cfg.TF_BASE
 TARGET_BASE = cfg.TARGET_BASE
-CLEANED_BASE = cfg.CLEANED_BASE
 RAW_BASE = cfg.RAW_BASE
 
 

@@ -32,9 +32,7 @@ TDEG = cfg.TDEG
 # =============================================================================
 SENSITIVITIES_V_PER_PA = cfg.SENSITIVITIES_V_PER_PA
 PREAMP_GAIN = cfg.PREAMP_GAIN
-TONAL_BASE = cfg.TONAL_BASE
 TARGET_BASE = cfg.TARGET_BASE
-CLEANED_BASE = cfg.CLEANED_BASE
 RAW_BASE = cfg.RAW_BASE
 
 def correct_pressure_sensitivity(p, psig, alpha: float = 0.01):

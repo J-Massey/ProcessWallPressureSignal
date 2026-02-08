@@ -1,13 +1,5 @@
-fps = [
-        'data/final_pressure/F_freestreamp_SU_raw.hdf5',
-        'data/final_pressure/F_freestreamp_SU_production.hdf5',
-        'data/final_pressure/G_wallp_SU_raw.hdf5',
-        'data/final_pressure/G_wallp_SU_production.hdf5',
-        
-    ]
+from pathlib import Path
 
-
-import os
 import h5py
 import numpy as np
 import matplotlib.pyplot as plt
@@ -17,6 +9,9 @@ from matplotlib.colors import to_rgba
 from matplotlib.lines import Line2D
 from icecream import ic
 
+from src.config_params import Config
+
+cfg = Config()
 
 plt.style.use(["science", "grid"])
 plt.rcParams["font.size"] = 10.5
@@ -24,14 +19,15 @@ plt.rc("text", usetex=True)
 plt.rc("text.latex", preamble=r"\usepackage{mathpazo}")
 
 # -------------------- constants --------------------
-FS = 50_000.0
+FS = cfg.FS
 NPERSEG = 2**12          # keep one value for all runs
-WINDOW  = "hann"
-PSI_TO_PA = 6_894.76
+WINDOW  = cfg.WINDOW
 
 LABELS = ("0psig", "50psig", "100psig")
 PSIGS  = (0.0, 50.0, 100.0)
 COLOURS = ("#1e8ad8", "#ff7f0e", "#26bd26")  # hex equivalents of C0, C1, C2
+FIG_DIR = Path("figures") / "from_data"
+FIG_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def compute_spec(x: np.ndarray, fs: float = FS, nperseg: int = NPERSEG):
@@ -88,7 +84,7 @@ def plot_model_comparison_roi():
     fig, axs = plt.subplots(1, 3, figsize=(8, 3), tight_layout=True,
                             sharex=True, sharey=True)
 
-    with h5py.File(fps[3], "r") as hf:
+    with h5py.File(cfg.PH_PROCESSED_FILE, "r") as hf:
         g_fs = hf["wallp_production"]
         # fall back to global FS if attribute is missing
         fs = float(hf.attrs.get("fs_Hz", FS))
@@ -222,7 +218,7 @@ def plot_model_comparison_roi():
                   loc='upper center', fontsize=8)
 
 
-    plt.savefig("figures/from_data/G_wallp_SU_production.png", dpi=600)
+    plt.savefig(FIG_DIR / "G_wallp_SU_production.png", dpi=600)
 
 if __name__ == "__main__":
     plot_model_comparison_roi()

@@ -15,7 +15,11 @@ from scipy.signal import butter, sosfiltfilt
 import torch
 from tqdm import tqdm
 
-from src.wiener_filter_torch import wiener_cancel_background_torch, cancel_background_freq, wiener_cancel_hybrid
+from src.core.wiener_filter_torch import (
+    wiener_cancel_background_torch,
+    cancel_background_freq,
+    wiener_cancel_hybrid,
+)
 
 from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
@@ -54,10 +58,11 @@ TDEG = cfg.TDEG
 TPLUS_CUT = cfg.TPLUS_CUT  # picked so that we cut at half the inner peak
 
 # Data
-RAW_DIR = cfg.RAW_DIR
 PH_RAW_FILE = cfg.PH_RAW_FILE
 NKD_RAW_FILE = cfg.NKD_PROCESSED_FILE
 FINAL_CLEANED_DIR = cfg.FINAL_CLEANED_DIR
+FIG_DIR = Path("figures") / "final"
+FIG_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def bandpass_filter(data, fs, f_low, f_high, order=4):
@@ -149,15 +154,6 @@ def clean_raw(
             nkd -= np.mean(nkd)
 
             # --- apply a band pass filter between 0.1 Hz and f_cut ---
-            from scipy.signal import butter, sosfiltfilt
-            def bandpass_filter(data, fs, f_low, f_high, order=3):
-                sos = butter(order, [f_low, f_high], btype='band', fs=fs, output='sos')
-                filtered = sosfiltfilt(sos, data)
-                # protect against NaNs and negatives
-                filtered = np.nan_to_num(filtered, nan=0.0)
-                # filtered[filtered < 0] = 0
-                return filtered
-            
             ph1 = bandpass_filter(ph1, FS, 1, f_cut)
             ph2 = bandpass_filter(ph2, FS, 1, f_cut)
             nkd = bandpass_filter(nkd, FS, 1, f_cut)
@@ -175,7 +171,7 @@ def clean_raw(
             if plot_flag:
                 T_plus = (u_tau**2 / nu) / f
                 g1, g2, rv   = bl_model(T_plus, Re_tau, 2 * (u_tau**2) / cfg.U_E**2)
-                g1c,g2c,rv_c = channel_model(T_plus, Re_tau, u_tau, 14)
+                g1c, g2c, rv_c = channel_model(T_plus, Re_tau, u_tau, cfg.U_E)
 
                 fig, ax = plt.subplots(1, 2, figsize=(8, 2.8), sharey=True, tight_layout=True)
                 fig.suptitle(str(psi_gauge) + fr"psig $\delta^+ \approx$  ({Re_tau:.0f})")
@@ -200,7 +196,7 @@ def clean_raw(
                 ax[1].set_xlabel("$T^+$")
 
                 ax[0].legend(); ax[1].legend()
-                out_png = f'figures/final/{psi_gauge}psig.png'
+                out_png = FIG_DIR / f"{psi_gauge}psig.png"
                 fig.savefig(out_png, dpi=410)
 
             # --- Wiener clean, save HDF5 with consistent metadata ---

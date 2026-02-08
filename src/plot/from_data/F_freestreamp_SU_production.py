@@ -1,13 +1,5 @@
-fps = [
-        'data/final_pressure/F_freestreamp_SU_raw.hdf5',
-        'data/final_pressure/F_freestreamp_SU_production.hdf5',
-        'data/final_pressure/G_wallp_SU_raw.hdf5',
-        'data/final_pressure/G_wallp_SU_production.hdf5',
-        
-    ]
+from pathlib import Path
 
-
-import os
 import h5py
 import numpy as np
 import matplotlib.pyplot as plt
@@ -15,20 +7,25 @@ from scipy.signal import welch, get_window
 import scienceplots
 from icecream import ic
 
+from src.config_params import Config
+
+cfg = Config()
+
 plt.style.use(["science", "grid"])
 plt.rcParams["font.size"] = 10.5
 plt.rc("text", usetex=True)
 plt.rc("text.latex", preamble=r"\usepackage{mathpazo}")
 
 # -------------------- constants --------------------
-FS = 50_000.0
+FS = cfg.FS
 NPERSEG = 2**14          # keep one value for all runs
-WINDOW  = "hann"
-PSI_TO_PA = 6_894.76
+WINDOW  = cfg.WINDOW
 
 LABELS = ("0psig", "50psig", "100psig")
 PSIGS  = (0.0, 50.0, 100.0)
 COLOURS = ("#1e8ad8", "#ff7f0e", "#26bd26")  # hex equivalents of C0, C1, C2
+FIG_DIR = Path("figures") / "from_data"
+FIG_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def compute_spec(x: np.ndarray, fs: float = FS, nperseg: int = NPERSEG):
@@ -54,7 +51,7 @@ def plot_fs_raw():
     ax[1].set_xlabel(r"$T^+$")
     ax[0].set_ylabel(r"${f \phi_{pp}}_{\mathrm{prod.}}^+$")
 
-    with h5py.File(fps[1], 'r') as f_raw:
+    with h5py.File(cfg.NKD_PROCESSED_FILE, "r") as f_raw:
         for psig in psigs:
             nc_raw_close = f_raw[f'freestream_production/{psig}/close/NC_Pa'][:]
             nc_raw_far = f_raw[f'freestream_production/{psig}/far/NC_Pa'][:]
@@ -75,7 +72,7 @@ def plot_fs_raw():
     
     ax[0].legend()
     ax[1].legend()
-    plt.savefig("figures/from_data/F_freestreamp_SU_production.png", dpi=600)
+    plt.savefig(FIG_DIR / "F_freestreamp_SU_production.png", dpi=600)
 
 if __name__ == "__main__":
     plot_fs_raw()
