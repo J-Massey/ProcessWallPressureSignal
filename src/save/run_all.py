@@ -19,17 +19,18 @@ def run_all() -> None:
     calibs.save_PH_calibs()
     calibs.save_NC_calibs()
 
-    print("[2a] fs_raw")
-    fs_raw.save_raw_fs_pressure()
-
-    print("[2b] pw_raw")
+    print("[2] pw_raw")
     pw_raw.save_raw_ph_pressure()
 
-    print("[3a] fs_proc")
+    print("[3] fs_raw")
+    fs_raw.save_raw_fs_pressure()
+
+    print("[4a] fs_proc")
     fs_proc.save_prod_fs_pressure()
 
-    print("[3b] pw_proc")
+    print("[4b] pw_proc")
     pw_proc.save_corrected_pressure()
+
 
 
 if __name__ == "__main__":
