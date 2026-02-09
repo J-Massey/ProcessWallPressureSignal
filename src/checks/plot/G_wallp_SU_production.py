@@ -43,6 +43,15 @@ def compute_spec(x: np.ndarray, fs: float = FS, nperseg: int = NPERSEG):
     )
     return f, Pxx
 
+def _get_ue(hf: h5py.File, gL: h5py.Group, idx: int, default: float = 14.0) -> float:
+    if "Ue_m_per_s" in gL.attrs:
+        return float(np.atleast_1d(gL.attrs["Ue_m_per_s"])[0])
+    ue_attr = hf.attrs.get("Ue_m_per_s", default)
+    ue_arr = np.atleast_1d(ue_attr)
+    if ue_arr.size > idx:
+        return float(ue_arr[idx])
+    return float(ue_arr[0])
+
 def bl_model(Tplus, Re_tau: float, cf_2: float) -> np.ndarray:
     A1 = 2.2
     sig1 = 3.9
@@ -88,11 +97,10 @@ def plot_model_comparison_roi():
         g_fs = hf["wallp_production"]
         # fall back to global FS if attribute is missing
         fs = float(hf.attrs.get("fs_Hz", FS))
-        Ue = float(hf.attrs.get("Ue_m_per_s", 14.0))
-
         for i, L in enumerate(labels):
             ax = axs[i]
             gL = g_fs[L]
+            Ue = _get_ue(hf, gL, i)
 
             # scalarise attrs in case h5py gives small arrays
             u_tau = float(np.atleast_1d(gL.attrs["u_tau"])[0])

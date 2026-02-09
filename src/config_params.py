@@ -10,11 +10,20 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class Config:
+    # --- Experiment/run metadata defaults ---
+    ROOT_DIR: str = "data/phase1"
+    LABELS: tuple[str, str, str] = ("0psig", "50psig", "100psig")
+    PSIGS: tuple[float, float, float] = (0.0, 50.0, 100.0)
+    U_TAU: tuple[float, float, float] = (0.537, 0.522, 0.506)
+    U_E: tuple[float, float, float] = (14., 14., 14.)
+    ANALOG_LP_FILTER: tuple[int, int, int] = (2100, 4700, 14100)
+    F_CUTS: tuple[float, float, float] = (1200.0, 4000.0, 10000.0)  # per-label anti-alias lowpass in Hz
+    U_TAU_REL_UNC: tuple[float, float, float] = (0.2, 0.1, 0.05)
+
     # --- Sampling / spectral defaults ---
     FS: float = 50_000.0
     NPERSEG: int = 2**12
     WINDOW: str = "hann"
-    TRIM_CAL_SECS: int = 5
 
     # --- Physical constants ---
     R: float = 287.05        # J/kg/K
@@ -25,31 +34,16 @@ class Config:
     TPLUS_CUT: float = 10.0  # picked so that we cut at half the inner peak
 
     # --- Data paths ---
-    ROOT_DIR: str = "data/phase1"
-    CALIB_DIR: str = field(init=False)
-    TARGET_DIR: str = field(init=False)
-
     RAW_CAL_BASE: str = f"{ROOT_DIR}/raw_calib"
-    TARGET_BASE: str = f"{ROOT_DIR}/target"
     RAW_BASE: str = f"{ROOT_DIR}/raw_wallp"
-
     
     # --- Output paths ---
     TF_BASE: str = f"{ROOT_DIR}/calibration"
-    FINAL_PRESSURE_DIR: str = f"{ROOT_DIR}/pressure"
     PH_RAW_FILE: str = f"{ROOT_DIR}/pressure/G_wallp_SU_raw.hdf5"
     PH_PROCESSED_FILE: str = f"{ROOT_DIR}/pressure/G_wallp_SU_production.hdf5"
     NKD_RAW_FILE: str = f"{ROOT_DIR}/pressure/F_freestreamp_SU_raw.hdf5"
     NKD_PROCESSED_FILE: str = f"{ROOT_DIR}/pressure/F_freestreamp_SU_production.hdf5"
 
-    # --- Experiment/run metadata defaults ---
-    LABELS: tuple[str, str, str] = ("0psig", "50psig", "100psig")
-    PSIGS: tuple[float, float, float] = (0.0, 50.0, 100.0)
-    U_TAU: tuple[float, float, float] = (0.537, 0.522, 0.506)
-    U_TAU_REL_UNC: tuple[float, float, float] = (0.2, 0.1, 0.05)
-    U_E: float = 14.0
-    ANALOG_LP_FILTER: tuple[int, int, int] = (2100, 4700, 14100)
-    F_CUTS: tuple[float, float, float] = (1200.0, 4000.0, 10000.0)  # per-label anti-alias lowpass in Hz
 
     # --- Sensor constants ---
     SENSITIVITIES_V_PER_PA: dict[str, float] = field(
@@ -64,8 +58,6 @@ class Config:
         default_factory=lambda: {"nc": 1.0, "PH1": 1.0, "PH2": 1.0, "NC": 1.0}
     )
 
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "CALIB_DIR", f"{self.RAW_CAL_BASE}/calib")
-        object.__setattr__(self, "TARGET_DIR", f"{self.TARGET_BASE}/target")
+    # No derived fields needed.
 
     

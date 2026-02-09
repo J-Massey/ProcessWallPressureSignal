@@ -35,7 +35,6 @@ TDEG = cfg.TDEG
 SENSITIVITIES_V_PER_PA = cfg.SENSITIVITIES_V_PER_PA
 PREAMP_GAIN = cfg.PREAMP_GAIN
 CAL_BASE = cfg.TF_BASE
-TARGET_BASE = cfg.TARGET_BASE
 RAW_BASE = cfg.RAW_BASE
 
 
@@ -81,7 +80,7 @@ def save_corrected_pressure():
         # --- file-level metadata ---
         hf.attrs['title'] = "Wall-pressure (pin-hole) - processed & FRF from calibration"
         hf.attrs['fs_Hz'] = FS
-        hf.attrs['Ue_m_per_s'] = Ue
+        hf.attrs['Ue_m_per_s'] = np.asarray(Ue, float)
         hf.attrs['DAQ'] = "24-bit"
         hf.attrs['mic_details'] = "HB&K 1/2'' Type 4964"
         # gL.attrs['sensor_serial'] = sensor_serial[i % len(sensor_serial)]
@@ -111,6 +110,7 @@ def save_corrected_pressure():
             gL.attrs['u_tau_rel_unc'] = u_tau_unc[i]
             gL.attrs['T_K'] = Tk[i]
             gL.attrs['analog_LP_filter_Hz'] = analog_LP_filter[i]
+            gL.attrs['Ue_m_per_s'] = float(Ue[i])
             gL.attrs['units'] = ['psig: psi(g)', 'u_tau: m/s', 'nu: m^2/s', 'rho: kg/m^3', 'mu: Pa·s', 'T_K: K', 'analog_LP_filter_Hz: Hz']
             # --- load raw signals ---
             ph_raw = cfg.PH_RAW_FILE
