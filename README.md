@@ -6,6 +6,17 @@ mat files, computes calibration transfer functions, saves raw HDF5 products,
 then applies those transfer functions to produce processed HDF5 outputs. It
 also includes plotting sanity checks.
 
+Install
+-------
+From the repository root:
+```
+python -m pip install -e .
+```
+or:
+```
+python -m pip install .
+```
+
 Usage overview
 --------------
 1) Define the required file structure and raw variable names.
@@ -90,6 +101,17 @@ Edit `src/config_params.py` to set:
  - NKD_RAW_FILE, NKD_PROCESSED_FILE
  - LABELS, PSIGS, U_TAU, U_TAU_REL_UNC, U_E, ANALOG_LP_FILTER, F_CUTS
  - SENSITIVITIES_V_PER_PA
+ - SPACINGS
+ - RUN_NC_CALIBS
+ - INCLUDE_NC_CALIB_RAW
+
+Sarah iso option
+----------------
+If you are using the sarah iso layout where only one spacing is measured and
+the NC calibration is not rerun, set:
+ - SPACINGS to ("close",) or ("far",)
+ - RUN_NC_CALIBS to False
+ - INCLUDE_NC_CALIB_RAW to False
 
 Run the pipeline
 ----------------

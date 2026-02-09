@@ -64,7 +64,10 @@ def air_props_from_gauge(psi_gauge: float, T_K: float):
     return rho, mu, nu
 
 
-def save_prod_fs_pressure():
+def save_prod_fs_pressure(
+    *,
+    spacings: tuple[str, ...] | None = None,
+):
     labels = cfg.LABELS
     psigs = cfg.PSIGS
     u_tau = cfg.U_TAU
@@ -75,6 +78,7 @@ def save_prod_fs_pressure():
     Ue = cfg.U_E
     # sensor_serial = [123]  # example
     analog_LP_filter = cfg.ANALOG_LP_FILTER
+    spacings = cfg.SPACINGS if spacings is None else spacings
 
     fs_raw = cfg.NKD_PROCESSED_FILE
 
@@ -114,47 +118,34 @@ def save_prod_fs_pressure():
             gL.attrs['Ue_m_per_s'] = float(Ue[i])
 
 
-            # ---- load raw (.mat) ----
-            nr_mat = Path(RAW_BASE) / f'far/{L}.mat'
-            fr_mat = Path(RAW_BASE) / f'close/{L}.mat'
-
-            dat_far  = sio.loadmat(nr_mat)
-            dat_close = sio.loadmat(fr_mat)
-
-            # Expect columns: 0=PH1,1=PH2,2=NC  (rename if your files differ)
-            X_far   = np.asarray(dat_far['channelData'])
-            X_close = np.asarray(dat_close['channelData'])
-            NC_far_V       = X_far[:,2]
-            NC_close_V = X_close[:,2]
-
-            # --- convert + pressure sensitivity corrections ---
-            NC_far   = correct_pressure_sensitivity(volts_to_pa(NC_far_V,   'NC'), psigs[i])
-            NC_close  = correct_pressure_sensitivity(volts_to_pa(NC_close_V, 'NC'), psigs[i])
-
-            # --- load simultaneous semi-anechoic calibration data & store ---
             with h5py.File(f"{cfg.TF_BASE}/NC/calibs_{int(psigs[i])}.h5", "r") as hf:
-                f_cal_nkd = hf['frequencies'][:].squeeze().astype(float)
-                H_fused_nkd = hf['H_fused'][:].squeeze().astype(complex)
-            
+                f_cal_nkd = hf["frequencies"][:].squeeze().astype(float)
+                H_fused_nkd = hf["H_fused"][:].squeeze().astype(complex)
 
-            gFRF = gL.create_group('FRF_NC_to_nkd')
-            gFRF.create_dataset('fcal_Hz', data=f_cal_nkd)
-            gFRF.create_dataset('Hcal', data=H_fused_nkd)
-            gFRF.attrs['from'] = 'NC'
-            gFRF.attrs['to']   = 'nkd'
-            gFRF.attrs['note'] = 'Semi-anechoic calibration mapping'
+            gFRF = gL.create_group("FRF_NC_to_nkd")
+            gFRF.create_dataset("fcal_Hz", data=f_cal_nkd)
+            gFRF.create_dataset("Hcal", data=H_fused_nkd)
+            gFRF.attrs["from"] = "NC"
+            gFRF.attrs["to"] = "nkd"
+            gFRF.attrs["note"] = "Semi-anechoic calibration mapping"
 
-            # apply FRF to raw signals
-            NC_far = apply_frf(NC_far, FS, f_cal_nkd, H_fused_nkd)
-            NC_close = apply_frf(NC_close, FS, f_cal_nkd, H_fused_nkd)
+            seen_any = False
+            for sp in spacings:
+                mat_path = Path(RAW_BASE) / f"{sp}/{L}.mat"
+                if not mat_path.exists():
+                    print(f"[skip] missing raw mat file: {mat_path}")
+                    continue
+                dat = sio.loadmat(mat_path)
+                X = np.asarray(dat["channelData"])
+                NC_v = X[:, 2]
+                NC = correct_pressure_sensitivity(volts_to_pa(NC_v, "NC"), psigs[i])
+                NC = apply_frf(NC, FS, f_cal_nkd, H_fused_nkd)
 
-            # --- store corrected arrays
-            # Close
-            gC = gL.create_group('close')
-            gC.create_dataset('NC_Pa',  data=NC_close)
-            # Far
-            gF = gL.create_group('far')
-            gF.create_dataset('NC_Pa',  data=NC_far)
+                gS = gL.create_group(sp)
+                gS.create_dataset("NC_Pa", data=NC)
+                seen_any = True
+            if not seen_any:
+                raise FileNotFoundError(f"No raw files found for {L} in {RAW_BASE}")
 
 if __name__ == "__main__":
     save_prod_fs_pressure()

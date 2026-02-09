@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pressureprocess"
+version = "0.1.0"
+description = "Pressure processing for two microphones"
+readme = "README.md"
+dependencies = [
+  "numpy",
+  "scipy",
+  "matplotlib",
+  "seaborn",
+  "icecream",
+  "scienceplots",
+  "torch",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src", "src.*"]

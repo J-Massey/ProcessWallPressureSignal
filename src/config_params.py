@@ -19,6 +19,9 @@ class Config:
     ANALOG_LP_FILTER: tuple[int, int, int] = (2100, 4700, 14100)
     F_CUTS: tuple[float, float, float] = (1200.0, 4000.0, 10000.0)  # per-label anti-alias lowpass in Hz
     U_TAU_REL_UNC: tuple[float, float, float] = (0.2, 0.1, 0.05)
+    SPACINGS: tuple[str, ...] = ("close", "far")
+    RUN_NC_CALIBS: bool = True
+    INCLUDE_NC_CALIB_RAW: bool = True
 
     # --- Sampling / spectral defaults ---
     FS: float = 50_000.0

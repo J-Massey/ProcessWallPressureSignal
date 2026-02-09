@@ -67,7 +67,10 @@ def air_props_from_gauge(psi_gauge: float, T_K: float):
     return rho, mu, nu
 
 
-def save_raw_ph_pressure():
+def save_raw_ph_pressure(
+    *,
+    spacings: tuple[str, ...] | None = None,
+):
     labels = cfg.LABELS
     psigs = cfg.PSIGS
     u_tau = cfg.U_TAU
@@ -77,6 +80,20 @@ def save_raw_ph_pressure():
     FS = cfg.FS
     Ue = cfg.U_E
     analog_LP_filter = cfg.ANALOG_LP_FILTER
+    spacings = cfg.SPACINGS if spacings is None else spacings
+
+    spacing_meta = {
+        "close": {
+            "spacing_m": 2.8 * DELTA,
+            "x_PH1": 15e-3 + 0.2 * DELTA,
+            "x_PH2": 15e-3 + 0.2 * DELTA + 2.8 * DELTA,
+        },
+        "far": {
+            "spacing_m": 3.2 * DELTA,
+            "x_PH2": 15e-3,
+            "x_PH1": 15e-3 + 3.2 * DELTA,
+        },
+    }
 
     ph_raw = cfg.PH_RAW_FILE
     os.makedirs(Path(ph_raw).parent, exist_ok=True)
@@ -119,43 +136,31 @@ def save_raw_ph_pressure():
             gL.attrs['Ue_m_per_s'] = float(Ue[i])
             gL.attrs['units'] = ['psig: psi(g)', 'u_tau: m/s', 'nu: m^2/s', 'rho: kg/m^3', 'mu: Pa*s', 'T_K: K', 'analog_LP_filter_Hz: Hz']
 
-            # ---- load raw (.mat) ----
-            nr_mat = Path(RAW_BASE) / f"far/{L}.mat"
-            fr_mat = Path(RAW_BASE) / f"close/{L}.mat"
+            seen_any = False
+            for sp in spacings:
+                mat_path = Path(RAW_BASE) / f"{sp}/{L}.mat"
+                if not mat_path.exists():
+                    print(f"[skip] missing raw mat file: {mat_path}")
+                    continue
+                dat = sio.loadmat(mat_path)
+                X = np.asarray(dat["channelData"])
+                ph1_v = X[:, 0]
+                ph2_v = X[:, 1]
 
-            dat_far  = sio.loadmat(nr_mat)
-            dat_close = sio.loadmat(fr_mat)   # fix the typo: not nr_mat again
+                ph1 = correct_pressure_sensitivity(volts_to_pa(ph1_v, "PH1"), psigs[i])
+                ph2 = correct_pressure_sensitivity(volts_to_pa(ph2_v, "PH2"), psigs[i])
 
-            # Expect columns: 0=PH1,1=PH2,2=NC  (rename if your files differ)
-            X_far   = np.asarray(dat_far['channelData'])
-            X_close = np.asarray(dat_close['channelData'])
-            ph1_far_V, ph2_far_V, NC_far_V       = X_far[:,0],  X_far[:,1],  X_far[:,2]
-            ph1_close_V, ph2_close_V, NC_close_V = X_close[:,0],X_close[:,1],X_close[:,2]
-
-            # --- convert + pressure sensitivity corrections (your funcs) ---
-            ph1_far  = correct_pressure_sensitivity(volts_to_pa(ph1_far_V,  'PH1'), psigs[i])
-            ph2_far  = correct_pressure_sensitivity(volts_to_pa(ph2_far_V,  'PH2'), psigs[i])
-
-            ph1_close = correct_pressure_sensitivity(volts_to_pa(ph1_close_V,'PH1'), psigs[i])
-            ph2_close = correct_pressure_sensitivity(volts_to_pa(ph2_close_V,'PH2'), psigs[i])
-
-            # --- store raw arrays (chunked + compressed) ---
-            # Close
-            gC = gL.create_group('close')
-            gC.attrs['spacing_m'] = 2.8*DELTA
-            gC.attrs['x_PH1'] = 15e-3+0.2*DELTA
-            gC.attrs['x_PH2'] = 15e-3+0.2*DELTA + 2.8*DELTA
-            gC.attrs['spacing_m'] = 2.8*DELTA
-            gC.create_dataset('PH1_Pa', data=ph1_close)
-            gC.create_dataset('PH2_Pa', data=ph2_close)
-            
-            # Far
-            gF = gL.create_group('far')
-            gF.attrs['spacing_m'] = 3.2*DELTA
-            gF.attrs['x_PH2'] = 15e-3
-            gF.attrs['x_PH1'] = 15e-3 + 3.2*DELTA
-            gF.create_dataset('PH1_Pa', data=ph1_far)
-            gF.create_dataset('PH2_Pa', data=ph2_far)
+                gS = gL.create_group(sp)
+                meta = spacing_meta.get(sp)
+                if meta:
+                    gS.attrs["spacing_m"] = meta["spacing_m"]
+                    gS.attrs["x_PH1"] = meta["x_PH1"]
+                    gS.attrs["x_PH2"] = meta["x_PH2"]
+                gS.create_dataset("PH1_Pa", data=ph1)
+                gS.create_dataset("PH2_Pa", data=ph2)
+                seen_any = True
+            if not seen_any:
+                raise FileNotFoundError(f"No raw files found for {L} in {RAW_BASE}")
 
             # ---- run 1: PH1 to NC
             m1 = sio.loadmat(CAL_BASE / f"calib_{L}_1.mat")

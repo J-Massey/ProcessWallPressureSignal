@@ -62,7 +62,11 @@ def air_props_from_gauge(psi_gauge: float, T_K: float):
     return rho, mu, nu
 
 
-def save_raw_fs_pressure():
+def save_raw_fs_pressure(
+    *,
+    spacings: tuple[str, ...] | None = None,
+    include_nc_calib: bool | None = None,
+):
     labels = cfg.LABELS
     psigs = cfg.PSIGS
     u_tau = cfg.U_TAU
@@ -73,6 +77,9 @@ def save_raw_fs_pressure():
     Ue = cfg.U_E
     # sensor_serial = [123]  # example
     analog_LP_filter = cfg.ANALOG_LP_FILTER
+
+    spacings = cfg.SPACINGS if spacings is None else spacings
+    include_nc_calib = cfg.INCLUDE_NC_CALIB_RAW if include_nc_calib is None else include_nc_calib
 
     fs_raw = cfg.NKD_RAW_FILE
 
@@ -112,49 +119,43 @@ def save_raw_fs_pressure():
             gL.attrs['Ue_m_per_s'] = float(Ue[i])
 
 
-            # ---- load raw (.mat) ----
-            nr_mat = Path(RAW_BASE) / f'far/{L}.mat'
-            fr_mat = Path(RAW_BASE) / f'close/{L}.mat'
+            seen_any = False
+            for sp in spacings:
+                mat_path = Path(RAW_BASE) / f"{sp}/{L}.mat"
+                if not mat_path.exists():
+                    print(f"[skip] missing raw mat file: {mat_path}")
+                    continue
+                dat = sio.loadmat(mat_path)
+                X = np.asarray(dat["channelData"])
+                NC_v = X[:, 2]
+                NC = correct_pressure_sensitivity(volts_to_pa(NC_v, "NC"), psigs[i])
+                gS = gL.create_group(sp)
+                gS.create_dataset("NC_Pa", data=NC)
+                seen_any = True
+            if not seen_any:
+                raise FileNotFoundError(f"No raw files found for {L} in {RAW_BASE}")
 
-            dat_far  = sio.loadmat(nr_mat)
-            dat_close = sio.loadmat(fr_mat)
+            if include_nc_calib:
+                base = Path(cfg.RAW_CAL_BASE) / "NC"
+                mat_path = base / f"{L}/nkd-ns_nofacilitynoise.mat"
+                if not mat_path.exists():
+                    print(f"[skip] missing NC calib file: {mat_path}")
+                else:
+                    m1 = sio.loadmat(mat_path)
+                    if L == "100psig":
+                        nkd_cal, nc_cal = m1["channelData_nofacitynoise"].T
+                    else:
+                        nkd_cal, nc_cal = m1["channelData"].T
 
-            # Expect columns: 0=PH1,1=PH2,2=NC  (rename if your files differ)
-            X_far   = np.asarray(dat_far['channelData'])
-            X_close = np.asarray(dat_close['channelData'])
-            NC_far_V       = X_far[:,2]
-            NC_close_V = X_close[:,2]
+                    nc_cal = correct_pressure_sensitivity(volts_to_pa(nc_cal, "NC"), psigs[i])
+                    nkd_cal = correct_pressure_sensitivity(volts_to_pa(nkd_cal, "nkd"), psigs[i])
 
-            # --- convert + pressure sensitivity corrections (your funcs) ---
-            NC_far   = correct_pressure_sensitivity(volts_to_pa(NC_far_V,   'NC'), psigs[i])
-            NC_close  = correct_pressure_sensitivity(volts_to_pa(NC_close_V, 'NC'), psigs[i])
-
-            # --- store raw arrays
-            # Close
-            gC = gL.create_group('close')
-            gC.create_dataset('NC_Pa',  data=NC_close)
-            # Far
-            gF = gL.create_group('far')
-            gF.create_dataset('NC_Pa',  data=NC_far)
-
-            # --- load simultaneous semi-anechoic calibration data & store ---
-            base = Path(cfg.RAW_CAL_BASE) / "NC"
-            m1 = sio.loadmat(base / f"{L}/nkd-ns_nofacilitynoise.mat")
-            if L == '100psig':
-                nkd_cal, nc_cal = m1["channelData_nofacitynoise"].T
-            else:
-                nkd_cal, nc_cal = m1["channelData"].T
-
-            nc_cal = correct_pressure_sensitivity(volts_to_pa(nc_cal,   'NC'), psigs[i])
-            nkd_cal = correct_pressure_sensitivity(volts_to_pa(nkd_cal,   'nkd'), psigs[i])
-            
-
-            gFRF = gL.create_group('FRF_NC_to_nkd')
-            gFRF.create_dataset('NC_Pa', data=nc_cal)
-            gFRF.create_dataset('nkd_Pa',    data=nkd_cal)
-            gFRF.attrs['from'] = 'NC'
-            gFRF.attrs['to']   = 'nkd'
-            gFRF.attrs['note'] = 'Semi-anechoic calibration mapping'
+                    gFRF = gL.create_group("FRF_NC_to_nkd")
+                    gFRF.create_dataset("NC_Pa", data=nc_cal)
+                    gFRF.create_dataset("nkd_Pa", data=nkd_cal)
+                    gFRF.attrs["from"] = "NC"
+                    gFRF.attrs["to"] = "nkd"
+                    gFRF.attrs["note"] = "Semi-anechoic calibration mapping"
 
 
 if __name__ == "__main__":
