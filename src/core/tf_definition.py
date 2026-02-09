@@ -65,8 +65,8 @@ def estimate_frf(
     nperseg: int = 2**10,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    H1 frequency response and coherence, **x->y orientation**:
-      SciPy: csd(x,y) = E{ X * conj(Y) }, so H1(x->y) = conj(S_xy) / S_xx
+    H1 frequency response and coherence, **x to y orientation**:
+      SciPy: csd(x,y) = E{ X * conj(Y) }, so H1(x to y) = conj(S_xy) / S_xx
     Returns: (f [Hz], H (complex), gamma2 [0..1])
     """
     x = np.asarray(x, float)

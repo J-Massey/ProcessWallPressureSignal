@@ -10,8 +10,8 @@ def apply_frf(
     zero_dc: bool = True,
 ):
     """
-    Apply a measured FRF H (x→y) to a time series x to synthesise y.
-    This is the forward operation: Y = H · X in the frequency domain.
+    Apply a measured FRF H (x to y) to a time series x to synthesise y.
+    This is the forward operation: Y = H * X in the frequency domain.
     """
     x = np.asarray(x, float)
     if demean:

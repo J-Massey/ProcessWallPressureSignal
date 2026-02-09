@@ -45,7 +45,7 @@ def volts_to_pa(x_volts: np.ndarray, channel: str) -> np.ndarray:
 
 def air_props_from_gauge(psi_gauge: float, T_K: float):
     """
-    Return rho [kg/m^3], mu [Pa·s], nu [m^2/s] from gauge pressure [psi] and temperature [K].
+    Return rho [kg/m^3], mu [Pa*s], nu [m^2/s] from gauge pressure [psi] and temperature [K].
     Sutherland's law for mu; nu = mu/rho.
     """
     p_abs = P_ATM + psi_gauge * PSI_TO_PA
@@ -62,7 +62,7 @@ def save_corrected_pressure():
     Apply the (rho, f)-scaled calibration FRF to measured time series and plot
     pre-multiplied, normalized spectra:  f * Pyy / (rho^2 * u_tau^4).
     """
-    # --- fit rho–f scaling once from your saved target + calibration ---
+    # --- fit rho-f scaling once from your saved target + calibration ---
     labels = cfg.LABELS
     psigs = cfg.PSIGS
     u_tau = cfg.U_TAU
@@ -111,7 +111,7 @@ def save_corrected_pressure():
             gL.attrs['T_K'] = Tk[i]
             gL.attrs['analog_LP_filter_Hz'] = analog_LP_filter[i]
             gL.attrs['Ue_m_per_s'] = float(Ue[i])
-            gL.attrs['units'] = ['psig: psi(g)', 'u_tau: m/s', 'nu: m^2/s', 'rho: kg/m^3', 'mu: Pa·s', 'T_K: K', 'analog_LP_filter_Hz: Hz']
+            gL.attrs['units'] = ['psig: psi(g)', 'u_tau: m/s', 'nu: m^2/s', 'rho: kg/m^3', 'mu: Pa*s', 'T_K: K', 'analog_LP_filter_Hz: Hz']
             # --- load raw signals ---
             ph_raw = cfg.PH_RAW_FILE
             with h5py.File(ph_raw, 'r') as f_raw:
@@ -127,7 +127,7 @@ def save_corrected_pressure():
                 f_cal_nkd = hf['frequencies'][:].squeeze().astype(float)
                 H_fused_nkd = hf['H_fused'][:].squeeze().astype(complex)
 
-            # --- apply FRF with fitted rho–f magnitude scaling ---
+            # --- apply FRF with fitted rho-f magnitude scaling ---
             # (uses your updated apply_frf that accepts scale_fn and rho)
             ph1_filt_far = apply_frf(ph1_raw_far, FS, f_cal, H_cal)
             ph2_filt_far = apply_frf(ph2_raw_far, FS, f_cal, H_cal)

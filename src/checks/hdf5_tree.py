@@ -10,7 +10,7 @@ def h5_tree(filename, *, show_attrs=False, max_depth=None, file_mode="r") -> str
         if not show_attrs or not hasattr(obj, "attrs") or len(obj.attrs) == 0:
             return ""
         keys = list(obj.attrs.keys())
-        return f"  (attrs: {len(keys)} -> {', '.join(map(str, keys[:10]))}{'…' if len(keys) > 10 else ''})"
+        return f"  (attrs: {len(keys)}: {', '.join(map(str, keys[:10]))}{'...' if len(keys) > 10 else ''})"
 
     def _node_line(name, obj, is_group):
         if is_group:
@@ -39,8 +39,8 @@ def h5_tree(filename, *, show_attrs=False, max_depth=None, file_mode="r") -> str
         n = len(items)
         for i, (k, v) in enumerate(items):
             last = (i == n - 1)
-            branch = "└── " if last else "├── "
-            cont   = "    " if last else "│   "
+            branch = "`-- " if last else "|-- "
+            cont   = "    " if last else "|   "
             if isinstance(v, h5py.Group):
                 lines.append(prefix + branch + _node_line(k, v, True))
                 if max_depth is None or depth < max_depth:

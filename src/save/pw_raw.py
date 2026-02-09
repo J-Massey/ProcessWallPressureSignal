@@ -55,7 +55,7 @@ def volts_to_pa(x_volts: np.ndarray, channel: str) -> np.ndarray:
 
 def air_props_from_gauge(psi_gauge: float, T_K: float):
     """
-    Return rho [kg/m^3], mu [Pa·s], nu [m^2/s] from gauge pressure [psi] and temperature [K].
+    Return rho [kg/m^3], mu [Pa*s], nu [m^2/s] from gauge pressure [psi] and temperature [K].
     Sutherland's law for mu; nu = mu/rho.
     """
     p_abs = P_ATM + psi_gauge * PSI_TO_PA
@@ -117,14 +117,14 @@ def save_raw_ph_pressure():
             gL.attrs['T_K'] = Tk[i]
             gL.attrs['analog_LP_filter_Hz'] = analog_LP_filter[i]
             gL.attrs['Ue_m_per_s'] = float(Ue[i])
-            gL.attrs['units'] = ['psig: psi(g)', 'u_tau: m/s', 'nu: m^2/s', 'rho: kg/m^3', 'mu: Pa·s', 'T_K: K', 'analog_LP_filter_Hz: Hz']
+            gL.attrs['units'] = ['psig: psi(g)', 'u_tau: m/s', 'nu: m^2/s', 'rho: kg/m^3', 'mu: Pa*s', 'T_K: K', 'analog_LP_filter_Hz: Hz']
 
             # ---- load raw (.mat) ----
             nr_mat = Path(RAW_BASE) / f"far/{L}.mat"
             fr_mat = Path(RAW_BASE) / f"close/{L}.mat"
 
             dat_far  = sio.loadmat(nr_mat)
-            dat_close = sio.loadmat(fr_mat)   # <- fix the typo: not nr_mat again
+            dat_close = sio.loadmat(fr_mat)   # fix the typo: not nr_mat again
 
             # Expect columns: 0=PH1,1=PH2,2=NC  (rename if your files differ)
             X_far   = np.asarray(dat_far['channelData'])
@@ -157,16 +157,16 @@ def save_raw_ph_pressure():
             gF.create_dataset('PH1_Pa', data=ph1_far)
             gF.create_dataset('PH2_Pa', data=ph2_far)
 
-            # ---- run 1: PH1→NC
+            # ---- run 1: PH1 to NC
             m1 = sio.loadmat(CAL_BASE / f"calib_{L}_1.mat")
             ph1_v, _, nc_v, *_ = m1["channelData_WN"].T
             ph1_pa = volts_to_pa(ph1_v, "PH1")
             nc1_pa = volts_to_pa(nc_v,  "NC")
             # compensate sensor sensitivity vs psig (amplitude gain)
             ph1_pa = correct_pressure_sensitivity(ph1_pa, psigs[i])
-            nc1_pa =  correct_pressure_sensitivity(nc1_pa,  psigs[i]) # x=PH1, y=NC  ⇒ H:=H_{PH→NC}
+            nc1_pa =  correct_pressure_sensitivity(nc1_pa,  psigs[i]) # x=PH1, y=NC, H:=H_{PH_to_NC}
 
-            # ---- run 2: PH2→NC
+            # ---- run 2: PH2 to NC
             m2 = sio.loadmat(CAL_BASE / f"calib_{L}_2.mat")
             _, ph2_v, nc_v2, *_ = m2["channelData_WN"].T
             ph2_pa = volts_to_pa(ph2_v, "PH2")

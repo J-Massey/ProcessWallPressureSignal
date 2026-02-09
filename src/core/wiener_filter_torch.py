@@ -20,24 +20,24 @@ def wiener_cancel_background_torch(
     GPU-accelerated Wiener noise-cancelling filter (Appendix A, eqs. A5-A8; Gibeau & Ghaemi, 2021).
 
     Solves (A6) for FIR coefficients c using the autocorrelation of the noise microphone (pn)
-    and the cross-correlation between p0 and pn, then estimates p̂_b = c * pn and returns
-    p̂ = p0 - p̂_b (A8→A5). Correlations use unbiased normalization.
+    and the cross-correlation between p0 and pn, then estimates p_hat_b = c * pn and returns
+    p_hat = p0 - p_hat_b (A8 to A5). Correlations use unbiased normalization.
 
     Parameters
     ----------
     p0 : 1-D array-like
-        Transfer-function/Helmholtz-corrected wall-pressure signal (paper’s p0).
+        Transfer-function/Helmholtz-corrected wall-pressure signal (paper's p0).
     pn : 1-D array-like
-        Simultaneous free-stream noise microphone signal (paper’s pn).
+        Simultaneous free-stream noise microphone signal (paper's pn).
     filter_order : int
-        FIR order m. The paper reports m ≈ 16,000 based on spectral convergence.
+        FIR order m. The paper reports m approx 16000 based on spectral convergence.
     device : str or torch.device, optional
         Defaults to "cuda" if available else "cpu".
     dtype : torch.dtype
         torch.float32 (fast) or torch.float64 (higher precision).
     solver : {"cg_fft", "cholesky"}
         "cg_fft": Conjugate Gradient with FFT-based Toeplitz mat-vec (recommended for large m).
-        "cholesky": Dense build + Cholesky solve (OK for small m ≲ 4096).
+        "cholesky": Dense build + Cholesky solve (OK for small m <= 4096).
     regularization : float
         Non-negative ridge added to r_pn(0) to improve conditioning.
     cg_tol : float
@@ -47,7 +47,7 @@ def wiener_cancel_background_torch(
     preserve_mean : bool
         If True, re-adds mean(p0) after filtering.
     return_noise_estimate : bool
-        If True, also return the estimated background noise p̂_b.
+        If True, also return the estimated background noise p_hat_b.
 
     Returns
     -------
@@ -58,7 +58,7 @@ def wiener_cancel_background_torch(
 
     References
     ----------
-    Appendix A, eqs. (A5)–(A8) and discussion on pp. 40–41 (filtering & order choice).
+    Appendix A, eqs. (A5)-(A8) and discussion on pp. 40-41 (filtering and order choice).
     """
 
     # ---------- helpers ----------
@@ -190,7 +190,7 @@ def wiener_cancel_background_torch(
                             tol=cg_tol, maxiter=cg_maxiter)
 
 
-    # ---------- estimate noise p̂_b = c * pn  (causal FIR; A8) ----------
+    # ---------- estimate noise p_hat_b = c * pn  (causal FIR; A8) ----------
     # causal "full" convolution truncated to N samples:
     # y[n] = sum_{k=0}^{m-1} c[k] * pn_zm[n-k], so use conv1d with flipped kernel and left padding.
     x = pn_zm.view(1, 1, N)
@@ -198,7 +198,7 @@ def wiener_cancel_background_torch(
     x_pad = F.pad(x, (m - 1, 0))
     pb_hat = F.conv1d(x_pad, w).view(-1)  # length N
 
-    # ---------- cleaned wall pressure p̂ = p0 - p̂_b (A5) ----------
+    # ---------- cleaned wall pressure p_hat = p0 - p_hat_b (A5) ----------
     p_clean = p0_zm - pb_hat
     if preserve_mean:
         p_clean = p_clean + mu_p0
@@ -243,7 +243,7 @@ def cancel_background_freq(
     _, S00 = welch(p0, fs=fs, window=w, nperseg=nperseg, detrend="constant")
     _, S0n = csd(p0, pn, fs=fs, window=w, nperseg=nperseg, detrend="constant")
 
-    # Coherence and simple H1 (noise→wall)
+    # Coherence and simple H1 (noise to wall)
     gamma2 = np.abs(S0n)**2 / (S00 * Snn + eps)
     H = S0n / (Snn + eps)
 
@@ -281,7 +281,7 @@ def wiener_cancel_hybrid(
 ):
     """
     Hybrid Wiener canceller:
-      1) estimate spectral H1 (pn -> p0) with a coherence gate,
+      1) estimate spectral H1 (pn to p0) with a coherence gate,
       2) convert H(f) to a causal FIR of length m via IFFT,
       3) filter pn with that FIR and subtract (leaky) from p0.
 
@@ -308,7 +308,7 @@ def wiener_cancel_hybrid(
     _, S0n = csd(p0, pn, fs=fs, window=w, nperseg=nperseg, detrend="constant")
 
     gamma2 = np.abs(S0n)**2 / (S00 * Snn + eps)
-    H = S0n / (Snn + eps)          # H1: pn -> p0
+    H = S0n / (Snn + eps)          # H1: pn to p0
 
     # gate by coherence
     H[gamma2 < gmin] = 0.0
@@ -358,8 +358,8 @@ def wiener_cancel_background(
     Time-domain Wiener noise canceller (FIR) using Toeplitz + CG + FFT.
 
     Solves R_pn c = r_{p0,pn} for FIR c[k], then
-        p̂_b = c * pn    (noise estimate)
-        p_clean = p0 - alpha * p̂_b
+        p_hat_b = c * pn    (noise estimate)
+        p_clean = p0 - alpha * p_hat_b
 
     Parameters
     ----------
@@ -384,7 +384,7 @@ def wiener_cancel_background(
     preserve_mean : bool
         If True, re-add mean(p0) after filtering.
     return_noise_estimate : bool
-        If True, also return p̂_b.
+        If True, also return p_hat_b.
 
     Returns
     -------
@@ -498,13 +498,13 @@ def wiener_cancel_background(
     ridge = ridge_rel * torch.abs(rpn[0])
     c = _cg_toeplitz_solve(rpn, rp0pn, ridge=float(ridge), tol=cg_tol, maxiter=cg_maxiter)
 
-    # ------------ estimate noise p̂_b = c * pn (causal FIR) ------------
+    # ------------ estimate noise p_hat_b = c * pn (causal FIR) ------------
     x = pn_zm.view(1, 1, N)
     w = torch.flip(c, dims=(0,)).view(1, 1, m)   # conv1d is correlation
     x_pad = F.pad(x, (m - 1, 0))
     pb_hat = F.conv1d(x_pad, w).view(-1)         # length N
 
-    # ------------ cleaned wall pressure p̂ = p0 - alpha * p̂_b ------------
+    # ------------ cleaned wall pressure p_hat = p0 - alpha * p_hat_b ------------
     p_clean = p0_zm - alpha * pb_hat
     if preserve_mean:
         p_clean = p_clean + mu_p0
